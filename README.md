@@ -9,15 +9,19 @@
 </div>
 
 ## Features
+- **Immediate-mode Style API**
+  - Builder pattern for easy configuration
+  - Fluent method chaining
 - **Shape Rendering**
   - Solid-color/textured quads
   - Circles with adjustable segment count
 - **Texture Support**
   - Load from image data
   - Automatic binding
-- **Immediate-mode Style API**
-  - Builder pattern for easy configuration
-  - Fluent method chaining
+- **Input Handling**
+  - Keyboard state tracking (press/held/release)
+  - Mouse position/delta & button states
+  - Group key checks (all/any)
 - **Shaders**
   - Automatic texture fallback
   - Customizable via WGSL
@@ -28,7 +32,7 @@ Get **egor**
 cargo add --git https://github.com/wick3dr0se/egor
 ```
 
-Example: Rendering a window, clearing the surface and drawing a circle with 100 segments
+Example: Creating a window, clearing the surface and drawing a circle with 100 segments
 ```rust
 App::new()
     .run(|gfx| {
@@ -52,7 +56,6 @@ Mobile | Planned
 ## Roadmap
 - Frame rate control
 - Window management (resizing, fullscreen)
-- Input handling (keyboard/mouse/touch)
 - Camera/viewport system
 - Basic audio support
 - Sprite batching
