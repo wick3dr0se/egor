@@ -103,8 +103,30 @@ impl Renderer {
         }
     }
 
+    pub fn screen_width(&self) -> f32 {
+        self.screen_size.width as f32
+    }
+
+    pub fn screen_height(&self) -> f32 {
+        self.screen_size.height as f32
+    }
+
+    pub fn screen_center(&self) -> [f32; 2] {
+        [self.screen_width() / 2.0, self.screen_height() / 2.0]
+    }
+
     pub fn graphics(&mut self) -> Graphics {
         Graphics::new(self)
+    }
+
+    pub fn pixels_to_ndc(&self, point: [f32; 2]) -> [f32; 2] {
+        let (w, h) = (self.screen_width(), self.screen_height());
+        [(point[0] / w) * 2.0 - 1.0, 1.0 - (point[1] / h) * 2.0]
+    }
+
+    pub fn pixels_to_ndc_scale(&self, dimensions: [f32; 2]) -> [f32; 2] {
+        let (w, h) = (self.screen_width(), self.screen_height());
+        [(dimensions[0] / w) * 2.0, (dimensions[1] / h) * 2.0]
     }
 
     pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16], tex_idx: usize) {

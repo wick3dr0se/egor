@@ -23,6 +23,10 @@ impl<'a> Graphics<'a> {
         self.renderer.clear_color = color;
     }
 
+    pub fn screen_size(&self) -> [f32; 2] {
+        [self.renderer.screen_width(), self.renderer.screen_height()]
+    }
+
     pub fn quad(&mut self) -> QuadBuilder {
         QuadBuilder::new(self.renderer)
     }
@@ -43,10 +47,11 @@ pub struct QuadBuilder<'a> {
 
 impl<'a> QuadBuilder<'a> {
     pub fn new(renderer: &'a mut Renderer) -> Self {
+        let [x, y] = renderer.screen_center();
         Self {
             renderer,
-            position: [0.0, 0.0],
-            size: [1.0, 1.0],
+            position: [x, y],
+            size: [32.0, 32.0],
             tex_coords: [[-1.0, -1.0]; 4],
             tex_idx: 0,
             color: Color::WHITE,
@@ -58,8 +63,8 @@ impl<'a> QuadBuilder<'a> {
         self
     }
 
-    pub fn size(mut self, width: f32, height: f32) -> Self {
-        self.size = [width, height];
+    pub fn size(mut self, w: f32, h: f32) -> Self {
+        self.size = [w, h];
         self
     }
 
@@ -75,17 +80,15 @@ impl<'a> QuadBuilder<'a> {
     }
 
     pub fn draw(self) {
-        let [x, y] = self.position;
-        let [w, h] = self.size;
+        let [x, y] = self.renderer.pixels_to_ndc(self.position);
+        let [w, h] = self.renderer.pixels_to_ndc_scale(self.size);
         let color = color_to_f32(self.color);
-
         let vertices = [
-            Vertex::new([x + w, y + h], self.tex_coords[0], color),
-            Vertex::new([x, y + h], self.tex_coords[1], color),
-            Vertex::new([x, y], self.tex_coords[2], color),
-            Vertex::new([x + w, y], self.tex_coords[3], color),
+            Vertex::new([x + w, y], self.tex_coords[0], color),
+            Vertex::new([x, y], self.tex_coords[1], color),
+            Vertex::new([x, y - h], self.tex_coords[2], color),
+            Vertex::new([x + w, y - h], self.tex_coords[3], color),
         ];
-
         let indices = [0, 1, 2, 0, 2, 3];
 
         self.renderer
@@ -103,10 +106,11 @@ pub struct CircleBuilder<'a> {
 
 impl<'a> CircleBuilder<'a> {
     pub fn new(renderer: &'a mut Renderer) -> Self {
+        let [x, y] = renderer.screen_center();
         Self {
             renderer,
-            position: [0.0, 0.0],
-            radius: 0.5,
+            position: [x, y],
+            radius: 32.0,
             segments: 32,
             color: Color::RED,
         }
@@ -133,6 +137,10 @@ impl<'a> CircleBuilder<'a> {
     }
 
     pub fn draw(self) {
+        let [x, y] = self.renderer.pixels_to_ndc(self.position);
+        let radius = self
+            .renderer
+            .pixels_to_ndc_scale([self.radius, self.radius])[0];
         let mut vertices = Vec::with_capacity((self.segments + 1) as usize);
         let mut indices = Vec::with_capacity(self.segments as usize * 3);
         let color = color_to_f32(self.color);
@@ -140,10 +148,7 @@ impl<'a> CircleBuilder<'a> {
         for i in 0..=self.segments {
             let angle = 2.0 * std::f32::consts::PI * (i as f32 / self.segments as f32);
             vertices.push(Vertex::new(
-                [
-                    self.position[0] + self.radius * angle.cos(),
-                    self.position[1] + self.radius * angle.sin(),
-                ],
+                [x + radius * angle.cos(), y + radius * angle.sin()],
                 [-1.0, -1.0],
                 color,
             ));
