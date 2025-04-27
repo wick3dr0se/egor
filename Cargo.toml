@@ -1,0 +1,33 @@
+[package]
+name = "egor"
+version = "0.1.0"
+edition = "2024"
+authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
+description = "A stupid simple 2D graphics engine"
+license = "MIT"
+repository = "https://github.com/wick3dr0se/egor"
+keywords = ["2d", "graphics", "wgpu", "winit"]
+categories = ["graphics", "game-development"]
+
+[features]
+default = []
+webgl = ["wgpu/webgl"]
+
+[dependencies]
+env_logger = "0.11.8"
+log = "0.4.27"
+pollster = "0.4.0"
+wgpu = "25.0.0"
+winit = "0.30.9"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+console_log = "1.0.0"
+web-sys = { version = "0.3.77", features = ["Window", "Performance"] }
+wasm-bindgen-futures = "0.4.50"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
+opt-level = "z"
