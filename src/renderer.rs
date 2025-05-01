@@ -5,68 +5,23 @@ use wgpu::{
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
-use crate::Rc;
+use crate::{Rc, time::FrameTimer};
 
-#[cfg(not(target_arch = "wasm32"))]
-fn now() -> f64 {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs_f64()
-}
-
-#[cfg(target_arch = "wasm32")]
-fn now() -> f64 {
-    web_sys::window().unwrap().performance().unwrap().now()
-}
-
-#[derive(Debug)]
-struct FrameTimer {
-    last_time: f64,
-    frame_count: u32,
-    fps: u32,
-}
-
-impl FrameTimer {
-    fn new() -> Self {
-        Self {
-            last_time: now(),
-            frame_count: 0,
-            fps: 0,
-        }
-    }
-
-    fn update(&mut self) -> u32 {
-        self.frame_count += 1;
-        let current_time = now();
-        if current_time - self.last_time >= 1.0 {
-            self.fps = self.frame_count;
-            self.frame_count = 0;
-            self.last_time = current_time;
-        }
-        self.fps
-    }
-}
-
-#[derive(Debug)]
 pub struct RenderTarget {
     surface: Surface<'static>,
     config: SurfaceConfiguration,
 }
 
-#[derive(Debug)]
 pub struct Gpu {
     device: Device,
     queue: Queue,
 }
 
-#[derive(Debug)]
 pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
-    clear_color: Color,
-    frame_timer: FrameTimer,
+    pub(crate) clear_color: Color,
+    pub(crate) frame_timer: FrameTimer,
 }
 
 impl Renderer {
@@ -75,7 +30,7 @@ impl Renderer {
         let surface = instance.create_surface(window.clone()).unwrap();
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
-                // make find adapter that can present to this surface
+                // force find adapter that can present to this surface
                 compatible_surface: Some(&surface),
                 ..Default::default()
             })
@@ -102,24 +57,17 @@ impl Renderer {
         #[cfg(not(target_arch = "wasm32"))]
         surface.configure(&device, &config);
 
-        let renderer = Renderer {
+        let _ = proxy.send_event(Renderer {
             gpu: Gpu { device, queue },
             target: RenderTarget { surface, config },
             clear_color: Color::BLACK,
             frame_timer: FrameTimer::new(),
-        };
-        proxy.send_event(renderer).unwrap();
-    }
-
-    pub fn clear(&mut self, color: Color) {
-        self.clear_color = color;
-    }
-
-    pub fn fps(&self) -> u32 {
-        self.frame_timer.fps
+        });
     }
 
     pub(crate) fn render_frame(&mut self) {
+        self.frame_timer.update();
+
         let frame = self.target.surface.get_current_texture().unwrap();
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
@@ -139,8 +87,6 @@ impl Renderer {
 
         self.gpu.queue.submit(Some(encoder.finish()));
         frame.present();
-
-        self.frame_timer.update();
     }
 
     pub(crate) fn resize(&mut self, w: u32, h: u32) {
