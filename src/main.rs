@@ -1,6 +1,6 @@
 mod render;
 
-use render::Renderer;
+use render::{Renderer, vertex::Vertex};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -13,13 +13,31 @@ pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
 
-struct App {
+pub struct Context<'a> {
+    render: &'a mut Renderer,
+}
+
+impl<'a> Context<'a> {
+    fn draw_triangle(&mut self, x: f32, y: f32) {
+        let vertices = [
+            Vertex::new([-0.5 + x, -0.5 + y], [1.0, 0.0, 0.0, 1.0]),
+            Vertex::new([0.5 + x, -0.5 + y], [0.0, 1.0, 0.0, 1.0]),
+            Vertex::new([0.0 + x, 0.5 + y], [0.0, 0.0, 1.0, 1.0]),
+        ];
+        let indices = [0, 1, 2];
+
+        self.render.submit_geometry(&vertices, &indices);
+    }
+}
+
+struct App<U> {
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,
     renderer: Option<Renderer>,
+    update: Option<U>,
 }
 
-impl ApplicationHandler<Renderer> for App {
+impl<U: FnMut(&mut Context)> ApplicationHandler<Renderer> for App<U> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
@@ -46,6 +64,10 @@ impl ApplicationHandler<Renderer> for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
+                if let Some(renderer) = self.renderer.as_mut() {
+                    self.update.as_mut().unwrap()(&mut Context { render: renderer });
+                }
+
                 self.renderer.as_ref().map(|r| r.render_frame());
                 self.window.as_ref().unwrap().request_redraw();
             }
@@ -63,21 +85,23 @@ impl ApplicationHandler<Renderer> for App {
     }
 }
 
-impl App {
+impl<U: FnMut(&mut Context)> App<U> {
     fn new() -> Self {
         Self {
             window: None,
             proxy: None,
             renderer: None,
+            update: None,
         }
     }
 
-    fn run(mut self) {
+    fn run(mut self, update: U) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
         let proxy = event_loop.create_proxy();
         self.proxy = Some(proxy);
+        self.update = Some(update);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -103,5 +127,9 @@ impl App {
 }
 
 fn main() {
-    App::new().run();
+    App::new().run(|ctx| {
+        ctx.draw_triangle(-0.5, 0.5);
+        ctx.draw_triangle(0.0, 0.0);
+        ctx.draw_triangle(0.5, -0.5);
+    });
 }

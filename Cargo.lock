@@ -451,6 +451,7 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 name = "egor"
 version = "0.1.0"
 dependencies = [
+ "bytemuck",
  "console_error_panic_hook",
  "console_log",
  "env_logger",

@@ -9,6 +9,7 @@ webgl = ["wgpu/webgl"]
 log = ["dep:log", "dep:env_logger", "dep:console_log", "dep:console_error_panic_hook"]
 
 [dependencies]
+bytemuck = "1.23.0"
 log = { version = "0.4.27", optional = true }
 wgpu = "25.0.0"
 winit = "0.30.10"

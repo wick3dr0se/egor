@@ -1,13 +1,23 @@
+pub mod vertex;
+
+use vertex::Vertex;
 use wgpu::{
-    Device, DeviceDescriptor, Instance, Limits, LoadOp, Operations, PresentMode, Queue,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
-    SurfaceConfiguration,
+    BufferUsages, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
+    Operations, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
+    RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp, Surface,
+    SurfaceConfiguration, VertexState, include_wgsl,
+    util::{BufferInitDescriptor, DeviceExt},
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
 use crate::Rc;
 
 pub use wgpu::Color;
+
+pub struct GeometryBatch {
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u16>,
+}
 
 struct RenderTarget {
     surface: Surface<'static>,
@@ -22,6 +32,8 @@ struct Gpu {
 pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
+    pipeline: RenderPipeline,
+    geometry_batches: Vec<GeometryBatch>,
 }
 
 impl Renderer {
@@ -57,12 +69,38 @@ impl Renderer {
         surface_cfg.present_mode = PresentMode::Fifo;
         surface.configure(&device, &surface_cfg);
 
+        let shader = device.create_shader_module(include_wgsl!("../../shader.wgsl"));
+        let pipeline_layout = device.create_pipeline_layout(&Default::default());
+        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
+            label: None,
+            layout: Some(&pipeline_layout),
+            vertex: VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[Vertex::desc()],
+                compilation_options: Default::default(),
+            },
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            fragment: Some(FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(surface_cfg.format.into())],
+                compilation_options: Default::default(),
+            }),
+            multiview: None,
+            cache: None,
+        });
+
         let _ = proxy.send_event(Renderer {
             gpu: Gpu { device, queue },
             target: RenderTarget {
                 surface,
                 config: surface_cfg,
             },
+            pipeline,
+            geometry_batches: Vec::new(),
         });
     }
 
@@ -71,7 +109,7 @@ impl Renderer {
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
         {
-            let mut _r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+            let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 color_attachments: &[Some(RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
@@ -82,6 +120,25 @@ impl Renderer {
                 })],
                 ..Default::default()
             });
+
+            r_pass.set_pipeline(&self.pipeline);
+
+            for batch in &self.geometry_batches {
+                let vertex_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&batch.vertices),
+                    usage: BufferUsages::VERTEX,
+                });
+                let index_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&batch.indices),
+                    usage: BufferUsages::INDEX,
+                });
+
+                r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
+                r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
+            }
         }
 
         self.gpu.queue.submit(Some(encoder.finish()));
@@ -93,5 +150,12 @@ impl Renderer {
         self.target
             .surface
             .configure(&self.gpu.device, &self.target.config);
+    }
+
+    pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16]) {
+        self.geometry_batches.push(GeometryBatch {
+            vertices: vertices.into(),
+            indices: indices.into(),
+        });
     }
 }
