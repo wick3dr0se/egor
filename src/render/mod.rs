@@ -2,11 +2,10 @@ pub mod vertex;
 
 use vertex::Vertex;
 use wgpu::{
-    BufferUsages, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
+    Buffer, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
     Operations, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
     RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp, Surface,
     SurfaceConfiguration, VertexState, include_wgsl,
-    util::{BufferInitDescriptor, DeviceExt},
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
@@ -14,9 +13,69 @@ use crate::Rc;
 
 pub use wgpu::Color;
 
-pub struct GeometryBatch {
+pub struct RenderBatch {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
+    vertex_buffer: Buffer,
+    index_buffer: Buffer,
+    vertex_capacity: usize,
+    index_capacity: usize,
+}
+
+impl RenderBatch {
+    pub fn new(device: &Device, vertex_cap: usize, idx_cap: usize) -> Self {
+        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Vertex Buffer"),
+            size: (vertex_cap * std::mem::size_of::<Vertex>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: (idx_cap * std::mem::size_of::<u16>()) as u64,
+            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        Self {
+            vertices: Vec::with_capacity(vertex_cap),
+            indices: Vec::with_capacity(idx_cap),
+            vertex_buffer,
+            index_buffer,
+            vertex_capacity: vertex_cap,
+            index_capacity: idx_cap,
+        }
+    }
+
+    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16]) {
+        let base_index = self.vertices.len() as u16;
+        self.vertices.extend_from_slice(vertices);
+        self.indices.extend(indices.iter().map(|i| i + base_index));
+    }
+
+    pub fn upload(&self, queue: &wgpu::Queue) {
+        assert!(
+            self.vertices.len() <= self.vertex_capacity,
+            "Vertex buffer overflow"
+        );
+        assert!(
+            self.indices.len() <= self.index_capacity,
+            "Index buffer overflow"
+        );
+
+        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
+        queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));
+    }
+
+    pub fn clear(&mut self) {
+        self.vertices.clear();
+        self.indices.clear();
+    }
+
+    pub fn index_count(&self) -> u32 {
+        self.indices.len() as u32
+    }
 }
 
 struct RenderTarget {
@@ -33,7 +92,7 @@ pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
     pipeline: RenderPipeline,
-    geometry_batches: Vec<GeometryBatch>,
+    batch: RenderBatch,
 }
 
 impl Renderer {
@@ -94,17 +153,20 @@ impl Renderer {
         });
 
         let _ = proxy.send_event(Renderer {
-            gpu: Gpu { device, queue },
+            gpu: Gpu {
+                device: device.clone(),
+                queue,
+            },
             target: RenderTarget {
                 surface,
                 config: surface_cfg,
             },
             pipeline,
-            geometry_batches: Vec::new(),
+            batch: RenderBatch::new(&device, 1000, 2000),
         });
     }
 
-    pub fn render_frame(&self) {
+    pub fn render_frame(&mut self) {
         let frame = self.target.surface.get_current_texture().unwrap();
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
@@ -123,22 +185,13 @@ impl Renderer {
 
             r_pass.set_pipeline(&self.pipeline);
 
-            for batch in &self.geometry_batches {
-                let vertex_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&batch.vertices),
-                    usage: BufferUsages::VERTEX,
-                });
-                let index_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&batch.indices),
-                    usage: BufferUsages::INDEX,
-                });
+            self.batch.upload(&self.gpu.queue);
 
-                r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
-                r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
-            }
+            r_pass.set_vertex_buffer(0, self.batch.vertex_buffer.slice(..));
+            r_pass.set_index_buffer(self.batch.index_buffer.slice(..), IndexFormat::Uint16);
+            r_pass.draw_indexed(0..self.batch.index_count(), 0, 0..1);
+
+            self.batch.clear();
         }
 
         self.gpu.queue.submit(Some(encoder.finish()));
@@ -153,9 +206,6 @@ impl Renderer {
     }
 
     pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16]) {
-        self.geometry_batches.push(GeometryBatch {
-            vertices: vertices.into(),
-            indices: indices.into(),
-        });
+        self.batch.submit(vertices, indices);
     }
 }

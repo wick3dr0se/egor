@@ -80,7 +80,7 @@ impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
                     self.update.as_mut().unwrap()(&mut Context { render: renderer });
                 }
 
-                self.renderer.as_ref().map(|r| r.render_frame());
+                self.renderer.as_mut().map(|r| r.render_frame());
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::Resized(size) => {
