@@ -13,19 +13,32 @@ pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
 
-pub struct Context<'a> {
+trait UpdateFn: FnMut(&mut Context) + 'static {}
+impl<F: FnMut(&mut Context) + 'static> UpdateFn for F {}
+
+struct Context<'a> {
     render: &'a mut Renderer,
 }
 
 impl<'a> Context<'a> {
-    fn draw_triangle(&mut self, x: f32, y: f32) {
+    fn draw_triangle(&mut self, x: f32, y: f32, w: f32, h: f32) {
         let vertices = [
-            Vertex::new([-0.5 + x, -0.5 + y], [1.0, 0.0, 0.0, 1.0]),
-            Vertex::new([0.5 + x, -0.5 + y], [0.0, 1.0, 0.0, 1.0]),
-            Vertex::new([0.0 + x, 0.5 + y], [0.0, 0.0, 1.0, 1.0]),
+            Vertex::new([-0.5 * w + x, -0.5 * h + y], [1.0, 0.0, 0.0, 1.0]),
+            Vertex::new([0.5 * w + x, -0.5 * h + y], [0.0, 1.0, 0.0, 1.0]),
+            Vertex::new([x, 0.5 * h + y], [0.0, 0.0, 1.0, 1.0]),
         ];
         let indices = [0, 1, 2];
+        self.render.submit_geometry(&vertices, &indices);
+    }
 
+    fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
+        let vertices = [
+            Vertex::new([x, y], [1.0, 0.0, 0.0, 1.0]),
+            Vertex::new([x + w, y], [0.0, 1.0, 0.0, 1.0]),
+            Vertex::new([x + w, y + h], [0.0, 0.0, 1.0, 1.0]),
+            Vertex::new([x, y + h], [1.0, 1.0, 0.0, 1.0]),
+        ];
+        let indices = [0, 1, 2, 2, 3, 0];
         self.render.submit_geometry(&vertices, &indices);
     }
 }
@@ -37,7 +50,7 @@ struct App<U> {
     update: Option<U>,
 }
 
-impl<U: FnMut(&mut Context)> ApplicationHandler<Renderer> for App<U> {
+impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
@@ -50,13 +63,12 @@ impl<U: FnMut(&mut Context)> ApplicationHandler<Renderer> for App<U> {
                 Window::default_attributes()
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
+            self.window = Some(window.clone());
 
             #[cfg(target_arch = "wasm32")]
-            wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window.clone(), proxy));
+            wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window, proxy));
             #[cfg(not(target_arch = "wasm32"))]
-            pollster::block_on(Renderer::create_graphics(window.clone(), proxy));
-
-            self.window = Some(window);
+            pollster::block_on(Renderer::create_graphics(window, proxy));
         }
     }
 
@@ -85,7 +97,7 @@ impl<U: FnMut(&mut Context)> ApplicationHandler<Renderer> for App<U> {
     }
 }
 
-impl<U: FnMut(&mut Context)> App<U> {
+impl<U: UpdateFn> App<U> {
     fn new() -> Self {
         Self {
             window: None,
@@ -128,8 +140,11 @@ impl<U: FnMut(&mut Context)> App<U> {
 
 fn main() {
     App::new().run(|ctx| {
-        ctx.draw_triangle(-0.5, 0.5);
-        ctx.draw_triangle(0.0, 0.0);
-        ctx.draw_triangle(0.5, -0.5);
+        ctx.draw_triangle(-0.5, 0.5, 0.5, 0.5);
+        ctx.draw_triangle(0.5, -0.5, 0.5, 0.5);
+        ctx.draw_triangle(-0.5, -0.5, 0.5, 0.5);
+        ctx.draw_triangle(0.5, 0.5, 0.5, 0.5);
+
+        ctx.draw_rect(-0.5, -0.5, 1.0, 1.0);
     });
 }
