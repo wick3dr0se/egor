@@ -1,11 +1,12 @@
+pub mod context;
 pub mod vertex;
 
 use vertex::Vertex;
 use wgpu::{
-    Buffer, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
-    Operations, PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor,
-    RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp, Surface,
-    SurfaceConfiguration, VertexState, include_wgsl,
+    Buffer, BufferDescriptor, BufferUsages, Device, DeviceDescriptor, FragmentState, IndexFormat,
+    Instance, Limits, LoadOp, Operations, PresentMode, Queue, RenderPassColorAttachment,
+    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp,
+    Surface, SurfaceConfiguration, VertexState, include_wgsl,
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
@@ -24,17 +25,17 @@ pub struct RenderBatch {
 
 impl RenderBatch {
     pub fn new(device: &Device, vertex_cap: usize, idx_cap: usize) -> Self {
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let vertex_buffer = device.create_buffer(&BufferDescriptor {
             label: Some("Vertex Buffer"),
-            size: (vertex_cap * std::mem::size_of::<Vertex>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            size: (vertex_cap * size_of::<Vertex>()) as u64,
+            usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        let index_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
-            size: (idx_cap * std::mem::size_of::<u16>()) as u64,
-            usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
+            size: (idx_cap * size_of::<u16>()) as u64,
+            usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 

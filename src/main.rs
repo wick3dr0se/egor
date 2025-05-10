@@ -1,6 +1,6 @@
 mod render;
 
-use render::{Renderer, vertex::Vertex};
+use render::{Renderer, context::GraphicsContext};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -13,35 +13,8 @@ pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
 
-trait UpdateFn: FnMut(&mut Context) + 'static {}
-impl<F: FnMut(&mut Context) + 'static> UpdateFn for F {}
-
-struct Context<'a> {
-    render: &'a mut Renderer,
-}
-
-impl<'a> Context<'a> {
-    fn draw_triangle(&mut self, x: f32, y: f32, w: f32, h: f32) {
-        let vertices = [
-            Vertex::new([-0.5 * w + x, -0.5 * h + y], [1.0, 0.0, 0.0, 1.0]),
-            Vertex::new([0.5 * w + x, -0.5 * h + y], [0.0, 1.0, 0.0, 1.0]),
-            Vertex::new([x, 0.5 * h + y], [0.0, 0.0, 1.0, 1.0]),
-        ];
-        let indices = [0, 1, 2];
-        self.render.submit_geometry(&vertices, &indices);
-    }
-
-    fn draw_rect(&mut self, x: f32, y: f32, w: f32, h: f32) {
-        let vertices = [
-            Vertex::new([x, y], [1.0, 0.0, 0.0, 1.0]),
-            Vertex::new([x + w, y], [0.0, 1.0, 0.0, 1.0]),
-            Vertex::new([x + w, y + h], [0.0, 0.0, 1.0, 1.0]),
-            Vertex::new([x, y + h], [1.0, 1.0, 0.0, 1.0]),
-        ];
-        let indices = [0, 1, 2, 2, 3, 0];
-        self.render.submit_geometry(&vertices, &indices);
-    }
-}
+trait UpdateFn: FnMut(&mut GraphicsContext) + 'static {}
+impl<F: FnMut(&mut GraphicsContext) + 'static> UpdateFn for F {}
 
 struct App<U> {
     window: Option<Rc<Window>>,
@@ -77,7 +50,7 @@ impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 if let Some(renderer) = self.renderer.as_mut() {
-                    self.update.as_mut().unwrap()(&mut Context { render: renderer });
+                    self.update.as_mut().unwrap()(&mut GraphicsContext { renderer });
                 }
 
                 self.renderer.as_mut().map(|r| r.render_frame());
@@ -139,12 +112,12 @@ impl<U: UpdateFn> App<U> {
 }
 
 fn main() {
-    App::new().run(|ctx| {
-        ctx.draw_triangle(-0.5, 0.5, 0.5, 0.5);
-        ctx.draw_triangle(0.5, -0.5, 0.5, 0.5);
-        ctx.draw_triangle(-0.5, -0.5, 0.5, 0.5);
-        ctx.draw_triangle(0.5, 0.5, 0.5, 0.5);
+    App::new().run(|g| {
+        g.triangle(-0.5, 0.5, 0.5);
+        g.triangle(0.5, -0.5, 0.5);
+        g.triangle(-0.5, -0.5, 0.5);
+        g.triangle(0.5, 0.5, 0.5);
 
-        ctx.draw_rect(-0.5, -0.5, 1.0, 1.0);
+        g.rectangle(-0.5, -0.5, 1.0, 1.0);
     });
 }
