@@ -1,7 +1,7 @@
-mod render;
-
-use render::{Renderer, context::GraphicsContext};
-use wgpu::Color;
+use crate::{
+    Rc,
+    render::{Renderer, context::GraphicsContext},
+};
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -9,15 +9,10 @@ use winit::{
     window::{Window, WindowId},
 };
 
-#[cfg(target_arch = "wasm32")]
-pub type Rc<T> = std::rc::Rc<T>;
-#[cfg(not(target_arch = "wasm32"))]
-pub type Rc<T> = std::sync::Arc<T>;
-
-trait UpdateFn: FnMut(&mut GraphicsContext) + 'static {}
+pub trait UpdateFn: FnMut(&mut GraphicsContext) + 'static {}
 impl<F: FnMut(&mut GraphicsContext) + 'static> UpdateFn for F {}
 
-struct App<U> {
+pub struct App<U> {
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,
     renderer: Option<Renderer>,
@@ -72,7 +67,7 @@ impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
 }
 
 impl<U: UpdateFn> App<U> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             window: None,
             proxy: None,
@@ -81,7 +76,7 @@ impl<U: UpdateFn> App<U> {
         }
     }
 
-    fn run(mut self, update: U) {
+    pub fn run(mut self, update: U) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
@@ -110,18 +105,4 @@ impl<U: UpdateFn> App<U> {
             event_loop.run_app(&mut self).unwrap();
         }
     }
-}
-
-fn main() {
-    App::new().run(|g| {
-        let [cx, cy] = [g.screen_size()[0] / 2.0, g.screen_size()[1] / 2.0];
-        let size = 128.0;
-        let half = size / 2.0;
-
-        g.tri().at(cx - half, cy - half).color(Color::GREEN);
-        g.tri().at(cx + half, cy - half);
-        g.tri().at(cx + half, cy + half).color(Color::GREEN);
-        g.tri().at(cx - half, cy + half);
-        g.rect().at(cx, cy).size(size, size);
-    });
 }
