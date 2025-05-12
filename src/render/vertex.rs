@@ -1,5 +1,7 @@
 use bytemuck::{Pod, Zeroable};
-use wgpu::{BufferAddress, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
+use wgpu::{
+    BufferAddress, Color, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -9,8 +11,16 @@ pub struct Vertex {
 }
 
 impl Vertex {
-    pub fn new(position: [f32; 2], color: [f32; 4]) -> Self {
-        Self { position, color }
+    pub fn new(position: [f32; 2], color: Color) -> Self {
+        Self {
+            position,
+            color: [
+                color.r as f32,
+                color.g as f32,
+                color.b as f32,
+                color.a as f32,
+            ],
+        }
     }
 
     pub fn desc() -> VertexBufferLayout<'static> {

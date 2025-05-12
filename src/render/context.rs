@@ -1,3 +1,5 @@
+use wgpu::Color;
+
 use super::{Renderer, vertex::Vertex};
 
 pub enum Anchor {
@@ -10,6 +12,7 @@ pub struct TriangleBuilder<'a> {
     anchor: Anchor,
     position: [f32; 2],
     size: f32,
+    color: Color,
 }
 
 impl<'a> TriangleBuilder<'a> {
@@ -19,6 +22,7 @@ impl<'a> TriangleBuilder<'a> {
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: 64.0,
+            color: Color::RED,
         }
     }
 
@@ -36,6 +40,11 @@ impl<'a> TriangleBuilder<'a> {
         self.size = size;
         self
     }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
 }
 
 impl<'a> Drop for TriangleBuilder<'a> {
@@ -50,9 +59,9 @@ impl<'a> Drop for TriangleBuilder<'a> {
 
         self.renderer.submit_geometry(
             &[
-                Vertex::new(self.renderer.to_ndc(a[0], a[1]), [1.0, 0.0, 0.0, 1.0]),
-                Vertex::new(self.renderer.to_ndc(b[0], b[1]), [0.0, 1.0, 0.0, 1.0]),
-                Vertex::new(self.renderer.to_ndc(c[0], c[1]), [0.0, 0.0, 1.0, 1.0]),
+                Vertex::new(self.renderer.to_ndc(a[0], a[1]), self.color),
+                Vertex::new(self.renderer.to_ndc(b[0], b[1]), self.color),
+                Vertex::new(self.renderer.to_ndc(c[0], c[1]), self.color),
             ],
             &[0, 1, 2],
         );
@@ -64,6 +73,7 @@ pub struct RectangleBuilder<'a> {
     anchor: Anchor,
     position: [f32; 2],
     size: [f32; 2],
+    color: Color,
 }
 
 impl<'a> RectangleBuilder<'a> {
@@ -73,6 +83,7 @@ impl<'a> RectangleBuilder<'a> {
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: [64.0, 64.0],
+            color: Color::BLUE,
         }
     }
 
@@ -88,6 +99,11 @@ impl<'a> RectangleBuilder<'a> {
 
     pub fn size(mut self, w: f32, h: f32) -> Self {
         self.size = [w, h];
+        self
+    }
+
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
         self
     }
 }
@@ -106,10 +122,10 @@ impl<'a> Drop for RectangleBuilder<'a> {
 
         self.renderer.submit_geometry(
             &[
-                Vertex::new(self.renderer.to_ndc(a, b), [1.0, 0.0, 0.0, 1.0]),
-                Vertex::new(self.renderer.to_ndc(c, b), [0.0, 1.0, 0.0, 1.0]),
-                Vertex::new(self.renderer.to_ndc(c, d), [0.0, 0.0, 1.0, 1.0]),
-                Vertex::new(self.renderer.to_ndc(a, d), [1.0, 1.0, 0.0, 1.0]),
+                Vertex::new(self.renderer.to_ndc(a, b), self.color),
+                Vertex::new(self.renderer.to_ndc(c, b), self.color),
+                Vertex::new(self.renderer.to_ndc(c, d), self.color),
+                Vertex::new(self.renderer.to_ndc(a, d), self.color),
             ],
             &[0, 1, 2, 2, 3, 0],
         );
@@ -127,6 +143,10 @@ impl<'a> GraphicsContext<'a> {
 
     pub fn rect(&mut self) -> RectangleBuilder {
         RectangleBuilder::new(self.renderer)
+    }
+
+    pub fn clear(&mut self, color: Color) {
+        self.renderer.clear(color);
     }
 
     pub fn screen_size(&self) -> [f32; 2] {

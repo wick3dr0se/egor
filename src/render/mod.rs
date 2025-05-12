@@ -106,6 +106,7 @@ pub struct Renderer {
     target: RenderTarget,
     pipeline: RenderPipeline,
     batch: RenderBatch,
+    clear_color: Color,
 }
 
 impl Renderer {
@@ -176,6 +177,7 @@ impl Renderer {
             },
             pipeline,
             batch: RenderBatch::new(&device, 1000, 2000),
+            clear_color: Color::GREEN,
         });
     }
 
@@ -189,7 +191,7 @@ impl Renderer {
                     view: &view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(Color::GREEN),
+                        load: LoadOp::Clear(self.clear_color),
                         store: StoreOp::Store,
                     },
                 })],
@@ -218,6 +220,10 @@ impl Renderer {
         self.target
             .surface
             .configure(&self.gpu.device, &self.target.config);
+    }
+
+    pub fn clear(&mut self, color: Color) {
+        self.clear_color = color;
     }
 
     pub fn screen_width(&self) -> f32 {

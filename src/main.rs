@@ -1,6 +1,7 @@
 mod render;
 
 use render::{Renderer, context::GraphicsContext};
+use wgpu::Color;
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -117,10 +118,12 @@ fn main() {
         let size = 128.0;
         let half = size / 2.0;
 
-        g.tri().at(cx - half, cy - half);
-        g.tri().at(cx + half, cy + half);
-        g.tri().at(cx - half, cy + half);
+        g.clear(Color::BLACK);
+
+        g.tri().at(cx - half, cy - half).color(Color::GREEN);
         g.tri().at(cx + half, cy - half);
+        g.tri().at(cx + half, cy + half).color(Color::GREEN);
+        g.tri().at(cx - half, cy + half);
         g.rect().at(cx, cy).size(size, size);
     });
 }
