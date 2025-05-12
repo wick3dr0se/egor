@@ -117,10 +117,10 @@ fn main() {
         let size = 128.0;
         let half = size / 2.0;
 
-        g.tri().at(cx - half, cy - half).draw();
-        g.tri().at(cx + half, cy + half).draw();
-        g.tri().at(cx - half, cy + half).draw();
-        g.tri().at(cx + half, cy - half).draw();
-        g.rect().at(cx, cy).size(size, size).draw();
+        g.tri().at(cx - half, cy - half);
+        g.tri().at(cx + half, cy + half);
+        g.tri().at(cx - half, cy + half);
+        g.tri().at(cx + half, cy - half);
+        g.rect().at(cx, cy).size(size, size);
     });
 }

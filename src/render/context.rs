@@ -36,8 +36,10 @@ impl<'a> TriangleBuilder<'a> {
         self.size = size;
         self
     }
+}
 
-    pub fn draw(self) {
+impl<'a> Drop for TriangleBuilder<'a> {
+    fn drop(&mut self) {
         let [x, y] = self.position;
         let size = self.size;
         let half = size / 2.0;
@@ -88,8 +90,10 @@ impl<'a> RectangleBuilder<'a> {
         self.size = [w, h];
         self
     }
+}
 
-    pub fn draw(self) {
+impl<'a> Drop for RectangleBuilder<'a> {
+    fn drop(&mut self) {
         let [x, y] = self.position;
         let [w, h] = self.size;
         let (a, b, c, d) = match self.anchor {
