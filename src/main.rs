@@ -118,8 +118,6 @@ fn main() {
         let size = 128.0;
         let half = size / 2.0;
 
-        g.clear(Color::BLACK);
-
         g.tri().at(cx - half, cy - half).color(Color::GREEN);
         g.tri().at(cx + half, cy - half);
         g.tri().at(cx + half, cy + half).color(Color::GREEN);

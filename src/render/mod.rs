@@ -1,4 +1,5 @@
 pub mod context;
+mod primitives;
 pub mod vertex;
 
 use vertex::Vertex;
@@ -57,7 +58,7 @@ impl RenderBatch {
         self.indices.extend(indices.iter().map(|i| i + base_index));
     }
 
-    pub fn upload(&self, queue: &wgpu::Queue) {
+    pub fn upload(&self, queue: &Queue) {
         assert!(
             self.vertices.len() <= self.vertex_capacity,
             "Vertex buffer overflow"
@@ -177,7 +178,7 @@ impl Renderer {
             },
             pipeline,
             batch: RenderBatch::new(&device, 1000, 2000),
-            clear_color: Color::GREEN,
+            clear_color: Color::BLACK,
         });
     }
 
