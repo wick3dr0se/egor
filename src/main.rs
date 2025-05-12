@@ -113,11 +113,14 @@ impl<U: UpdateFn> App<U> {
 
 fn main() {
     App::new().run(|g| {
-        g.triangle(-0.5, 0.5, 0.5);
-        g.triangle(0.5, -0.5, 0.5);
-        g.triangle(-0.5, -0.5, 0.5);
-        g.triangle(0.5, 0.5, 0.5);
+        let [cx, cy] = [g.screen_size()[0] / 2.0, g.screen_size()[1] / 2.0];
+        let size = 128.0;
+        let half = size / 2.0;
 
-        g.rectangle(-0.5, -0.5, 1.0, 1.0);
+        g.tri().at(cx - half, cy - half).draw();
+        g.tri().at(cx + half, cy + half).draw();
+        g.tri().at(cx - half, cy + half).draw();
+        g.tri().at(cx + half, cy - half).draw();
+        g.rect().at(cx, cy).size(size, size).draw();
     });
 }

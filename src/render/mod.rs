@@ -25,13 +25,15 @@ pub struct RenderBatch {
 
 impl RenderBatch {
     pub fn new(device: &Device, vertex_cap: usize, idx_cap: usize) -> Self {
+        let vertex_cap = (vertex_cap + 3) & !3;
+        let idx_cap = (idx_cap + 3) & !3;
+
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
-            label: Some("Vertex Buffer"),
+            label: None,
             size: (vertex_cap * size_of::<Vertex>()) as u64,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-
         let index_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
             size: (idx_cap * size_of::<u16>()) as u64,
@@ -65,8 +67,18 @@ impl RenderBatch {
             "Index buffer overflow"
         );
 
-        queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
-        queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));
+        if !self.vertices.is_empty() {
+            queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
+        }
+
+        // For indices, ensure we have an even number of indices (u16 is 2 bytes, alignment is 4)
+        if !self.indices.is_empty() {
+            let mut indices = self.indices.clone();
+            if indices.len() % 2 != 0 {
+                indices.push(0); // Pad if odd
+            }
+            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&indices));
+        }
     }
 
     pub fn clear(&mut self) {
@@ -186,11 +198,13 @@ impl Renderer {
 
             r_pass.set_pipeline(&self.pipeline);
 
-            self.batch.upload(&self.gpu.queue);
+            if !self.batch.vertices.is_empty() {
+                self.batch.upload(&self.gpu.queue);
 
-            r_pass.set_vertex_buffer(0, self.batch.vertex_buffer.slice(..));
-            r_pass.set_index_buffer(self.batch.index_buffer.slice(..), IndexFormat::Uint16);
-            r_pass.draw_indexed(0..self.batch.index_count(), 0, 0..1);
+                r_pass.set_vertex_buffer(0, self.batch.vertex_buffer.slice(..));
+                r_pass.set_index_buffer(self.batch.index_buffer.slice(..), IndexFormat::Uint16);
+                r_pass.draw_indexed(0..self.batch.index_count(), 0, 0..1);
+            }
 
             self.batch.clear();
         }
@@ -206,7 +220,21 @@ impl Renderer {
             .configure(&self.gpu.device, &self.target.config);
     }
 
+    pub fn screen_width(&self) -> f32 {
+        self.target.config.width as f32
+    }
+
+    pub fn screen_height(&self) -> f32 {
+        self.target.config.height as f32
+    }
+
     pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16]) {
         self.batch.submit(vertices, indices);
+    }
+
+    pub fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
+        let w = self.target.config.width as f32;
+        let h = self.target.config.height as f32;
+        [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
     }
 }
