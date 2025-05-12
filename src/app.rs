@@ -1,5 +1,5 @@
 use crate::{
-    Rc,
+    InitContext, Rc,
     render::{Renderer, context::GraphicsContext},
 };
 use winit::{
@@ -9,19 +9,22 @@ use winit::{
     window::{Window, WindowId},
 };
 
+pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
+impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
 pub trait UpdateFn: FnMut(&mut GraphicsContext) + 'static {}
 impl<F: FnMut(&mut GraphicsContext) + 'static> UpdateFn for F {}
 
-pub struct App<U> {
+pub struct App<I, U> {
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,
     renderer: Option<Renderer>,
+    init: Option<I>,
     update: Option<U>,
 }
 
-impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
+impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(proxy) = self.proxy.take() {
+        if let Some(init) = self.init.take() {
             let win_attrs = {
                 #[cfg(target_arch = "wasm32")]
                 {
@@ -32,8 +35,12 @@ impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
                 Window::default_attributes()
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
+            init(&mut InitContext {
+                window: window.clone(),
+            });
             self.window = Some(window.clone());
 
+            let proxy = self.proxy.take().unwrap();
             #[cfg(target_arch = "wasm32")]
             wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window, proxy));
             #[cfg(not(target_arch = "wasm32"))]
@@ -66,12 +73,13 @@ impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
     }
 }
 
-impl<U: UpdateFn> App<U> {
-    pub fn new() -> Self {
+impl<I: InitFn, U: UpdateFn> App<I, U> {
+    pub fn init(init: I) -> Self {
         Self {
             window: None,
             proxy: None,
             renderer: None,
+            init: Some(init),
             update: None,
         }
     }
