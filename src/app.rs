@@ -1,5 +1,6 @@
 use crate::{
     InitContext, Rc,
+    input::InputContext,
     render::{Renderer, context::GraphicsContext},
 };
 use winit::{
@@ -11,8 +12,8 @@ use winit::{
 
 pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
 impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
-pub trait UpdateFn: FnMut(&mut GraphicsContext) + 'static {}
-impl<F: FnMut(&mut GraphicsContext) + 'static> UpdateFn for F {}
+pub trait UpdateFn: FnMut(&mut GraphicsContext, &mut InputContext) + 'static {}
+impl<F: FnMut(&mut GraphicsContext, &mut InputContext) + 'static> UpdateFn for F {}
 
 pub struct App<I, U> {
     window: Option<Rc<Window>>,
@@ -20,6 +21,7 @@ pub struct App<I, U> {
     renderer: Option<Renderer>,
     init: Option<I>,
     update: Option<U>,
+    input: InputContext,
 }
 
 impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
@@ -49,16 +51,28 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 self.renderer.as_mut().map(|r| {
-                    self.update.as_mut().unwrap()(&mut GraphicsContext { renderer: r });
+                    self.update.as_mut().unwrap()(
+                        &mut GraphicsContext { renderer: r },
+                        &mut self.input,
+                    );
                     r.render_frame();
                 });
-
+                self.input.end_frame();
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::Resized(size) => {
                 self.renderer
                     .as_mut()
                     .map(|r| r.resize(size.width, size.height));
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                self.input.keyboard(event);
+            }
+            WindowEvent::MouseInput { button, state, .. } => {
+                self.input.mouse(button, state);
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                self.input.cursor(position);
             }
             _ => {}
         }
@@ -83,6 +97,7 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             renderer: None,
             init: Some(init),
             update: None,
+            input: InputContext::default(),
         }
     }
 

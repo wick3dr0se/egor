@@ -249,8 +249,7 @@ impl Renderer {
     }
 
     pub fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
-        let w = self.target.config.width as f32;
-        let h = self.target.config.height as f32;
+        let (w, h) = (self.screen_width(), self.screen_width());
         [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
     }
 

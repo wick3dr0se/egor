@@ -1,8 +1,11 @@
 pub mod app;
+pub mod input;
 mod render;
 
-use render::Renderer;
 pub use wgpu::Color;
+pub use winit::keyboard::KeyCode;
+
+use render::Renderer;
 use winit::window::Window;
 
 #[cfg(target_arch = "wasm32")]
