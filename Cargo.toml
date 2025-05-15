@@ -10,6 +10,7 @@ log = ["dep:log", "dep:env_logger", "dep:console_log", "dep:console_error_panic_
 
 [dependencies]
 bytemuck = "1.23.0"
+image = "0.25.6"
 log = { version = "0.4.27", optional = true }
 wgpu = "25.0.0"
 winit = "0.30.10"

@@ -59,11 +59,12 @@ impl<'a> Drop for TriangleBuilder<'a> {
 
         self.renderer.submit_geometry(
             &[
-                Vertex::new(self.renderer.to_ndc(a[0], a[1]), self.color),
-                Vertex::new(self.renderer.to_ndc(b[0], b[1]), self.color),
-                Vertex::new(self.renderer.to_ndc(c[0], c[1]), self.color),
+                Vertex::new(self.renderer.to_ndc(a[0], a[1]), self.color, [-1.0, -1.0]),
+                Vertex::new(self.renderer.to_ndc(b[0], b[1]), self.color, [-1.0, -1.0]),
+                Vertex::new(self.renderer.to_ndc(c[0], c[1]), self.color, [-1.0, -1.0]),
             ],
             &[0, 1, 2],
+            0,
         );
     }
 }
@@ -74,6 +75,8 @@ pub struct RectangleBuilder<'a> {
     position: [f32; 2],
     size: [f32; 2],
     color: Color,
+    tex_coords: [[f32; 2]; 4],
+    tex_idx: usize,
 }
 
 impl<'a> RectangleBuilder<'a> {
@@ -83,7 +86,9 @@ impl<'a> RectangleBuilder<'a> {
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: [64.0, 64.0],
-            color: Color::BLUE,
+            color: Color::WHITE,
+            tex_coords: [[-1.0, -1.0]; 4],
+            tex_idx: 0,
         }
     }
 
@@ -106,6 +111,12 @@ impl<'a> RectangleBuilder<'a> {
         self.color = color;
         self
     }
+
+    pub fn texture(mut self, idx: usize) -> Self {
+        self.tex_idx = idx;
+        self.tex_coords = [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+        self
+    }
 }
 
 impl<'a> Drop for RectangleBuilder<'a> {
@@ -122,12 +133,13 @@ impl<'a> Drop for RectangleBuilder<'a> {
 
         self.renderer.submit_geometry(
             &[
-                Vertex::new(self.renderer.to_ndc(a, b), self.color),
-                Vertex::new(self.renderer.to_ndc(c, b), self.color),
-                Vertex::new(self.renderer.to_ndc(c, d), self.color),
-                Vertex::new(self.renderer.to_ndc(a, d), self.color),
+                Vertex::new(self.renderer.to_ndc(a, b), self.color, self.tex_coords[0]),
+                Vertex::new(self.renderer.to_ndc(c, b), self.color, self.tex_coords[1]),
+                Vertex::new(self.renderer.to_ndc(c, d), self.color, self.tex_coords[2]),
+                Vertex::new(self.renderer.to_ndc(a, d), self.color, self.tex_coords[3]),
             ],
             &[0, 1, 2, 2, 3, 0],
+            self.tex_idx,
         );
     }
 }

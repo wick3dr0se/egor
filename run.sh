@@ -55,7 +55,7 @@ run_native_build() {
     (( useMold )) && type mold && export RUSTFLAGS="-C link-arg=-fuse-ld=mold ${RUSTFLAGS-}"
 
     echo "Compiling native build with rustc flags: ${RUSTFLAGS-}.."
-    cargo run "${flags[@]}"
+    cargo run "${flags[@]}" --example cross_platform
 }
 
 setup_wasm_toolchain() {
@@ -71,7 +71,7 @@ run_wasm_build() {
     setup_wasm_toolchain
     
     echo "Compiling $wasmBuild WebAssembly build with rustc flags: ${RUSTFLAGS-}.."
-    trunk serve "${flags[@]}"
+    trunk serve "${flags[@]}" --example cross_platform
 }
 
 trap cleanup EXIT

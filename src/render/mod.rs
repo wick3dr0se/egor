@@ -1,13 +1,16 @@
 pub mod context;
 mod primitives;
+mod texture;
 pub mod vertex;
 
+use texture::Texture;
 use vertex::Vertex;
 use wgpu::{
-    Buffer, BufferDescriptor, BufferUsages, Device, DeviceDescriptor, FragmentState, IndexFormat,
-    Instance, Limits, LoadOp, Operations, PresentMode, Queue, RenderPassColorAttachment,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp,
-    Surface, SurfaceConfiguration, VertexState, include_wgsl,
+    BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, DeviceDescriptor,
+    FragmentState, IndexFormat, Instance, Limits, LoadOp, Operations, PipelineLayoutDescriptor,
+    PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
+    RenderPipelineDescriptor, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
+    VertexState, include_wgsl,
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
@@ -18,6 +21,7 @@ pub use wgpu::Color;
 pub struct RenderBatch {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
+    pub texture_index: usize,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
     vertex_capacity: usize,
@@ -26,9 +30,6 @@ pub struct RenderBatch {
 
 impl RenderBatch {
     pub fn new(device: &Device, vertex_cap: usize, idx_cap: usize) -> Self {
-        let vertex_cap = (vertex_cap + 3) & !3;
-        let idx_cap = (idx_cap + 3) & !3;
-
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
             size: (vertex_cap * size_of::<Vertex>()) as u64,
@@ -45,6 +46,7 @@ impl RenderBatch {
         Self {
             vertices: Vec::with_capacity(vertex_cap),
             indices: Vec::with_capacity(idx_cap),
+            texture_index: 0,
             vertex_buffer,
             index_buffer,
             vertex_capacity: vertex_cap,
@@ -52,10 +54,11 @@ impl RenderBatch {
         }
     }
 
-    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16]) {
-        let base_index = self.vertices.len() as u16;
+    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16], tex_idx: usize) {
+        let idx = self.vertices.len() as u16;
         self.vertices.extend_from_slice(vertices);
-        self.indices.extend(indices.iter().map(|i| i + base_index));
+        self.indices.extend(indices.iter().map(|i| i + idx));
+        self.texture_index = tex_idx;
     }
 
     pub fn upload(&self, queue: &Queue) {
@@ -71,14 +74,8 @@ impl RenderBatch {
         if !self.vertices.is_empty() {
             queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
         }
-
-        // For indices, ensure we have an even number of indices (u16 is 2 bytes, alignment is 4)
         if !self.indices.is_empty() {
-            let mut indices = self.indices.clone();
-            if indices.len() % 2 != 0 {
-                indices.push(0); // Pad if odd
-            }
-            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&indices));
+            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));
         }
     }
 
@@ -108,6 +105,8 @@ pub struct Renderer {
     pipeline: RenderPipeline,
     batch: RenderBatch,
     clear_color: Color,
+    bind_group_layout: BindGroupLayout,
+    textures: Vec<Texture>,
 }
 
 impl Renderer {
@@ -144,7 +143,12 @@ impl Renderer {
         surface.configure(&device, &surface_cfg);
 
         let shader = device.create_shader_module(include_wgsl!("../../shader.wgsl"));
-        let pipeline_layout = device.create_pipeline_layout(&Default::default());
+        let bind_group_layout = Texture::create_bind_group_layout(&device);
+        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: None,
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
         let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
@@ -179,6 +183,8 @@ impl Renderer {
             pipeline,
             batch: RenderBatch::new(&device, 1000, 2000),
             clear_color: Color::BLACK,
+            bind_group_layout,
+            textures: Vec::new(),
         });
     }
 
@@ -201,6 +207,10 @@ impl Renderer {
 
             r_pass.set_pipeline(&self.pipeline);
 
+            if let Some(tex) = self.textures.get(self.batch.texture_index) {
+                r_pass.set_bind_group(0, &tex.bind_group, &[]);
+            }
+
             if !self.batch.vertices.is_empty() {
                 self.batch.upload(&self.gpu.queue);
 
@@ -208,12 +218,11 @@ impl Renderer {
                 r_pass.set_index_buffer(self.batch.index_buffer.slice(..), IndexFormat::Uint16);
                 r_pass.draw_indexed(0..self.batch.index_count(), 0, 0..1);
             }
-
-            self.batch.clear();
         }
 
         self.gpu.queue.submit(Some(encoder.finish()));
         frame.present();
+        self.batch.clear();
     }
 
     pub fn resize(&mut self, w: u32, h: u32) {
@@ -235,13 +244,26 @@ impl Renderer {
         self.target.config.height as f32
     }
 
-    pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16]) {
-        self.batch.submit(vertices, indices);
+    pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16], tex_idx: usize) {
+        self.batch.submit(vertices, indices, tex_idx);
     }
 
     pub fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
         let w = self.target.config.width as f32;
         let h = self.target.config.height as f32;
         [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
+    }
+
+    pub fn add_texture(&mut self, data: &[u8]) -> usize {
+        let texture = Texture::load(
+            &self.gpu.device,
+            &self.gpu.queue,
+            &self.bind_group_layout,
+            data,
+        );
+        let texture_idx = self.textures.len();
+
+        self.textures.push(texture);
+        texture_idx
     }
 }

@@ -1,6 +1,7 @@
 pub mod app;
 mod render;
 
+use render::Renderer;
 pub use wgpu::Color;
 use winit::window::Window;
 
@@ -9,12 +10,17 @@ pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
 
-pub struct InitContext {
+pub struct InitContext<'a> {
     window: Rc<Window>,
+    render: &'a mut Renderer,
 }
 
-impl InitContext {
+impl<'a> InitContext<'a> {
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title);
+    }
+
+    pub fn load_texture(&mut self, data: &[u8]) -> usize {
+        self.render.add_texture(data)
     }
 }

@@ -24,7 +24,7 @@ pub struct App<I, U> {
 
 impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if let Some(init) = self.init.take() {
+        if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
                 #[cfg(target_arch = "wasm32")]
                 {
@@ -35,12 +35,8 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 Window::default_attributes()
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
-            init(&mut InitContext {
-                window: window.clone(),
-            });
             self.window = Some(window.clone());
 
-            let proxy = self.proxy.take().unwrap();
             #[cfg(target_arch = "wasm32")]
             wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window, proxy));
             #[cfg(not(target_arch = "wasm32"))]
@@ -52,11 +48,11 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                if let Some(renderer) = self.renderer.as_mut() {
-                    self.update.as_mut().unwrap()(&mut GraphicsContext { renderer });
-                }
+                self.renderer.as_mut().map(|r| {
+                    self.update.as_mut().unwrap()(&mut GraphicsContext { renderer: r });
+                    r.render_frame();
+                });
 
-                self.renderer.as_mut().map(|r| r.render_frame());
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::Resized(size) => {
@@ -68,8 +64,14 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
         }
     }
 
-    fn user_event(&mut self, _: &ActiveEventLoop, renderer: Renderer) {
-        self.renderer = Some(renderer);
+    fn user_event(&mut self, _: &ActiveEventLoop, mut renderer: Renderer) {
+        if let Some(init) = self.init.take() {
+            init(&mut InitContext {
+                window: self.window.as_ref().unwrap().clone(),
+                render: &mut renderer,
+            });
+            self.renderer = Some(renderer);
+        }
     }
 }
 
@@ -88,8 +90,7 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
-        let proxy = event_loop.create_proxy();
-        self.proxy = Some(proxy);
+        self.proxy = Some(event_loop.create_proxy());
         self.update = Some(update);
 
         #[cfg(target_arch = "wasm32")]
