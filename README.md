@@ -13,6 +13,17 @@ Get **egor**
 cargo add --git https://github.com/wick3dr0se/egor
 ```
 
+## Why Egor?
+- **Stupid Simple** – You can grok the whole engine without diving into a rabbit hole.
+- **Cross-Platform** – Same code runs native and on the web via WASM.
+- **Zero Boilerplate** – Primitives, textures, and input without writing a book
+- **Minimalist by Design** – If it's not required, it’s probably not here.
+
+## Features
+- **Primitives**
+- **Textures**
+- **Input Handling**
+
 ## Platform Support
 Target | Backend(s) | Status
 ---|---|---
@@ -24,14 +35,11 @@ Android | Vulkan, OpenGL ES | ⏳ Future
 iOS | Metal | ⏳ Future
 
 ## Roadmap
-- **Primities**
-- **Textures**
-- **Input Handling**
+- **Camera System**
 - **Text**
 - **Custom Shaders**
 - **Blend Modes**
-- **Camera System**
-- **Immediate UI**
+- **UI**
 
 ## Contributing
 Egor could always use help.. Feel free to open an issue or PR. Contributions are much appreciated!
