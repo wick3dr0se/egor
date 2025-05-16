@@ -5,6 +5,7 @@ flags=()
 verbose=0
 useMold=1
 debug=1
+binTarget=
 memPath=
 buildPath=
 wasmBuild=0
@@ -16,9 +17,10 @@ Usage: $0 [OPTION]... [ARG]...
 Options:
   -h, --help                Show this usage.
   -v, --verbose             Enable verbose output.
+  -b, --bin <TARGET>        Specify a Rust binary target to run (e.g., --bin my_binary).
   -F, --features <FEAT>...  Comma-separated list of features to enable (e.g., -f log,webgl).
-  --wasm                    Build for WebAssembly
-  --mem [DIR]               Use tmpfs (RAM-backed) dir to speed up (incremental) builds by avoiding disk I/O (default: /tmp).
+  -w, --wasm                Build for WebAssembly
+  -m, --mem [DIR]           Use tmpfs (RAM-backed) dir to speed up (incremental) builds by avoiding disk I/O (default: /tmp).
   --no-mold                 Disable mold linker for native builds & fallback to default rustc linker (default: enabled if available)
 
 Arguments:
@@ -55,7 +57,7 @@ run_native_build() {
     (( useMold )) && type mold && export RUSTFLAGS="-C link-arg=-fuse-ld=mold ${RUSTFLAGS-}"
 
     echo "Compiling native build with rustc flags: ${RUSTFLAGS-}.."
-    cargo run "${flags[@]}" --example cross_platform
+    cargo run "${flags[@]}"
 }
 
 setup_wasm_toolchain() {
@@ -71,7 +73,7 @@ run_wasm_build() {
     setup_wasm_toolchain
     
     echo "Compiling $wasmBuild WebAssembly build with rustc flags: ${RUSTFLAGS-}.."
-    trunk serve "${flags[@]}" --example cross_platform
+    trunk serve "${flags[@]}"
 }
 
 trap cleanup EXIT
@@ -81,9 +83,13 @@ while (( $# )); do
         -h|--help) usage;;
         -v|--verbose) verbose=1;;
         r|release) debug=0;;
+        -b|--bin)
+            [[ ${2-} && $2 != -* ]] || panic "You must specify a target to --bin"
+            binTarget="$2"; shift
+        ;;
         -F|--features) [[ ${2-} != -* ]] && shift && flags+=(--features "$1");;
-        --wasm) wasmBuild=1;;
-        --mem) [[ ${2-} && $2 != -* ]] && memPath="$2" && shift; memPath="${memPath:-/tmp}";;
+        -w|--wasm) wasmBuild=1;;
+        -m|--mem) [[ ${2-} && $2 != -* ]] && memPath="$2" && shift; memPath="${memPath:-/tmp}";;
         --no-mold) useMold=0;;
         *) panic "Unknown argument: $1";;
     esac
@@ -91,6 +97,7 @@ while (( $# )); do
 done
 (( verbose )) && set -x && flags+=(--verbose)
 (( debug )) || flags+=(--release)
+[[ $binTarget && -d $binTarget ]] && cd "$binTarget"
 [[ $wasmBuild == webgl ]] && flags+=(--features webgl)
 
 [[ $memPath ]] && link_in_memory "$memPath"

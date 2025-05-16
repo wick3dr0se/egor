@@ -3,6 +3,12 @@ name = "egor"
 version = "0.1.0"
 edition = "2024"
 
+[workspace]
+members = [
+    "demos/cross_platform"
+]
+resolver = "2"
+
 [features]
 default = []
 webgl = ["wgpu/webgl"]

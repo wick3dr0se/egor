@@ -5,7 +5,7 @@ fn main() {
 
     App::init(|ctx| {
         ctx.set_title("Egor");
-        ctx.load_texture(include_bytes!("assets/ghostscript_tiger.png"));
+        ctx.load_texture(include_bytes!("../../assets/ghostscript_tiger.png"));
     })
     .run(move |g, i| {
         let [cx, cy] = [g.screen_size()[0] / 2.0, g.screen_size()[1] / 2.0];
