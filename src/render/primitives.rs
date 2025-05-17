@@ -4,6 +4,22 @@ use crate::camera::Camera;
 
 use super::{Renderer, vertex::Vertex};
 
+fn rotate_and_transform(
+    x: f32,
+    y: f32,
+    cx: f32,
+    cy: f32,
+    angle: f32,
+    renderer: &Renderer,
+    camera: &Camera,
+) -> [f32; 2] {
+    let (dx, dy) = (x - cx, y - cy);
+    let (sin, cos) = angle.sin_cos();
+    let rx = cos * dx - sin * dy + cx;
+    let ry = sin * dx + cos * dy + cy;
+    transform_to(renderer, camera, rx, ry)
+}
+
 fn transform_to(renderer: &Renderer, camera: &Camera, x: f32, y: f32) -> [f32; 2] {
     let (screen_x, screen_y) =
         camera.world_to_screen(x, y, renderer.screen_width(), renderer.screen_height());
@@ -21,6 +37,7 @@ pub struct TriangleBuilder<'a> {
     anchor: Anchor,
     position: [f32; 2],
     size: f32,
+    rotation: f32,
     color: Color,
 }
 
@@ -32,6 +49,7 @@ impl<'a> TriangleBuilder<'a> {
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: 64.0,
+            rotation: 0.0,
             color: Color::RED,
         }
     }
@@ -55,6 +73,11 @@ impl<'a> TriangleBuilder<'a> {
         self.color = color;
         self
     }
+
+    pub fn rotation(mut self, angle: f32) -> Self {
+        self.rotation = angle;
+        self
+    }
 }
 
 impl<'a> Drop for TriangleBuilder<'a> {
@@ -62,32 +85,24 @@ impl<'a> Drop for TriangleBuilder<'a> {
         let [x, y] = self.position;
         let size = self.size;
         let half = size / 2.0;
-        let (a, b, c) = match self.anchor {
-            Anchor::TopLeft => ([x + half, y], [x, y + size], [x + size, y + size]),
-            Anchor::Center => ([x, y - half], [x - half, y + half], [x + half, y + half]),
+
+        let points = match self.anchor {
+            Anchor::TopLeft => [[x + half, y], [x, y + size], [x + size, y + size]],
+            Anchor::Center => [[x, y - half], [x - half, y + half], [x + half, y + half]],
         };
 
-        self.renderer.submit_geometry(
-            &[
+        let verts: Vec<Vertex> = points
+            .iter()
+            .map(|[px, py]| {
                 Vertex::new(
-                    transform_to(self.renderer, self.camera, a[0], a[1]),
+                    transform_to(self.renderer, self.camera, *px, *py),
                     self.color,
                     [-1.0, -1.0],
-                ),
-                Vertex::new(
-                    transform_to(self.renderer, self.camera, b[0], b[1]),
-                    self.color,
-                    [-1.0, -1.0],
-                ),
-                Vertex::new(
-                    transform_to(self.renderer, self.camera, c[0], c[1]),
-                    self.color,
-                    [-1.0, -1.0],
-                ),
-            ],
-            &[0, 1, 2],
-            0,
-        );
+                )
+            })
+            .collect();
+
+        self.renderer.submit_geometry(&verts, &[0, 1, 2], 0);
     }
 }
 
@@ -97,6 +112,7 @@ pub struct RectangleBuilder<'a> {
     anchor: Anchor,
     position: [f32; 2],
     size: [f32; 2],
+    rotation: f32,
     color: Color,
     tex_coords: [[f32; 2]; 4],
     tex_idx: usize,
@@ -110,6 +126,7 @@ impl<'a> RectangleBuilder<'a> {
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: [64.0, 64.0],
+            rotation: 0.0,
             color: Color::WHITE,
             tex_coords: [[-1.0, -1.0]; 4],
             tex_idx: 0,
@@ -136,6 +153,11 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
+    pub fn rotation(mut self, angle: f32) -> Self {
+        self.rotation = angle;
+        self
+    }
+
     pub fn texture(mut self, idx: usize) -> Self {
         self.tex_idx = idx;
         self.tex_coords = [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
@@ -154,32 +176,24 @@ impl<'a> Drop for RectangleBuilder<'a> {
                 (x - hw, y - hh, x + hw, y + hh)
             }
         };
+        let verts = [
+            (a, b, self.tex_coords[0]),
+            (c, b, self.tex_coords[1]),
+            (c, d, self.tex_coords[2]),
+            (a, d, self.tex_coords[3]),
+        ];
+        let vertices: Vec<_> = verts
+            .iter()
+            .map(|&(vx, vy, uv)| {
+                Vertex::new(
+                    rotate_and_transform(vx, vy, x, y, self.rotation, self.renderer, self.camera),
+                    self.color,
+                    uv,
+                )
+            })
+            .collect();
 
-        self.renderer.submit_geometry(
-            &[
-                Vertex::new(
-                    transform_to(self.renderer, self.camera, a, b),
-                    self.color,
-                    self.tex_coords[0],
-                ),
-                Vertex::new(
-                    transform_to(self.renderer, self.camera, c, b),
-                    self.color,
-                    self.tex_coords[1],
-                ),
-                Vertex::new(
-                    transform_to(self.renderer, self.camera, c, d),
-                    self.color,
-                    self.tex_coords[2],
-                ),
-                Vertex::new(
-                    transform_to(self.renderer, self.camera, a, d),
-                    self.color,
-                    self.tex_coords[3],
-                ),
-            ],
-            &[0, 1, 2, 2, 3, 0],
-            self.tex_idx,
-        );
+        self.renderer
+            .submit_geometry(&vertices, &[0, 1, 2, 2, 3, 0], self.tex_idx);
     }
 }
