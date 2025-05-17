@@ -1,8 +1,10 @@
+pub use winit::{event::MouseButton, keyboard::KeyCode};
+
 use std::collections::HashMap;
 use winit::{
     dpi::PhysicalPosition,
-    event::{ElementState, KeyEvent, MouseButton},
-    keyboard::{KeyCode, PhysicalKey},
+    event::{ElementState, KeyEvent},
+    keyboard::PhysicalKey,
 };
 
 #[derive(Default)]
