@@ -5,7 +5,8 @@ edition = "2024"
 
 [workspace]
 members = [
-    "demos/cross_platform"
+    "demos/cross_platform",
+    "demos/shooter"
 ]
 resolver = "2"
 
