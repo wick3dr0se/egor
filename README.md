@@ -7,12 +7,6 @@
 <a href="https://opensourceforce.net/discord"><img src="https://discordapp.com/api/guilds/913584348937207839/widget.png?style=shield"/></a>
 </div>
 
-## Getting Started
-Get **egor**
-```bash
-cargo add --git https://github.com/wick3dr0se/egor
-```
-
 ## Why Egor?
 - **Stupid Simple** – You can grok the whole engine without diving into a rabbit hole.
 - **Cross-Platform** – Same code runs native and on the web via WASM.
@@ -23,6 +17,7 @@ cargo add --git https://github.com/wick3dr0se/egor
 - **Primitives**
 - **Textures**
 - **Input Handling**
+- **Camera System**
 
 ## Platform Support
 Target | Backend(s) | Status
@@ -34,8 +29,13 @@ Web (WASM) | WebGPU, WebGL2 | ✅ Working
 Android | Vulkan, OpenGL ES | ⏳ Future
 iOS | Metal | ⏳ Future
 
+## Getting Started
+Get **egor**
+```bash
+cargo add --git https://github.com/wick3dr0se/egor
+```
+
 ## Roadmap
-- **Camera System**
 - **Text**
 - **Custom Shaders**
 - **Blend Modes**

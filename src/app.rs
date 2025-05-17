@@ -1,7 +1,5 @@
 use crate::{
-    InitContext, Rc,
-    input::InputContext,
-    render::{Renderer, context::GraphicsContext},
+    GraphicsContext, InitContext, Rc, camera::Camera, input::InputContext, render::Renderer,
 };
 use winit::{
     application::ApplicationHandler,
@@ -22,6 +20,7 @@ pub struct App<I, U> {
     init: Option<I>,
     update: Option<U>,
     input: InputContext,
+    camera: Option<Camera>,
 }
 
 impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
@@ -38,6 +37,7 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
+            self.camera = Some(Camera::new());
 
             #[cfg(target_arch = "wasm32")]
             wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window, proxy));
@@ -52,7 +52,10 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             WindowEvent::RedrawRequested => {
                 self.renderer.as_mut().map(|r| {
                     self.update.as_mut().unwrap()(
-                        &mut GraphicsContext { renderer: r },
+                        &mut GraphicsContext {
+                            renderer: r,
+                            camera: self.camera.as_mut().unwrap(),
+                        },
                         &mut self.input,
                     );
                     r.render_frame();
@@ -98,6 +101,7 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             init: Some(init),
             update: None,
             input: InputContext::default(),
+            camera: None,
         }
     }
 

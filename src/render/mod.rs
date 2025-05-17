@@ -1,5 +1,4 @@
-pub mod context;
-mod primitives;
+pub mod primitives;
 mod texture;
 pub mod vertex;
 

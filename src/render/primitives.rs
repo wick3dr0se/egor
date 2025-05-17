@@ -1,6 +1,14 @@
 use wgpu::Color;
 
+use crate::camera::Camera;
+
 use super::{Renderer, vertex::Vertex};
+
+fn transform_to(renderer: &Renderer, camera: &Camera, x: f32, y: f32) -> [f32; 2] {
+    let (screen_x, screen_y) =
+        camera.world_to_screen(x, y, renderer.screen_width(), renderer.screen_height());
+    renderer.to_ndc(screen_x, screen_y)
+}
 
 pub enum Anchor {
     Center,
@@ -9,6 +17,7 @@ pub enum Anchor {
 
 pub struct TriangleBuilder<'a> {
     renderer: &'a mut Renderer,
+    camera: &'a Camera,
     anchor: Anchor,
     position: [f32; 2],
     size: f32,
@@ -16,9 +25,10 @@ pub struct TriangleBuilder<'a> {
 }
 
 impl<'a> TriangleBuilder<'a> {
-    pub fn new(renderer: &'a mut Renderer) -> Self {
+    pub fn new(renderer: &'a mut Renderer, camera: &'a Camera) -> Self {
         Self {
             renderer,
+            camera,
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: 64.0,
@@ -59,9 +69,21 @@ impl<'a> Drop for TriangleBuilder<'a> {
 
         self.renderer.submit_geometry(
             &[
-                Vertex::new(self.renderer.to_ndc(a[0], a[1]), self.color, [-1.0, -1.0]),
-                Vertex::new(self.renderer.to_ndc(b[0], b[1]), self.color, [-1.0, -1.0]),
-                Vertex::new(self.renderer.to_ndc(c[0], c[1]), self.color, [-1.0, -1.0]),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, a[0], a[1]),
+                    self.color,
+                    [-1.0, -1.0],
+                ),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, b[0], b[1]),
+                    self.color,
+                    [-1.0, -1.0],
+                ),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, c[0], c[1]),
+                    self.color,
+                    [-1.0, -1.0],
+                ),
             ],
             &[0, 1, 2],
             0,
@@ -71,6 +93,7 @@ impl<'a> Drop for TriangleBuilder<'a> {
 
 pub struct RectangleBuilder<'a> {
     renderer: &'a mut Renderer,
+    camera: &'a Camera,
     anchor: Anchor,
     position: [f32; 2],
     size: [f32; 2],
@@ -80,9 +103,10 @@ pub struct RectangleBuilder<'a> {
 }
 
 impl<'a> RectangleBuilder<'a> {
-    pub fn new(renderer: &'a mut Renderer) -> Self {
+    pub fn new(renderer: &'a mut Renderer, camera: &'a Camera) -> Self {
         Self {
             renderer,
+            camera,
             anchor: Anchor::Center,
             position: [0.0, 0.0],
             size: [64.0, 64.0],
@@ -133,10 +157,26 @@ impl<'a> Drop for RectangleBuilder<'a> {
 
         self.renderer.submit_geometry(
             &[
-                Vertex::new(self.renderer.to_ndc(a, b), self.color, self.tex_coords[0]),
-                Vertex::new(self.renderer.to_ndc(c, b), self.color, self.tex_coords[1]),
-                Vertex::new(self.renderer.to_ndc(c, d), self.color, self.tex_coords[2]),
-                Vertex::new(self.renderer.to_ndc(a, d), self.color, self.tex_coords[3]),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, a, b),
+                    self.color,
+                    self.tex_coords[0],
+                ),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, c, b),
+                    self.color,
+                    self.tex_coords[1],
+                ),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, c, d),
+                    self.color,
+                    self.tex_coords[2],
+                ),
+                Vertex::new(
+                    transform_to(self.renderer, self.camera, a, d),
+                    self.color,
+                    self.tex_coords[3],
+                ),
             ],
             &[0, 1, 2, 2, 3, 0],
             self.tex_idx,
