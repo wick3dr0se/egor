@@ -11,15 +11,23 @@ pub struct Texture {
 }
 
 impl Texture {
+    pub fn create_default(
+        device: &Device,
+        queue: &Queue,
+        bind_group_layout: &BindGroupLayout,
+    ) -> Self {
+        let white_pixel = [255u8, 255, 255, 255];
+        Self::load(device, queue, bind_group_layout, &white_pixel, 1, 1)
+    }
+
     pub fn load(
         device: &Device,
         queue: &Queue,
         bind_group_layout: &BindGroupLayout,
         data: &[u8],
+        width: u32,
+        height: u32,
     ) -> Self {
-        let img = image::load_from_memory(data).unwrap().to_rgba8();
-        let (width, height) = img.dimensions();
-
         let texture = device.create_texture(&TextureDescriptor {
             label: None,
             size: Extent3d {
@@ -41,7 +49,7 @@ impl Texture {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &img,
+            &data,
             TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),

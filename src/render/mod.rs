@@ -74,7 +74,9 @@ impl RenderBatch {
             queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
         }
         if !self.indices.is_empty() {
-            queue.write_buffer(&self.index_buffer, 0, bytemuck::cast_slice(&self.indices));
+            let mut data = bytemuck::cast_slice(&self.indices).to_vec();
+            data.resize((data.len() + 3) & !3, 0); // force align to 4 bytes
+            queue.write_buffer(&self.index_buffer, 0, &data);
         }
     }
 
@@ -106,6 +108,7 @@ pub struct Renderer {
     clear_color: Color,
     bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
+    default_texture: Texture,
 }
 
 impl Renderer {
@@ -170,6 +173,8 @@ impl Renderer {
             cache: None,
         });
 
+        let default_texture = Texture::create_default(&device, &queue, &bind_group_layout);
+
         let _ = proxy.send_event(Renderer {
             gpu: Gpu {
                 device: device.clone(),
@@ -184,6 +189,7 @@ impl Renderer {
             clear_color: Color::BLACK,
             bind_group_layout,
             textures: Vec::new(),
+            default_texture,
         });
     }
 
@@ -206,9 +212,11 @@ impl Renderer {
 
             r_pass.set_pipeline(&self.pipeline);
 
-            if let Some(tex) = self.textures.get(self.batch.texture_index) {
-                r_pass.set_bind_group(0, &tex.bind_group, &[]);
-            }
+            let texture = self
+                .textures
+                .get(self.batch.texture_index)
+                .unwrap_or(&self.default_texture);
+            r_pass.set_bind_group(0, &texture.bind_group, &[]);
 
             if !self.batch.vertices.is_empty() {
                 self.batch.upload(&self.gpu.queue);
@@ -253,15 +261,20 @@ impl Renderer {
     }
 
     pub fn add_texture(&mut self, data: &[u8]) -> usize {
-        let texture = Texture::load(
+        let img = image::load_from_memory(data).unwrap().to_rgba8();
+        let (w, h) = img.dimensions();
+
+        let tex = Texture::load(
             &self.gpu.device,
             &self.gpu.queue,
             &self.bind_group_layout,
-            data,
+            &img,
+            w,
+            h,
         );
         let texture_idx = self.textures.len();
 
-        self.textures.push(texture);
+        self.textures.push(tex);
         texture_idx
     }
 }
