@@ -17,7 +17,7 @@ Usage: $0 [OPTION]... [ARG]...
 Options:
   -h, --help                Show this usage.
   -v, --verbose             Enable verbose output.
-  -b, --bin <TARGET>        Specify a Rust binary target to run (e.g., --bin my_binary).
+  -d, --demo <TARGET>       Specify a demo target to run (e.g., --demo shooter).
   -F, --features <FEAT>...  Comma-separated list of features to enable (e.g., -f log,webgl).
   -w, --wasm                Build for WebAssembly
   -m, --mem [DIR]           Use tmpfs (RAM-backed) dir to speed up (incremental) builds by avoiding disk I/O (default: /tmp).
@@ -86,7 +86,7 @@ while (( $# )); do
         -h|--help) usage;;
         -v|--verbose) verbose=1;;
         r|release) debug=0;;
-        -b|--bin)
+        -d|--demo)
             [[ ${2-} && $2 != -* ]] || panic "You must specify a target to --bin"
             binTarget="$2"; shift
         ;;
