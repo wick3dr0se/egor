@@ -185,7 +185,7 @@ impl Renderer {
                 config: surface_cfg,
             },
             pipeline,
-            batch: RenderBatch::new(&device, 1000, 2000),
+            batch: RenderBatch::new(&device, 40000, 60000),
             clear_color: Color::BLACK,
             bind_group_layout,
             textures: Vec::new(),

@@ -34,7 +34,10 @@ EOF
 
 panic() { printf '[\e[31mPANIC\e[m](L%s): %s\n' "${BASH_LINENO[0]}" "$1" >&2; usage; }
 
-cleanup() { [[ -d $buildPath ]] && rm -fr "$buildPath"; }
+cleanup() {
+    [[ -d $buildPath ]] && rm -fr "$buildPath"
+    [[ ${PWD##*/} == "$binTarget" ]] && (( wasmBuild )) && mv index.html ../
+}
 
 is_tmpfs() { [[ -d "$1" && -w "$1" ]] && mountpoint -q "$1"; }
 
@@ -97,7 +100,12 @@ while (( $# )); do
 done
 (( verbose )) && set -x && flags+=(--verbose)
 (( debug )) || flags+=(--release)
-[[ $binTarget && -d $binTarget ]] && cd "$binTarget"
+
+[[ $binTarget && -d $binTarget ]] && {
+    cd "$binTarget"
+
+    (( wasmBuild )) && mv ../index.html ./
+}
 [[ $wasmBuild == webgl ]] && flags+=(--features webgl)
 
 [[ $memPath ]] && link_in_memory "$memPath"

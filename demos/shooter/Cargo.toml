@@ -3,6 +3,10 @@ name = "demo_egor_shooter"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+webgl = ["egor/webgl"]
+
 [dependencies]
 egor = { path = "../../" }
-rand = "0.9.1"
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] }
