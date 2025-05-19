@@ -8,6 +8,6 @@ webgl = ["egor/webgl"]
 
 [dependencies]
 egor = { path = "../../" }
-secs = { git = "https://github.com/wick3dr0se/secs", version = "0.1.0" }
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
+secs = { git = "https://github.com/wick3dr0se/secs", version = "0.1.0" }

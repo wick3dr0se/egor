@@ -604,6 +604,7 @@ dependencies = [
  "log",
  "pollster",
  "wasm-bindgen-futures",
+ "web-sys",
  "wgpu",
  "winit",
 ]
@@ -2053,7 +2054,7 @@ dependencies = [
 [[package]]
 name = "secs"
 version = "0.1.0"
-source = "git+https://github.com/wick3dr0se/secs#51b2fbb95e41ad418770cdde05f01267a84bf65f"
+source = "git+https://github.com/wick3dr0se/secs#fd1262b13e9ba945ecc27bbe6414439d1f17e39b"
 dependencies = [
  "elsa",
 ]

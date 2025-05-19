@@ -36,7 +36,7 @@ fn main() {
 
     let mut game_over = false;
 
-    App::init(|ctx| ctx.set_title("Demo Egor Shooter")).run(move |g, i| {
+    App::init(|ctx| ctx.set_title("Demo Egor Shooter")).run(move |t, g, i| {
         if game_over {
             return;
         }

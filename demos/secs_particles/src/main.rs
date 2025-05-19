@@ -14,6 +14,7 @@ struct Velocity {
 fn main() {
     let mut rng = rand::thread_rng();
     let world = World::default();
+    let speed = 100.0;
 
     for _ in 0..9999 {
         world.spawn((
@@ -28,13 +29,13 @@ fn main() {
         ));
     }
 
-    App::init(|ctx| ctx.set_title("Egor ECS Particles Demo")).run(move |g, _| {
+    App::init(|ctx| ctx.set_title("Egor ECS Particles Demo")).run(move |t, g, _| {
         let [w, h] = g.screen_size();
         let (hw, hh) = (w / 2.0, h / 2.0);
 
         world.query(|_, pos: &mut Position, vel: &Velocity| {
-            pos.x += vel.x;
-            pos.y += vel.y;
+            pos.x += vel.x * t.delta * speed;
+            pos.y += vel.y * t.delta * speed;
 
             if pos.x < -hw {
                 pos.x += w;
