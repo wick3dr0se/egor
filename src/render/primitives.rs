@@ -1,8 +1,6 @@
 use wgpu::Color;
 
-use crate::camera::Camera;
-
-use super::{Renderer, vertex::Vertex};
+use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
 
 fn rotate_and_transform(
     x: f32,

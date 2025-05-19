@@ -8,14 +8,14 @@ use winit::{
 };
 
 #[derive(Default)]
-pub struct InputContext {
+pub struct Input {
     keyboard: HashMap<KeyCode, (ElementState, ElementState)>,
     mouse_buttons: HashMap<MouseButton, (ElementState, ElementState)>,
     mouse_position: (f32, f32),
     mouse_delta: (f32, f32),
 }
 
-impl InputContext {
+impl Input {
     pub fn key_pressed(&self, key: KeyCode) -> bool {
         self.keyboard.get(&key).map_or(false, |(curr, prev)| {
             *curr == ElementState::Pressed && *prev != ElementState::Pressed

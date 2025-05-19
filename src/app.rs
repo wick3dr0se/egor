@@ -1,5 +1,7 @@
 use crate::{
-    GraphicsContext, InitContext, Rc, camera::Camera, input::InputContext, render::Renderer,
+    InitContext, Rc,
+    input::Input,
+    render::{Graphics, Renderer, camera::Camera},
 };
 use winit::{
     application::ApplicationHandler,
@@ -10,8 +12,8 @@ use winit::{
 
 pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
 impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
-pub trait UpdateFn: FnMut(&mut GraphicsContext, &mut InputContext) + 'static {}
-impl<F: FnMut(&mut GraphicsContext, &mut InputContext) + 'static> UpdateFn for F {}
+pub trait UpdateFn: FnMut(&mut Graphics, &mut Input) + 'static {}
+impl<F: FnMut(&mut Graphics, &mut Input) + 'static> UpdateFn for F {}
 
 pub struct App<I, U> {
     window: Option<Rc<Window>>,
@@ -19,7 +21,7 @@ pub struct App<I, U> {
     renderer: Option<Renderer>,
     init: Option<I>,
     update: Option<U>,
-    input: InputContext,
+    input: Input,
     camera: Option<Camera>,
 }
 
@@ -52,10 +54,7 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             WindowEvent::RedrawRequested => {
                 self.renderer.as_mut().map(|r| {
                     self.update.as_mut().unwrap()(
-                        &mut GraphicsContext {
-                            renderer: r,
-                            camera: self.camera.as_mut().unwrap(),
-                        },
+                        &mut Graphics::new(r, self.camera.as_mut().unwrap()),
                         &mut self.input,
                     );
                     r.render_frame();
@@ -100,7 +99,7 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             renderer: None,
             init: Some(init),
             update: None,
-            input: InputContext::default(),
+            input: Input::default(),
             camera: None,
         }
     }

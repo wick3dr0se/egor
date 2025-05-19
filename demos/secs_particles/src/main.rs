@@ -30,9 +30,6 @@ fn main() {
 
     App::init(|ctx| ctx.set_title("Egor ECS Particles Demo")).run(move |g, _| {
         let [w, h] = g.screen_size();
-
-        g.clear(Color::BLACK);
-
         let (hw, hh) = (w / 2.0, h / 2.0);
 
         world.query(|_, pos: &mut Position, vel: &Velocity| {
