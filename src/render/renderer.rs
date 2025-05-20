@@ -12,39 +12,38 @@ use crate::Rc;
 
 pub use wgpu::Color;
 
+const MAX_VERTICES: usize = 43_690;
+const MAX_INDICES: usize = u16::MAX as usize;
+
 pub struct RenderBatch {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
     pub texture_index: usize,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
-    vertex_capacity: usize,
-    index_capacity: usize,
 }
 
 impl RenderBatch {
-    pub fn new(device: &Device, vertex_cap: usize, idx_cap: usize) -> Self {
+    pub fn new(device: &Device) -> Self {
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
-            size: (vertex_cap * size_of::<Vertex>()) as u64,
+            size: (MAX_VERTICES * size_of::<Vertex>()) as u64,
             usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let index_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
-            size: (idx_cap * size_of::<u16>()) as u64,
+            size: (MAX_INDICES * size_of::<u16>()) as u64,
             usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
         Self {
-            vertices: Vec::with_capacity(vertex_cap),
-            indices: Vec::with_capacity(idx_cap),
+            vertices: Vec::with_capacity(MAX_VERTICES),
+            indices: Vec::with_capacity(MAX_INDICES),
             texture_index: 0,
             vertex_buffer,
             index_buffer,
-            vertex_capacity: vertex_cap,
-            index_capacity: idx_cap,
         }
     }
 
@@ -57,13 +56,10 @@ impl RenderBatch {
 
     pub fn upload(&self, queue: &Queue) {
         assert!(
-            self.vertices.len() <= self.vertex_capacity,
+            self.vertices.len() <= MAX_VERTICES,
             "Vertex buffer overflow"
         );
-        assert!(
-            self.indices.len() <= self.index_capacity,
-            "Index buffer overflow"
-        );
+        assert!(self.indices.len() <= MAX_INDICES, "Index buffer overflow");
 
         if !self.vertices.is_empty() {
             queue.write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
@@ -99,7 +95,7 @@ pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
     pipeline: RenderPipeline,
-    batch: RenderBatch,
+    batches: Vec<RenderBatch>,
     clear_color: Color,
     bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
@@ -180,7 +176,7 @@ impl Renderer {
                 config: surface_cfg,
             },
             pipeline,
-            batch: RenderBatch::new(&device, 40000, 60000),
+            batches: vec![RenderBatch::new(&device)],
             clear_color: Color::BLACK,
             bind_group_layout,
             textures: Vec::new(),
@@ -207,24 +203,30 @@ impl Renderer {
 
             r_pass.set_pipeline(&self.pipeline);
 
-            let texture = self
-                .textures
-                .get(self.batch.texture_index)
-                .unwrap_or(&self.default_texture);
-            r_pass.set_bind_group(0, &texture.bind_group, &[]);
+            for batch in &self.batches {
+                if batch.vertices.is_empty() {
+                    continue;
+                }
 
-            if !self.batch.vertices.is_empty() {
-                self.batch.upload(&self.gpu.queue);
+                let texture = self
+                    .textures
+                    .get(batch.texture_index)
+                    .unwrap_or(&self.default_texture);
+                texture.bind(&mut r_pass, 0);
 
-                r_pass.set_vertex_buffer(0, self.batch.vertex_buffer.slice(..));
-                r_pass.set_index_buffer(self.batch.index_buffer.slice(..), IndexFormat::Uint16);
-                r_pass.draw_indexed(0..self.batch.index_count(), 0, 0..1);
+                batch.upload(&self.gpu.queue);
+                r_pass.set_vertex_buffer(0, batch.vertex_buffer.slice(..));
+                r_pass.set_index_buffer(batch.index_buffer.slice(..), IndexFormat::Uint16);
+                r_pass.draw_indexed(0..batch.index_count(), 0, 0..1);
             }
         }
 
         self.gpu.queue.submit(Some(encoder.finish()));
         frame.present();
-        self.batch.clear();
+
+        for batch in &mut self.batches {
+            batch.clear();
+        }
     }
 
     pub fn resize(&mut self, w: u32, h: u32) {
@@ -246,12 +248,21 @@ impl Renderer {
         self.target.config.height as f32
     }
 
-    pub fn submit_geometry(&mut self, vertices: &[Vertex], indices: &[u16], tex_idx: usize) {
-        self.batch.submit(vertices, indices, tex_idx);
+    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
+        for batch in &mut self.batches {
+            if batch.texture_index == texture_index {
+                batch.submit(vertices, indices, texture_index);
+                return;
+            }
+        }
+
+        let mut new_batch = RenderBatch::new(&self.gpu.device);
+        new_batch.submit(vertices, indices, texture_index);
+        self.batches.push(new_batch);
     }
 
     pub fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
-        let (w, h) = (self.screen_width(), self.screen_width());
+        let (w, h) = (self.screen_width(), self.screen_height());
         [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
     }
 
@@ -259,7 +270,7 @@ impl Renderer {
         let img = image::load_from_memory(data).unwrap().to_rgba8();
         let (w, h) = img.dimensions();
 
-        let tex = Texture::load(
+        let tex = Texture::from_bytes(
             &self.gpu.device,
             &self.gpu.queue,
             &self.bind_group_layout,

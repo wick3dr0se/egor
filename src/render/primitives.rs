@@ -100,7 +100,7 @@ impl<'a> Drop for TriangleBuilder<'a> {
             })
             .collect();
 
-        self.renderer.submit_geometry(&verts, &[0, 1, 2], 0);
+        self.renderer.submit(&verts, &[0, 1, 2], 0);
     }
 }
 
@@ -192,6 +192,6 @@ impl<'a> Drop for RectangleBuilder<'a> {
             .collect();
 
         self.renderer
-            .submit_geometry(&vertices, &[0, 1, 2, 2, 3, 0], self.tex_idx);
+            .submit(&vertices, &[0, 1, 2, 2, 3, 0], self.tex_idx);
     }
 }

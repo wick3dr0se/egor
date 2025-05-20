@@ -1,26 +1,22 @@
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Device, Extent3d, Origin3d, Queue,
-    SamplerBindingType, ShaderStages, TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect,
-    TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType, TextureUsages,
+    RenderPass, Sampler, SamplerBindingType, ShaderStages, TexelCopyBufferLayout,
+    TexelCopyTextureInfo, Texture as WgpuTexture, TextureAspect, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
     TextureViewDimension,
 };
 
+#[derive(Debug)]
 pub struct Texture {
+    pub texture: WgpuTexture,
+    pub view: TextureView,
+    pub sampler: Sampler,
     pub bind_group: BindGroup,
 }
 
 impl Texture {
-    pub fn create_default(
-        device: &Device,
-        queue: &Queue,
-        bind_group_layout: &BindGroupLayout,
-    ) -> Self {
-        let white_pixel = [255u8, 255, 255, 255];
-        Self::load(device, queue, bind_group_layout, &white_pixel, 1, 1)
-    }
-
-    pub fn load(
+    pub fn from_bytes(
         device: &Device,
         queue: &Queue,
         bind_group_layout: &BindGroupLayout,
@@ -42,6 +38,7 @@ impl Texture {
             usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
             view_formats: &[],
         });
+
         queue.write_texture(
             TexelCopyTextureInfo {
                 texture: &texture,
@@ -49,7 +46,7 @@ impl Texture {
                 origin: Origin3d::ZERO,
                 aspect: TextureAspect::All,
             },
-            &data,
+            data,
             TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4 * width),
@@ -62,15 +59,15 @@ impl Texture {
             },
         );
 
-        let texture_view = texture.create_view(&Default::default());
+        let view = texture.create_view(&Default::default());
         let sampler = device.create_sampler(&Default::default());
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout: &bind_group_layout,
+            layout: bind_group_layout,
             entries: &[
                 BindGroupEntry {
                     binding: 0,
-                    resource: BindingResource::TextureView(&texture_view),
+                    resource: BindingResource::TextureView(&view),
                 },
                 BindGroupEntry {
                     binding: 1,
@@ -79,7 +76,17 @@ impl Texture {
             ],
         });
 
-        Self { bind_group }
+        Self {
+            texture,
+            view,
+            sampler,
+            bind_group,
+        }
+    }
+
+    pub fn create_default(device: &Device, queue: &Queue, layout: &BindGroupLayout) -> Self {
+        let white_pixel = [255u8, 255, 255, 255];
+        Self::from_bytes(device, queue, layout, &white_pixel, 1, 1)
     }
 
     pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
@@ -104,5 +111,9 @@ impl Texture {
                 },
             ],
         })
+    }
+
+    pub fn bind<'a>(&'a self, pass: &mut RenderPass<'a>, index: u32) {
+        pass.set_bind_group(index, &self.bind_group, &[]);
     }
 }
