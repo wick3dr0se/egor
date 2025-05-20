@@ -16,11 +16,11 @@ struct Enemy {
     x: f32,
     y: f32,
     speed: f32,
-    hp: u32,
+    hp: f32,
     flash: f32,
 }
 
-fn spawn_wave(cx: f32, cy: f32, count: usize, speed_range: (f32, f32), hp: u32) -> Vec<Enemy> {
+fn spawn_wave(cx: f32, cy: f32, count: usize, speed_range: (f32, f32), hp: f32) -> Vec<Enemy> {
     let mut rng = rand::thread_rng();
     (0..count)
         .map(|_| {
@@ -68,20 +68,20 @@ fn main() {
     let mut game_over = false;
     let mut wave = 1;
 
-    let mut player_hp: i32 = 10;
+    let mut player_hp = 100.0;
     let mut player_flash = 0.0;
     let player_speed = 200.0;
     let (mut px, mut py) = (0.0, 0.0);
 
-    let mut enemy_hp = 1;
-    let mut enemies = spawn_wave(px, py, 20, (50.0, 150.0), enemy_hp);
+    let mut enemy_hp = 1.0;
+    let mut enemies = spawn_wave(px, py, 5, (50.0, 125.0), enemy_hp);
 
     let mut bullets = Vec::new();
     let mut last_shot = 0.0;
     let mut spread_count = 1;
-    let mut fire_rate = 10.0;
+    let mut fire_rate = 2.0;
 
-    App::init(|ctx| ctx.set_title("Shooter")).run(move |t, g, i| {
+    App::init(|ctx| ctx.set_title("Egor Shooter Demo")).run(move |t, g, i| {
         if game_over {
             return;
         }
@@ -119,19 +119,19 @@ fn main() {
             for e in &mut enemies {
                 let (dx, dy) = (b.x - e.x, b.y - e.y);
                 if (dx * dx + dy * dy).sqrt() < 10.0 {
-                    e.hp = e.hp.saturating_sub(1);
+                    e.hp -= 1.0;
                     e.flash = 0.1;
                     hit = true;
                     break;
                 }
             }
             let (bx, by) = (b.x - px, b.y - py);
-            let out_of_view = bx.abs() > w / 2.0 || by.abs() > h / 2.0;
+            let off_screen = bx.abs() > w / 2.0 || by.abs() > h / 2.0;
 
-            !hit && !out_of_view
+            !hit && !off_screen
         });
 
-        enemies.retain(|e| e.hp > 0);
+        enemies.retain(|e| e.hp > 0.0);
 
         for b in &mut bullets {
             b.x += b.vx * t.delta;
@@ -142,7 +142,7 @@ fn main() {
         for e in &mut enemies {
             let angle = (py - e.y).atan2(px - e.x);
             if ((px - e.x).powi(2) + (py - e.y).powi(2)).sqrt() < 15.0 {
-                player_hp = player_hp.saturating_sub(1);
+                player_hp -= 1.0;
                 player_flash = 0.1;
             }
             e.flash = (e.flash - t.delta).max(0.0);
@@ -154,37 +154,37 @@ fn main() {
             g.tri().at(e.x, e.y).size(20.0).rotation(angle).color(color);
         }
 
+        if player_hp <= 0.0 {
+            game_over = true;
+        }
+
         player_flash = (player_flash - t.delta).max(0.0);
         let player_color = if player_flash > 0.0 {
             Color::WHITE
         } else {
             Color::GREEN
         };
-
         g.rect()
             .at(px, py)
             .size(20.0, 20.0)
             .rotation((cy - py).atan2(cx - px))
             .color(player_color);
 
-        if player_hp == 0 {
-            game_over = true;
-        }
-
         if enemies.is_empty() {
             wave += 1;
             if wave % 3 == 0 {
-                enemy_hp *= 2;
+                enemy_hp *= 1.1;
+                spread_count = (spread_count + 1).min(20);
             }
 
-            spread_count = (spread_count + 1).min(20);
-            fire_rate = (fire_rate + 1.0).min(100.0);
+            fire_rate += 0.1;
 
+            let speed_scale = wave as f32 * 3.0;
             enemies = spawn_wave(
                 px,
                 py,
-                10 + wave * 5,
-                (50.0 + wave as f32 * 2.0, 100.0 + wave as f32 * 2.0),
+                (wave + 2) * 3,
+                (50.0 + speed_scale, 125.0 + speed_scale),
                 enemy_hp,
             );
         }
