@@ -81,7 +81,12 @@ fn main() {
     let mut spread_count = 1;
     let mut fire_rate = 2.0;
 
-    App::init(|ctx| ctx.set_title("Egor Shooter Demo")).run(move |t, g, i| {
+    App::init(|ctx| {
+        ctx.set_title("Egor Shooter Demo");
+        ctx.load_texture(include_bytes!("../assets/soldier.png"));
+        ctx.load_texture(include_bytes!("../assets/zombie.png"));
+    })
+    .run(move |t, g, i| {
         let [w, h] = g.screen_size();
 
         if game_over {
@@ -90,6 +95,8 @@ fn main() {
                 .at(w / 2.0 - 20.0, h / 2.0);
             return;
         }
+
+        g.clear(Color::WHITE);
 
         let (mx, my) = i.mouse_position();
         let (cx, cy) = (px - w / 2.0 + mx, py - h / 2.0 + my);
@@ -151,11 +158,16 @@ fn main() {
             }
             e.flash = (e.flash - t.delta).max(0.0);
             let color = if e.flash > 0.0 {
-                Color::WHITE
-            } else {
                 Color::RED
+            } else {
+                Color::WHITE
             };
-            g.tri().at(e.x, e.y).size(20.0).rotation(angle).color(color);
+            g.rect()
+                .at(e.x, e.y)
+                .size(32.0, 32.0)
+                .rotation(angle)
+                .color(color)
+                .texture(1);
         }
 
         if player_hp <= 0.0 {
@@ -164,15 +176,16 @@ fn main() {
 
         player_flash = (player_flash - t.delta).max(0.0);
         let player_color = if player_flash > 0.0 {
-            Color::WHITE
+            Color::RED
         } else {
-            Color::GREEN
+            Color::WHITE
         };
         g.rect()
             .at(px, py)
-            .size(20.0, 20.0)
-            .rotation((cy - py).atan2(cx - px))
-            .color(player_color);
+            .size(32.0, 32.0)
+            .rotation((cy - py).atan2(cx - px) + std::f32::consts::FRAC_PI_2)
+            .color(player_color)
+            .texture(0);
 
         if enemies.is_empty() {
             wave += 1;
