@@ -1,10 +1,10 @@
 use super::{text::Text, texture::Texture, vertex::Vertex};
 use wgpu::{
-    BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, DeviceDescriptor,
-    FragmentState, IndexFormat, Instance, Limits, LoadOp, Operations, PipelineLayoutDescriptor,
-    PresentMode, Queue, RenderPassColorAttachment, RenderPassDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
-    VertexState, include_wgsl,
+    BindGroupLayout, BlendState, Buffer, BufferDescriptor, BufferUsages, ColorTargetState,
+    ColorWrites, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
+    Operations, PipelineLayoutDescriptor, PresentMode, Queue, RenderPassColorAttachment,
+    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp,
+    Surface, SurfaceConfiguration, VertexState, include_wgsl,
 };
 use winit::{event_loop::EventLoopProxy, window::Window};
 
@@ -158,7 +158,11 @@ impl Renderer {
             fragment: Some(FragmentState {
                 module: &shader,
                 entry_point: Some("fs_main"),
-                targets: &[Some(surface_cfg.format.into())],
+                targets: &[Some(ColorTargetState {
+                    format: surface_cfg.format,
+                    blend: Some(BlendState::ALPHA_BLENDING),
+                    write_mask: ColorWrites::ALL,
+                })],
                 compilation_options: Default::default(),
             }),
             multiview: None,
