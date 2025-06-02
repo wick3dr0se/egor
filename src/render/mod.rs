@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod primitives;
 mod renderer;
+mod text;
 mod texture;
 pub mod vertex;
 
@@ -8,6 +9,7 @@ pub use renderer::Renderer;
 
 use camera::Camera;
 use primitives::{RectangleBuilder, TriangleBuilder};
+use text::TextBuilder;
 use wgpu::Color;
 
 pub struct Graphics<'a> {
@@ -41,5 +43,9 @@ impl<'a> Graphics<'a> {
 
     pub fn camera(&mut self) -> &mut Camera {
         self.camera
+    }
+
+    pub fn text(&mut self, text: &'a str) -> TextBuilder {
+        TextBuilder::new(&mut self.renderer.text, text)
     }
 }

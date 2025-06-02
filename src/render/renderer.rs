@@ -1,4 +1,4 @@
-use super::{texture::Texture, vertex::Vertex};
+use super::{text::Text, texture::Texture, vertex::Vertex};
 use wgpu::{
     BindGroupLayout, Buffer, BufferDescriptor, BufferUsages, Device, DeviceDescriptor,
     FragmentState, IndexFormat, Instance, Limits, LoadOp, Operations, PipelineLayoutDescriptor,
@@ -12,8 +12,8 @@ use crate::Rc;
 
 pub use wgpu::Color;
 
-const MAX_VERTICES: usize = 43_690;
-const MAX_INDICES: usize = u16::MAX as usize;
+const MAX_INDICES: usize = u16::MAX as usize * 32;
+const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
 
 pub struct RenderBatch {
     pub vertices: Vec<Vertex>,
@@ -100,6 +100,7 @@ pub struct Renderer {
     bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
     default_texture: Texture,
+    pub(crate) text: Text,
 }
 
 impl Renderer {
@@ -165,6 +166,7 @@ impl Renderer {
         });
 
         let default_texture = Texture::create_default(&device, &queue, &bind_group_layout);
+        let text = Text::new(&device, &queue, surface_cfg.format);
 
         let _ = proxy.send_event(Renderer {
             gpu: Gpu {
@@ -181,6 +183,7 @@ impl Renderer {
             bind_group_layout,
             textures: Vec::new(),
             default_texture,
+            text,
         });
     }
 
@@ -188,6 +191,14 @@ impl Renderer {
         let frame = self.target.surface.get_current_texture().unwrap();
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+
+        self.text.prepare(
+            &self.gpu.device,
+            &self.gpu.queue,
+            self.target.config.width,
+            self.target.config.height,
+        );
+
         {
             let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 color_attachments: &[Some(RenderPassColorAttachment {
@@ -219,6 +230,8 @@ impl Renderer {
                 r_pass.set_index_buffer(batch.index_buffer.slice(..), IndexFormat::Uint16);
                 r_pass.draw_indexed(0..batch.index_count(), 0, 0..1);
             }
+
+            self.text.render(&mut r_pass);
         }
 
         self.gpu.queue.submit(Some(encoder.finish()));
@@ -234,6 +247,7 @@ impl Renderer {
         self.target
             .surface
             .configure(&self.gpu.device, &self.target.config);
+        self.text.resize(w, h);
     }
 
     pub fn clear(&mut self, color: Color) {

@@ -82,11 +82,15 @@ fn main() {
     let mut fire_rate = 2.0;
 
     App::init(|ctx| ctx.set_title("Egor Shooter Demo")).run(move |t, g, i| {
+        let [w, h] = g.screen_size();
+
         if game_over {
+            g.text("GAME OVER")
+                .color(Color::RED)
+                .at(w / 2.0 - 20.0, h / 2.0);
             return;
         }
 
-        let [w, h] = g.screen_size();
         let (mx, my) = i.mouse_position();
         let (cx, cy) = (px - w / 2.0 + mx, py - h / 2.0 + my);
 
