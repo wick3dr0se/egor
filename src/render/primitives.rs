@@ -158,7 +158,16 @@ impl<'a> RectangleBuilder<'a> {
 
     pub fn texture(mut self, idx: usize) -> Self {
         self.tex_idx = idx;
-        self.tex_coords = [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+
+        if self.tex_coords == [[-1.0, -1.0]; 4] {
+            self.tex_coords = [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
+        }
+
+        self
+    }
+
+    pub fn uv(mut self, coords: [[f32; 2]; 4]) -> Self {
+        self.tex_coords = coords;
         self
     }
 }
