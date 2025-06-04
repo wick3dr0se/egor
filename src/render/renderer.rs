@@ -1,4 +1,4 @@
-use super::{text::Text, texture::Texture, vertex::Vertex};
+use super::{text::TextRenderer, texture::Texture, vertex::Vertex};
 use wgpu::{
     BindGroupLayout, BlendState, Buffer, BufferDescriptor, BufferUsages, ColorTargetState,
     ColorWrites, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
@@ -100,7 +100,7 @@ pub struct Renderer {
     bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
     default_texture: Texture,
-    pub(crate) text: Text,
+    pub(crate) text: TextRenderer,
 }
 
 impl Renderer {
@@ -170,7 +170,7 @@ impl Renderer {
         });
 
         let default_texture = Texture::create_default(&device, &queue, &bind_group_layout);
-        let text = Text::new(&device, &queue, surface_cfg.format);
+        let text = TextRenderer::new(&device, &queue, surface_cfg.format);
 
         let _ = proxy.send_event(Renderer {
             gpu: Gpu {

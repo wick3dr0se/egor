@@ -1,29 +1,33 @@
 use glyphon::{
     Attrs, Buffer, Cache, Color, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
-    TextAtlas, TextBounds, TextRenderer, Viewport,
+    TextAtlas, TextBounds, Viewport,
 };
 use wgpu::{Device, MultisampleState, Queue, TextureFormat};
 
-pub struct Text {
+pub struct TextRenderer {
     font_system: FontSystem,
     swash_cache: SwashCache,
     viewport: Viewport,
     atlas: TextAtlas,
-    renderer: TextRenderer,
+    renderer: glyphon::TextRenderer,
     buffer: Buffer,
     text: String,
     color: Color,
     position: (f32, f32),
 }
 
-impl Text {
+impl TextRenderer {
     pub fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
         let mut font_system = FontSystem::new();
+        font_system
+            .db_mut()
+            .load_font_data(include_bytes!("../../inter-v19-latin-regular.ttf").to_vec());
         let swash_cache = SwashCache::new();
         let cache = Cache::new(device);
         let viewport = Viewport::new(device, &cache);
         let mut atlas = TextAtlas::new(device, queue, &cache, format);
-        let renderer = TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
+        let renderer =
+            glyphon::TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
         let dummy_buffer = Buffer::new(&mut font_system, Metrics::new(12.0, 14.0));
 
         Self {
@@ -40,20 +44,17 @@ impl Text {
     }
 
     pub fn set_text(&mut self, text: &str) {
-        if text != self.text {
-            let attrs = Attrs::new().color(self.color);
-            self.buffer
-                .set_text(&mut self.font_system, text, &attrs, Shaping::Advanced);
-            self.text = text.to_string();
-        }
+        self.buffer.set_text(
+            &mut self.font_system,
+            text,
+            &Attrs::new().color(self.color),
+            Shaping::Advanced,
+        );
+        self.text = text.to_string();
     }
 
     pub fn set_color(&mut self, color: Color) {
-        if color != self.color {
-            self.color = color;
-            let current_text = self.text.clone();
-            self.set_text(&current_text);
-        }
+        self.color = color;
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
@@ -106,7 +107,7 @@ impl Text {
 }
 
 pub struct TextBuilder<'a> {
-    renderer: &'a mut Text,
+    renderer: &'a mut TextRenderer,
     text: &'a str,
     position: (f32, f32),
     size: f32,
@@ -114,7 +115,7 @@ pub struct TextBuilder<'a> {
 }
 
 impl<'a> TextBuilder<'a> {
-    pub fn new(renderer: &'a mut Text, text: &'a str) -> Self {
+    pub fn new(renderer: &'a mut TextRenderer, text: &'a str) -> Self {
         Self {
             renderer,
             text,
