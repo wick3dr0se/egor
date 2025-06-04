@@ -1,18 +1,13 @@
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, BindingResource, BindingType, Device, Extent3d, Origin3d, Queue,
-    RenderPass, Sampler, SamplerBindingType, ShaderStages, TexelCopyBufferLayout,
-    TexelCopyTextureInfo, Texture as WgpuTexture, TextureAspect, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureSampleType, TextureUsages, TextureView,
-    TextureViewDimension,
+    RenderPass, SamplerBindingType, ShaderStages, TexelCopyBufferLayout, TexelCopyTextureInfo,
+    TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
+    TextureUsages, TextureViewDimension,
 };
 
-#[derive(Debug)]
 pub struct Texture {
-    pub texture: WgpuTexture,
-    pub view: TextureView,
-    pub sampler: Sampler,
-    pub bind_group: BindGroup,
+    bind_group: BindGroup,
 }
 
 impl Texture {
@@ -76,12 +71,7 @@ impl Texture {
             ],
         });
 
-        Self {
-            texture,
-            view,
-            sampler,
-            bind_group,
-        }
+        Self { bind_group }
     }
 
     pub fn create_default(device: &Device, queue: &Queue, layout: &BindGroupLayout) -> Self {

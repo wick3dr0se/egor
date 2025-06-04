@@ -1,9 +1,7 @@
-// src/camera.rs
-#[derive(Debug, Clone, Copy)]
 pub struct Camera {
     x: f32,
     y: f32,
-    pub zoom: f32,
+    zoom: f32,
 }
 
 impl Camera {
@@ -18,6 +16,16 @@ impl Camera {
     pub fn target(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
+    }
+
+    pub fn viewport(&self, screen_width: f32, screen_height: f32) -> (f32, f32, f32, f32) {
+        let hw = screen_width * 0.5 / self.zoom;
+        let hh = screen_height * 0.5 / self.zoom;
+        (self.x - hw, self.y - hh, self.x + hw, self.y + hh)
+    }
+
+    pub fn set_zoom(&mut self, zoom: f32) {
+        self.zoom = zoom.clamp(0.1, 10.0);
     }
 
     pub fn world_to_screen(
