@@ -14,12 +14,15 @@ use wgpu::Color;
 
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
-    camera: &'a mut Camera,
+    camera: Camera,
 }
 
 impl<'a> Graphics<'a> {
-    pub fn new(renderer: &'a mut Renderer, camera: &'a mut Camera) -> Self {
-        Self { renderer, camera }
+    pub fn new(renderer: &'a mut Renderer) -> Self {
+        Self {
+            renderer,
+            camera: Camera::new(),
+        }
     }
 
     pub fn tri(&mut self) -> TriangleBuilder {
@@ -42,7 +45,7 @@ impl<'a> Graphics<'a> {
     }
 
     pub fn camera(&mut self) -> &mut Camera {
-        self.camera
+        &mut self.camera
     }
 
     pub fn text(&mut self, text: &'a str) -> TextBuilder {

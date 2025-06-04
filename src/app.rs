@@ -1,7 +1,7 @@
 use crate::{
     InitContext, Rc,
     input::Input,
-    render::{Graphics, Renderer, camera::Camera},
+    render::{Graphics, Renderer},
     time::FrameTimer,
 };
 use winit::{
@@ -24,7 +24,6 @@ pub struct App<I, U> {
     timer: FrameTimer,
     renderer: Option<Renderer>,
     input: Input,
-    camera: Option<Camera>,
 }
 
 impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
@@ -41,7 +40,6 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
-            self.camera = Some(Camera::new());
 
             #[cfg(target_arch = "wasm32")]
             wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window, proxy));
@@ -58,7 +56,7 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 self.renderer.as_mut().map(|r| {
                     self.update.as_mut().unwrap()(
                         &self.timer,
-                        &mut Graphics::new(r, self.camera.as_mut().unwrap()),
+                        &mut Graphics::new(r),
                         &mut self.input,
                     );
                     r.render_frame();
@@ -105,7 +103,6 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             timer: FrameTimer::new(),
             renderer: None,
             input: Input::default(),
-            camera: None,
         }
     }
 
