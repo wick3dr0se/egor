@@ -53,21 +53,21 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
                 self.timer.update();
-                self.renderer.as_mut().map(|r| {
+                if let Some(r) = self.renderer.as_mut() {
                     self.update.as_mut().unwrap()(
                         &self.timer,
                         &mut Graphics::new(r),
                         &mut self.input,
                     );
                     r.render_frame();
-                });
+                };
                 self.input.end_frame();
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::Resized(size) => {
-                self.renderer
-                    .as_mut()
-                    .map(|r| r.resize(size.width, size.height));
+                if let Some(r) = self.renderer.as_mut() {
+                    r.resize(size.width, size.height)
+                }
             }
             WindowEvent::KeyboardInput { event, .. } => {
                 self.input.keyboard(event);

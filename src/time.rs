@@ -21,6 +21,12 @@ pub struct FrameTimer {
     pub fps: u32,
 }
 
+impl Default for FrameTimer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FrameTimer {
     pub fn new() -> Self {
         Self {
