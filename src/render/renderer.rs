@@ -288,17 +288,36 @@ impl Renderer {
         let img = image::load_from_memory(data).unwrap().to_rgba8();
         let (w, h) = img.dimensions();
 
+        self.add_texture_raw(w, h, &img)
+    }
+    pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
         let tex = Texture::from_bytes(
             &self.gpu.device,
             &self.gpu.queue,
             &self.bind_group_layout,
-            &img,
+            data,
             w,
             h,
         );
         let texture_idx = self.textures.len();
-
         self.textures.push(tex);
+
         texture_idx
+    }
+    pub fn update_texture(&mut self, index: usize, data: &[u8]) {
+        let img = image::load_from_memory(data).unwrap().to_rgba8();
+        let (w, h) = img.dimensions();
+        self.update_texture_raw(index, w, h, &img)
+    }
+    pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
+        let tex = Texture::from_bytes(
+            &self.gpu.device,
+            &self.gpu.queue,
+            &self.bind_group_layout,
+            data,
+            w,
+            h,
+        );
+        self.textures[index] = tex;
     }
 }
