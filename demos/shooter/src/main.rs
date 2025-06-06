@@ -5,7 +5,8 @@ use egor::{
     app::App,
     input::{KeyCode, MouseButton},
 };
-use rand::Rng;
+use image::GenericImageView;
+use rand::{Rng, RngCore};
 
 use crate::animation::SpriteAnim;
 
@@ -64,6 +65,16 @@ fn spawn_bullets(px: f32, py: f32, tx: f32, ty: f32, count: usize) -> Vec<Bullet
         .collect()
 }
 
+fn recolor_image(im: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
+    let mut rgb = [0u8; 3];
+    rand::thread_rng().fill_bytes(&mut rgb);
+    for p in im.pixels_mut() {
+        p.0[0] = rgb[0];
+        p.0[1] = rgb[1];
+        p.0[2] = rgb[2];
+    }
+}
+
 fn main() {
     let mut game_over = false;
     let mut wave = 1;
@@ -82,6 +93,11 @@ fn main() {
     let mut enemies = spawn_wave(0.0, 0.0, 5, (50.0, 125.0), hp);
     let mut enemy_anim = SpriteAnim::new(1, 11, 11, 0.2);
     let mut bullets = vec![];
+
+    let mut zombie_image = image::load_from_memory(include_bytes!("../assets/zombie.png"))
+        .unwrap()
+        .to_rgba8();
+    let mut time_since_recolor = 0.;
 
     App::init(|ctx| {
         ctx.set_title("Minimal Shooter");
@@ -147,6 +163,18 @@ fn main() {
             b.x += b.vx * t.delta;
             b.y += b.vy * t.delta;
             g.rect().at(b.x, b.y).size(5., 10.).color(Color::BLUE);
+        }
+        time_since_recolor += t.delta;
+        if time_since_recolor > 1. {
+            time_since_recolor = 0.;
+            recolor_image(&mut zombie_image);
+
+            g.update_texture_raw(
+                1,
+                zombie_image.width(),
+                zombie_image.height(),
+                &zombie_image,
+            );
         }
 
         enemy_anim.update(t.delta);
