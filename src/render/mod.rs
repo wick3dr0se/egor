@@ -39,8 +39,8 @@ impl<'a> Graphics<'a> {
 
     pub fn screen_size(&self) -> [f32; 2] {
         [
-            self.renderer.screen_width() as f32,
-            self.renderer.screen_height() as f32,
+            self.renderer.screen_width(),
+            self.renderer.screen_height(),
         ]
     }
 

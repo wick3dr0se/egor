@@ -5,6 +5,7 @@ use egor::{
     app::App,
     input::{KeyCode, MouseButton},
 };
+#[allow(unused)]
 use image::GenericImageView;
 use rand::{Rng, RngCore};
 

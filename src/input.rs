@@ -17,7 +17,7 @@ pub struct Input {
 
 impl Input {
     pub fn key_pressed(&self, key: KeyCode) -> bool {
-        self.keyboard.get(&key).map_or(false, |(curr, prev)| {
+        self.keyboard.get(&key).is_some_and(|(curr, prev)| {
             *curr == ElementState::Pressed && *prev != ElementState::Pressed
         })
     }
@@ -25,13 +25,13 @@ impl Input {
     pub fn key_held(&self, key: KeyCode) -> bool {
         self.keyboard
             .get(&key)
-            .map_or(false, |(curr, _)| *curr == ElementState::Pressed)
+            .is_some_and(|(curr, _)| *curr == ElementState::Pressed)
     }
 
     pub fn key_released(&self, key: KeyCode) -> bool {
         self.keyboard
             .get(&key)
-            .map_or(false, |(curr, _)| *curr == ElementState::Released)
+            .is_some_and(|(curr, _)| *curr == ElementState::Released)
     }
 
     pub fn keys_pressed(&self, keys: &[KeyCode]) -> bool {
@@ -61,7 +61,7 @@ impl Input {
     pub fn mouse_pressed(&self, button: MouseButton) -> bool {
         self.mouse_buttons
             .get(&button)
-            .map_or(false, |(curr, prev)| {
+            .is_some_and(|(curr, prev)| {
                 *curr == ElementState::Pressed && *prev != ElementState::Pressed
             })
     }
@@ -69,13 +69,13 @@ impl Input {
     pub fn mouse_held(&self, button: MouseButton) -> bool {
         self.mouse_buttons
             .get(&button)
-            .map_or(false, |(curr, _)| *curr == ElementState::Pressed)
+            .is_some_and(|(curr, _)| *curr == ElementState::Pressed)
     }
 
     pub fn mouse_released(&self, button: MouseButton) -> bool {
         self.mouse_buttons
             .get(&button)
-            .map_or(false, |(curr, _)| *curr == ElementState::Released)
+            .is_some_and(|(curr, _)| *curr == ElementState::Released)
     }
 
     pub fn mouse_position(&self) -> (f32, f32) {
