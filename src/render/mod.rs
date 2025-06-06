@@ -51,4 +51,10 @@ impl<'a> Graphics<'a> {
     pub fn text(&mut self, text: &'a str) -> TextBuilder {
         TextBuilder::new(&mut self.renderer.text, text)
     }
+    pub fn update_texture(&mut self, index: usize, data: &[u8]) {
+        self.renderer.update_texture(index, data);
+    }
+    pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
+        self.renderer.update_texture_raw(index, w, h, data);
+    }
 }
