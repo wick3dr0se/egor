@@ -1145,10 +1145,7 @@ name = "no_windowing"
 version = "0.1.0"
 dependencies = [
  "egor",
- "getrandom 0.2.16",
- "image",
  "pollster",
- "rand",
  "winit",
 ]
 
