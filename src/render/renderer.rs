@@ -268,7 +268,7 @@ impl Renderer {
         self.target.config.height as f32
     }
 
-    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
+    pub(crate) fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
         for batch in &mut self.batches {
             if batch.texture_index == texture_index {
                 batch.submit(vertices, indices, texture_index);
@@ -281,7 +281,7 @@ impl Renderer {
         self.batches.push(new_batch);
     }
 
-    pub fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
+    pub(crate) fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
         let (w, h) = (self.screen_width(), self.screen_height());
         [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
     }
