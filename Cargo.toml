@@ -10,11 +10,11 @@ keywords = ["2d", "graphics", "wgpu", "winit"]
 categories = ["graphics", "game-development"]
 
 [workspace]
-members = [ "demos/no_windowing","demos/secs_particles", "demos/shooter"]
+members = ["demos/no_windowing", "demos/secs_particles", "demos/shooter"]
 resolver = "2"
 
 [features]
-default = []
+default = ["windowing"]
 webgl = ["wgpu/webgl"]
 log = [
     "dep:log",

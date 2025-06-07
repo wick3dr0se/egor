@@ -1,17 +1,15 @@
 #[cfg(feature = "windowing")]
 pub mod app;
 #[cfg(feature = "windowing")]
+pub use app::InitContext;
+#[cfg(feature = "windowing")]
 pub mod input;
-
-mod render;
-mod time;
-
-pub use wgpu::Color;
-
 #[cfg(feature = "windowing")]
 pub use winit::keyboard::KeyCode;
 
-pub use render::{Graphics, Renderer, camera::*, primitives::*};
+pub mod render;
+mod time;
+pub use wgpu::Color;
 
 #[cfg(target_arch = "wasm32")]
 pub type Rc<T> = std::rc::Rc<T>;
