@@ -6,7 +6,6 @@ use wgpu::{
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp,
     Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle, include_wgsl,
 };
-// use winit::{event_loop::EventLoopProxy, window::Window};
 
 use crate::Rc;
 
