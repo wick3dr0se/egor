@@ -1,30 +1,20 @@
+#[cfg(feature = "windowing")]
 pub mod app;
+#[cfg(feature = "windowing")]
 pub mod input;
+
 mod render;
 mod time;
 
 pub use wgpu::Color;
+
+#[cfg(feature = "windowing")]
 pub use winit::keyboard::KeyCode;
 
-use render::Renderer;
-use winit::window::Window;
+pub use render::{Graphics, Renderer, camera::*, primitives::*};
 
 #[cfg(target_arch = "wasm32")]
 pub type Rc<T> = std::rc::Rc<T>;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
-
-pub struct InitContext<'a> {
-    window: Rc<Window>,
-    render: &'a mut Renderer,
-}
-
-impl<'a> InitContext<'a> {
-    pub fn set_title(&self, title: &str) {
-        self.window.set_title(title);
-    }
-
-    pub fn load_texture(&mut self, data: &[u8]) -> usize {
-        self.render.add_texture(data)
-    }
-}

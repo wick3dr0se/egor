@@ -146,7 +146,7 @@ impl<'a> TextBuilder<'a> {
     }
 }
 
-impl<'a> Drop for TextBuilder<'a> {
+impl Drop for TextBuilder<'_> {
     fn drop(&mut self) {
         let mut buffer = Buffer::new(&mut self.renderer.font_system, Metrics::new(self.size, 1.0));
 
