@@ -3,7 +3,7 @@ pub mod primitives;
 mod renderer;
 mod text;
 mod texture;
-pub mod vertex;
+pub(crate) mod vertex;
 
 pub use renderer::Renderer;
 
@@ -38,10 +38,7 @@ impl<'a> Graphics<'a> {
     }
 
     pub fn screen_size(&self) -> [f32; 2] {
-        [
-            self.renderer.screen_width(),
-            self.renderer.screen_height(),
-        ]
+        [self.renderer.screen_width(), self.renderer.screen_height()]
     }
 
     pub fn camera(&mut self) -> &mut Camera {
