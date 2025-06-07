@@ -4,16 +4,18 @@ use glyphon::{
 };
 use wgpu::{Device, MultisampleState, Queue, TextureFormat};
 
+pub struct TextEntry {
+    buffer: Buffer,
+    position: (f32, f32),
+}
+
 pub struct TextRenderer {
     font_system: FontSystem,
     swash_cache: SwashCache,
     viewport: Viewport,
     atlas: TextAtlas,
     renderer: glyphon::TextRenderer,
-    buffer: Buffer,
-    text: String,
-    color: Color,
-    position: (f32, f32),
+    entries: Vec<TextEntry>,
 }
 
 impl TextRenderer {
@@ -36,33 +38,21 @@ impl TextRenderer {
             viewport,
             atlas,
             renderer,
-            buffer: dummy_buffer,
-            text: String::new(),
-            color: Color::rgb(255, 255, 255),
-            position: (0.0, 0.0),
+            entries: vec![TextEntry {
+                buffer: dummy_buffer,
+                position: (0.0, 0.0),
+            }],
         }
     }
 
-    pub fn set_text(&mut self, text: &str) {
-        self.buffer.set_text(
-            &mut self.font_system,
-            text,
-            &Attrs::new().color(self.color),
-            Shaping::Advanced,
-        );
-        self.text = text.to_string();
-    }
-
-    pub fn set_color(&mut self, color: Color) {
-        self.color = color;
-    }
-
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.buffer.set_size(
-            &mut self.font_system,
-            Some(width as f32),
-            Some(height as f32),
-        );
+        for entry in &mut self.entries {
+            entry.buffer.set_size(
+                &mut self.font_system,
+                Some(width as f32),
+                Some(height as f32),
+            );
+        }
     }
 
     pub fn prepare(&mut self, device: &Device, queue: &Queue, w: u32, h: u32) {
@@ -73,6 +63,25 @@ impl TextRenderer {
                 height: h,
             },
         );
+
+        let mut areas = Vec::with_capacity(self.entries.len());
+        for entry in &self.entries {
+            areas.push(TextArea {
+                buffer: &entry.buffer,
+                left: entry.position.0,
+                top: entry.position.1,
+                bounds: TextBounds {
+                    left: 0,
+                    top: 0,
+                    right: w as i32,
+                    bottom: h as i32,
+                },
+                scale: 1.0,
+                default_color: Color::rgb(0, 0, 0),
+                custom_glyphs: &[],
+            });
+        }
+
         self.renderer
             .prepare(
                 device,
@@ -80,23 +89,12 @@ impl TextRenderer {
                 &mut self.font_system,
                 &mut self.atlas,
                 &self.viewport,
-                [TextArea {
-                    buffer: &self.buffer,
-                    left: self.position.0,
-                    top: self.position.1,
-                    bounds: TextBounds {
-                        left: 0,
-                        top: 0,
-                        right: w as i32,
-                        bottom: h as i32,
-                    },
-                    default_color: self.color,
-                    custom_glyphs: &[],
-                    scale: 1.0,
-                }],
+                areas,
                 &mut self.swash_cache,
             )
             .unwrap();
+
+        self.entries.clear();
     }
 
     pub fn render<'rp>(&'rp self, pass: &mut wgpu::RenderPass<'rp>) {
@@ -108,20 +106,20 @@ impl TextRenderer {
 
 pub struct TextBuilder<'a> {
     renderer: &'a mut TextRenderer,
-    text: &'a str,
+    text: String,
     position: (f32, f32),
     size: f32,
     color: Color,
 }
 
 impl<'a> TextBuilder<'a> {
-    pub fn new(renderer: &'a mut TextRenderer, text: &'a str) -> Self {
+    pub fn new(renderer: &'a mut TextRenderer, text: String) -> Self {
         Self {
             renderer,
             text,
             position: (0.0, 0.0),
-            size: 12.0,
-            color: Color::rgb(255, 255, 255),
+            size: 16.0,
+            color: Color::rgb(0, 0, 0),
         }
     }
 
@@ -149,18 +147,16 @@ impl<'a> TextBuilder<'a> {
 impl<'a> Drop for TextBuilder<'a> {
     fn drop(&mut self) {
         let mut buffer = Buffer::new(&mut self.renderer.font_system, Metrics::new(self.size, 1.0));
-
-        let attrs = Attrs::new().color(self.color);
         buffer.set_text(
             &mut self.renderer.font_system,
-            self.text,
-            &attrs,
+            &self.text,
+            &Attrs::new().color(self.color),
             Shaping::Advanced,
         );
 
-        self.renderer.buffer = buffer;
-        self.renderer.text = self.text.to_string();
-        self.renderer.color = self.color;
-        self.renderer.position = self.position;
+        self.renderer.entries.push(TextEntry {
+            buffer,
+            position: self.position,
+        });
     }
 }

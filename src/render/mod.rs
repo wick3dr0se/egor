@@ -38,18 +38,15 @@ impl<'a> Graphics<'a> {
     }
 
     pub fn screen_size(&self) -> [f32; 2] {
-        [
-            self.renderer.screen_width(),
-            self.renderer.screen_height(),
-        ]
+        [self.renderer.screen_width(), self.renderer.screen_height()]
     }
 
     pub fn camera(&mut self) -> &mut Camera {
         &mut self.camera
     }
 
-    pub fn text(&mut self, text: &'a str) -> TextBuilder {
-        TextBuilder::new(&mut self.renderer.text, text)
+    pub fn text(&mut self, text: &str) -> TextBuilder {
+        TextBuilder::new(&mut self.renderer.text, text.to_string())
     }
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
         self.renderer.update_texture(index, data);

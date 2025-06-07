@@ -83,6 +83,7 @@ fn main() {
     let mut fire_cd = 0.0;
     let mut fire_rate = 2.0;
     let mut spread = 1;
+    let mut kills = 0;
 
     let mut player = Soldier {
         x: 0.0,
@@ -158,7 +159,14 @@ fn main() {
             !hit && !offscreen
         });
 
-        enemies.retain(|e| e.hp > 0.0);
+        enemies.retain(|e| {
+            if e.hp <= 0.0 {
+                kills += 1;
+                false
+            } else {
+                true
+            }
+        });
 
         for b in &mut bullets {
             b.x += b.vx * t.delta;
@@ -239,5 +247,12 @@ fn main() {
                 hp,
             );
         }
+
+        g.text(&format!("Wave: {wave}")).at(10.0, 10.0);
+        g.text(&format!("Zombies killed: {kills}")).at(10.0, 30.0);
+        g.text(&format!("HP: {:.0}", player.hp)).at(10.0, 50.0);
+        g.text(&format!("Fire rate: {:.1}/s", fire_rate))
+            .at(10.0, 70.0);
+        g.text(&format!("Bullet Spread: {spread}")).at(10.0, 90.0);
     });
 }
