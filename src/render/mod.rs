@@ -3,7 +3,7 @@ pub mod primitives;
 mod renderer;
 mod text;
 mod texture;
-pub mod vertex;
+pub(crate) mod vertex;
 
 pub use renderer::Renderer;
 

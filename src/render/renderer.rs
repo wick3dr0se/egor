@@ -4,9 +4,8 @@ use wgpu::{
     ColorWrites, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
     Operations, PipelineLayoutDescriptor, PresentMode, Queue, RenderPassColorAttachment,
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp,
-    Surface, SurfaceConfiguration, VertexState, include_wgsl,
+    Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle, include_wgsl,
 };
-use winit::{event_loop::EventLoopProxy, window::Window};
 
 use crate::Rc;
 
@@ -104,7 +103,11 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn create_graphics(window: Rc<Window>, proxy: EventLoopProxy<Self>) {
+    pub async fn create_graphics<'w>(
+        inner_width: u32,
+        inner_height: u32,
+        window: Rc<impl Into<SurfaceTarget<'w>> + Send + Sync + WindowHandle + 'static>,
+    ) -> Renderer {
         let instance = Instance::default();
         let surface = instance.create_surface(window.clone()).unwrap();
         let adapter = instance
@@ -128,9 +131,8 @@ impl Renderer {
             .await
             .unwrap();
 
-        let size = window.inner_size();
         // WebGPU throws error 'size is zero' if not set
-        let (w, h) = (size.width.max(1), size.height.max(1));
+        let (w, h) = (inner_width.max(1), inner_height.max(1));
 
         let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
         surface_cfg.present_mode = PresentMode::Fifo;
@@ -172,7 +174,7 @@ impl Renderer {
         let default_texture = Texture::create_default(&device, &queue, &bind_group_layout);
         let text = TextRenderer::new(&device, &queue, surface_cfg.format);
 
-        let _ = proxy.send_event(Renderer {
+        Renderer {
             gpu: Gpu {
                 device: device.clone(),
                 queue,
@@ -188,7 +190,7 @@ impl Renderer {
             textures: Vec::new(),
             default_texture,
             text,
-        });
+        }
     }
 
     pub fn render_frame(&mut self) {
@@ -266,7 +268,7 @@ impl Renderer {
         self.target.config.height as f32
     }
 
-    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
+    pub(crate) fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
         for batch in &mut self.batches {
             if batch.texture_index == texture_index {
                 batch.submit(vertices, indices, texture_index);
@@ -279,7 +281,7 @@ impl Renderer {
         self.batches.push(new_batch);
     }
 
-    pub fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
+    pub(crate) fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
         let (w, h) = (self.screen_width(), self.screen_height());
         [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
     }

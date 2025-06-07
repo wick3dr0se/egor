@@ -1,5 +1,5 @@
 use crate::{
-    InitContext, Rc,
+    Rc,
     input::Input,
     render::{Graphics, Renderer},
     time::FrameTimer,
@@ -40,11 +40,18 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
+            let (width, height) = (window.inner_size().width, window.inner_size().height);
 
             #[cfg(target_arch = "wasm32")]
-            wasm_bindgen_futures::spawn_local(Renderer::create_graphics(window, proxy));
+            wasm_bindgen_futures::spawn_local(async move {
+                let renderer = Renderer::create_graphics(width, height, window).await;
+                _ = proxy.send_event(renderer);
+            });
             #[cfg(not(target_arch = "wasm32"))]
-            pollster::block_on(Renderer::create_graphics(window, proxy));
+            {
+                let renderer = pollster::block_on(Renderer::create_graphics(width, height, window));
+                _ = proxy.send_event(renderer);
+            }
         }
     }
 
@@ -133,5 +140,20 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
 
             event_loop.run_app(&mut self).unwrap();
         }
+    }
+}
+
+pub struct InitContext<'a> {
+    window: Rc<Window>,
+    render: &'a mut Renderer,
+}
+
+impl InitContext<'_> {
+    pub fn set_title(&self, title: &str) {
+        self.window.set_title(title);
+    }
+
+    pub fn load_texture(&mut self, data: &[u8]) -> usize {
+        self.render.add_texture(data)
     }
 }

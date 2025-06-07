@@ -78,7 +78,7 @@ impl<'a> TriangleBuilder<'a> {
     }
 }
 
-impl<'a> Drop for TriangleBuilder<'a> {
+impl Drop for TriangleBuilder<'_> {
     fn drop(&mut self) {
         let [x, y] = self.position;
         let size = self.size;
@@ -172,7 +172,7 @@ impl<'a> RectangleBuilder<'a> {
     }
 }
 
-impl<'a> Drop for RectangleBuilder<'a> {
+impl Drop for RectangleBuilder<'_> {
     fn drop(&mut self) {
         let [x, y] = self.position;
         let [w, h] = self.size;

@@ -7,7 +7,7 @@ edition = "2024"
 webgl = ["egor/webgl"]
 
 [dependencies]
-egor = { path = "../../" }
+egor = { path = "../../", features = ["windowing"] }
 rand = "0.8"
 getrandom = { version = "0.2", features = ["js"] }
 image = { version = "0.25.6", default-features = false, features = ["png"] }
