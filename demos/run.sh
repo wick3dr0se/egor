@@ -3,12 +3,13 @@ set -euo pipefail
 
 flags=()
 verbose=0
-useMold=1
 debug=1
-binTarget=
 memPath=
 buildPath=
 wasmBuild=0
+liveReload=0
+useMold=1
+demo=
 
 usage() {
     cat <<EOF
@@ -17,14 +18,15 @@ Usage: $0 [OPTION]... [ARG]...
 Options:
   -h, --help                Show this usage.
   -v, --verbose             Enable verbose output.
-  -d, --demo <TARGET>       Specify a demo target to run (e.g., --demo shooter).
+  -r, --release             Build in release mode (default: debug).
   -F, --features <FEAT>...  Comma-separated list of features to enable (e.g., -f log,webgl).
   -w, --wasm                Build for WebAssembly
   -m, --mem [DIR]           Use tmpfs (RAM-backed) dir to speed up (incremental) builds by avoiding disk I/O (default: /tmp).
+  -l, --live-reload         Use dioxus-cli for live-reload during development (native or wasm).
   --no-mold                 Disable mold linker for native builds & fallback to default rustc linker (default: enabled if available)
 
 Arguments:
-  r, release                Build in release mode (default: debug).
+  <TARGET>                  Specify a demo to run (e.g., shooter).
 
 Environment Variables:
   RUSTFLAGS=...             Pass custom rustc flags (e.g., RUSTFLAGS='-C target-cpu=native').
@@ -36,7 +38,7 @@ panic() { printf '[\e[31mPANIC\e[m](L%s): %s\n' "${BASH_LINENO[0]}" "$1" >&2; us
 
 cleanup() {
     [[ -d $buildPath ]] && rm -fr "$buildPath"
-    [[ ${PWD##*/} == "$binTarget" ]] && (( wasmBuild )) && mv index.html ../
+    [[ ${PWD##*/} == "$demo" ]] && (( wasmBuild )) && mv index.html ../
 }
 
 is_tmpfs() { [[ -d "$1" && -w "$1" ]] && mountpoint -q "$1"; }
@@ -56,26 +58,29 @@ link_in_memory() {
     cd "$buildPath"
 }
 
-run_native_build() {
+setup_toolchain() {
+    echo "Configuring toolchain.."
+
+    PATH="$HOME/.cargo/bin:$PATH"
+    
+    (( wasmBuild )) && rustup target add wasm32-unknown-unknown; :
+}
+
+run_native() {
     (( useMold )) && type mold && export RUSTFLAGS="-C link-arg=-fuse-ld=mold ${RUSTFLAGS-}"
 
     echo "Compiling native build with rustc flags: ${RUSTFLAGS-}.."
+
+    (( liveReload )) && dx serve --hotpatch "${flags[@]}" && return
     cargo run "${flags[@]}"
 }
 
-setup_wasm_toolchain() {
-    echo "Configuring WebAssembly toolchain.."
-
-    PATH="$HOME/.cargo/bin:$PATH"
-    type trunk || cargo install --locked trunk
-
-    rustup target add wasm32-unknown-unknown
-}
-
-run_wasm_build() {
-    setup_wasm_toolchain
-    
+serve_wasm() {
     echo "Compiling $wasmBuild WebAssembly build with rustc flags: ${RUSTFLAGS-}.."
+
+    (( liveReload )) && dx serve --hotpatch --platform web -- --no-default-features && return
+    
+    type trunk || cargo install --locked trunk
     trunk serve "${flags[@]}"
 }
 
@@ -85,34 +90,35 @@ while (( $# )); do
     case $1 in
         -h|--help) usage;;
         -v|--verbose) verbose=1;;
-        r|release) debug=0;;
-        -d|--demo)
-            [[ ${2-} && $2 != -* ]] || panic "You must specify a target to --bin"
-            binTarget="$2"; shift
-        ;;
+        -r|--release) debug=0;;
         -F|--features) [[ ${2-} != -* ]] && shift && flags+=(--features "$1");;
         -w|--wasm) wasmBuild=1;;
         -m|--mem) [[ ${2-} && $2 != -* ]] && memPath="$2" && shift; memPath="${memPath:-/tmp}";;
+        -l|--live-reload) liveReload=1;;
         --no-mold) useMold=0;;
-        *) panic "Unknown argument: $1";;
+        -*) panic "Unknown flag: $1";;
+        *) [[ $demo ]] && panic 'Multiple demo targets given'; demo="$1";;
     esac
     shift
 done
 (( verbose )) && set -x && flags+=(--verbose)
 (( debug )) || flags+=(--release)
 
-[[ $binTarget && -d $binTarget ]] && {
-    cd "$binTarget"
+[[ $demo && -d $demo ]] && {
+    cd "$demo"
 
     (( wasmBuild )) && mv ../index.html ./
 }
-[[ $wasmBuild == webgl ]] && flags+=(--features webgl)
 
 [[ $memPath ]] && link_in_memory "$memPath"
 
+(( liveReload )) && { type dx || cargo install --git https://github.com/DioxusLabs/dioxus dioxus-cli --locked; }
+
+setup_toolchain
+
 echo "Running with flags: ${flags[*]}"
 if (( wasmBuild )); then
-    run_wasm_build
+    serve_wasm
 else
-    run_native_build
+    run_native
 fi
