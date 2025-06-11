@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-egor = { path = "../../", default-features = false }
+egor = { path = "../../", default-features = false, features = ["render"] }
 winit = "0.30.11"
 pollster = "0.4.0"

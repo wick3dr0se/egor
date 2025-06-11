@@ -1,0 +1,15 @@
+[package]
+name = "egor_subsecond"
+version = "0.2.0"
+edition = "2024"
+authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
+description = "Subsecond hot reload for egor"
+license = "MIT"
+repository = "https://github.com/wick3dr0se/egor"
+keywords = ["egor", "subsecond"]
+
+[dependencies]
+dioxus-devtools = { version = "0.7.0-alpha.1" }
+
+egor_app = { path = "../egor_app" }
+egor_render = { path = "../egor_render" }

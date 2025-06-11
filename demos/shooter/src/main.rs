@@ -1,12 +1,10 @@
 mod animation;
 
 use egor::{
-    Color,
     app::App,
     input::{KeyCode, MouseButton},
+    render::Color,
 };
-#[allow(unused)]
-use image::GenericImageView;
 use rand::{Rng, RngCore};
 
 use crate::animation::SpriteAnim;
@@ -102,7 +100,7 @@ fn main() {
     let mut time_since_recolor = 0.;
 
     App::init(|ctx| {
-        ctx.set_title("Minimal Shooter");
+        ctx.set_title("Egor Shooter Demo");
         ctx.load_texture(include_bytes!("../assets/soldier.png"));
         ctx.load_texture(include_bytes!("../assets/zombie.png"));
     })
