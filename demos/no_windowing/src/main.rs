@@ -1,9 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use egor::Color;
-use egor::render::primitives::Anchor;
-use egor::render::{Graphics, Renderer};
+use egor::render::{Anchor, Color, Graphics, Renderer};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};

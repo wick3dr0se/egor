@@ -1,18 +1,14 @@
-#[cfg(feature = "windowing")]
-pub mod app;
-#[cfg(feature = "windowing")]
-pub use app::InitContext;
-#[cfg(feature = "windowing")]
-pub mod input;
-#[cfg(feature = "windowing")]
-pub use winit::keyboard::KeyCode;
+#[cfg(feature = "app")]
+pub mod app {
+    pub use egor_app::App;
+}
 
-pub mod render;
-mod time;
-pub use wgpu::Color;
+#[cfg(feature = "app")]
+pub mod input {
+    pub use egor_app::input::{KeyCode, MouseButton};
+}
 
-#[cfg(target_arch = "wasm32")]
-pub type Rc<T> = std::rc::Rc<T>;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub type Rc<T> = std::sync::Arc<T>;
+#[cfg(feature = "render")]
+pub mod render {
+    pub use egor_render::{Anchor, Color, Graphics, Renderer};
+}

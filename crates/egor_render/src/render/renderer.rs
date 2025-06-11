@@ -7,8 +7,6 @@ use wgpu::{
     Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle, include_wgsl,
 };
 
-use crate::Rc;
-
 pub use wgpu::Color;
 
 const MAX_INDICES: usize = u16::MAX as usize * 32;
@@ -106,7 +104,7 @@ impl Renderer {
     pub async fn create_graphics<'w>(
         inner_width: u32,
         inner_height: u32,
-        window: Rc<impl Into<SurfaceTarget<'w>> + Send + Sync + WindowHandle + 'static>,
+        window: impl Into<SurfaceTarget<'static>> + Clone + Send + Sync + WindowHandle + 'w,
     ) -> Renderer {
         let instance = Instance::default();
         let surface = instance.create_surface(window.clone()).unwrap();

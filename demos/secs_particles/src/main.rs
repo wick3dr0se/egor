@@ -1,6 +1,7 @@
-use egor::{Color, app::App};
 use rand::Rng;
 use secs::World;
+
+use egor::{app::App, render::Color};
 
 struct Position {
     x: f32,

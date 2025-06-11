@@ -1,15 +1,24 @@
-use crate::{
-    Rc,
-    input::Input,
-    render::{Graphics, Renderer},
-    time::FrameTimer,
-};
+pub mod time;
+pub use winit::keyboard::KeyCode;
+
+pub mod input;
+
+#[cfg(target_arch = "wasm32")]
+pub type Rc<T> = std::rc::Rc<T>;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type Rc<T> = std::sync::Arc<T>;
+
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::{Window, WindowId},
 };
+
+use egor_render::{Graphics, Renderer};
+
+use crate::{input::Input, time::FrameTimer};
 
 pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
 impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
@@ -24,6 +33,7 @@ pub struct App<I, U> {
     timer: FrameTimer,
     renderer: Option<Renderer>,
     input: Input,
+    plugins: Vec<Box<dyn Plugin>>,
 }
 
 impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
@@ -61,11 +71,21 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             WindowEvent::RedrawRequested => {
                 self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
-                    self.update.as_mut().unwrap()(
-                        &self.timer,
-                        &mut Graphics::new(r),
-                        &mut self.input,
-                    );
+                    let mut graphics = Graphics::new(r);
+
+                    let mut update: Box<dyn FnMut(&FrameTimer, &mut Graphics, &mut Input)> =
+                        Box::new(|timer, graphics, input| {
+                            self.update.as_mut().unwrap()(timer, graphics, input)
+                        });
+
+                    for plugin in self.plugins.iter_mut().rev() {
+                        let mut last_update = update;
+                        update = Box::new(move |timer, graphics, input| {
+                            plugin.update(&mut last_update, timer, graphics, input)
+                        });
+                    }
+
+                    update(&self.timer, &mut graphics, &mut self.input);
                     r.render_frame();
                 };
                 self.input.end_frame();
@@ -91,10 +111,16 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
 
     fn user_event(&mut self, _: &ActiveEventLoop, mut renderer: Renderer) {
         if let Some(init) = self.init.take() {
-            init(&mut InitContext {
+            let mut ctx = InitContext {
                 window: self.window.as_ref().unwrap().clone(),
                 render: &mut renderer,
-            });
+            };
+
+            for plugin in &mut self.plugins {
+                plugin.init(&mut ctx);
+            }
+            init(&mut ctx);
+
             self.renderer = Some(renderer);
         }
     }
@@ -110,6 +136,7 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             timer: FrameTimer::new(),
             renderer: None,
             input: Input::default(),
+            plugins: Vec::new(),
         }
     }
 
@@ -141,6 +168,11 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             event_loop.run_app(&mut self).unwrap();
         }
     }
+
+    pub fn plugin<P: Plugin + 'static>(mut self, plugin: P) -> Self {
+        self.plugins.push(Box::new(plugin));
+        self
+    }
 }
 
 pub struct InitContext<'a> {
@@ -156,4 +188,15 @@ impl InitContext<'_> {
     pub fn load_texture(&mut self, data: &[u8]) -> usize {
         self.render.add_texture(data)
     }
+}
+
+pub trait Plugin {
+    fn init(&mut self, ctx: &mut InitContext);
+    fn update(
+        &mut self,
+        next: &mut dyn FnMut(&FrameTimer, &mut Graphics, &mut Input),
+        timer: &FrameTimer,
+        graphics: &mut Graphics,
+        input: &mut Input,
+    );
 }

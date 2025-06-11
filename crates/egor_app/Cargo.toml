@@ -1,0 +1,34 @@
+[package]
+name = "egor_app"
+version = "0.2.0"
+edition = "2024"
+authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
+description = "App/plugin layer for egor"
+license = "MIT"
+repository = "https://github.com/wick3dr0se/egor"
+keywords = ["egor"]
+
+[features]
+default = []
+log = [
+    "dep:log",
+    "dep:env_logger",
+    "dep:console_log",
+    "dep:console_error_panic_hook",
+]
+
+[dependencies]
+log = { version = "0.4.27", optional = true }
+winit = "0.30.10"
+
+egor_render = { path = "../egor_render" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = { version = "0.1.7", optional = true }
+console_log = { version = "1.0.0", optional = true }
+web-sys = { version = "0.3.77", features = ["Window", "Performance"] }
+wasm-bindgen-futures = "0.4.50"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = { version = "0.11.8", optional = true }
+pollster = "0.4.0"
