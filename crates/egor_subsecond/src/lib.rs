@@ -1,6 +1,5 @@
 use dioxus_devtools::{connect_subsecond, subsecond};
-use egor_app::{InitContext, Plugin, input::Input, time::FrameTimer};
-use egor_render::Graphics;
+use egor_app::{Context, InitContext, Plugin};
 
 pub struct HotReloadPlugin;
 
@@ -9,13 +8,7 @@ impl Plugin for HotReloadPlugin {
         connect_subsecond();
     }
 
-    fn update(
-        &mut self,
-        next: &mut dyn FnMut(&FrameTimer, &mut Graphics, &mut Input),
-        timer: &FrameTimer,
-        graphics: &mut Graphics,
-        input: &mut Input,
-    ) {
-        subsecond::call(|| next(timer, graphics, input));
+    fn update(&mut self, next: &mut dyn FnMut(&mut Context), ctx: &mut Context) {
+        subsecond::call(|| next(ctx));
     }
 }

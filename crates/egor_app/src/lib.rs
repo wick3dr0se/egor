@@ -73,19 +73,24 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 if let Some(r) = self.renderer.as_mut() {
                     let mut graphics = Graphics::new(r);
 
-                    let mut update: Box<dyn FnMut(&FrameTimer, &mut Graphics, &mut Input)> =
-                        Box::new(|timer, graphics, input| {
-                            self.update.as_mut().unwrap()(timer, graphics, input)
-                        });
+                    let update_fn = self.update.as_mut().unwrap();
+                    let mut update: Box<dyn FnMut(&mut Context)> = Box::new(|ctx| {
+                        (update_fn)(ctx.timer, ctx.graphics, ctx.input);
+                    });
 
+                    // wrap user update in plugin chain
                     for plugin in self.plugins.iter_mut().rev() {
-                        let mut last_update = update;
-                        update = Box::new(move |timer, graphics, input| {
-                            plugin.update(&mut last_update, timer, graphics, input)
+                        let mut last = update;
+                        update = Box::new(move |ctx| {
+                            plugin.update(&mut last, ctx);
                         });
                     }
 
-                    update(&self.timer, &mut graphics, &mut self.input);
+                    update(&mut Context {
+                        timer: &self.timer,
+                        graphics: &mut graphics,
+                        input: &mut self.input,
+                    });
                     r.render_frame();
                 };
                 self.input.end_frame();
@@ -190,13 +195,13 @@ impl InitContext<'_> {
     }
 }
 
+pub struct Context<'a> {
+    pub timer: &'a FrameTimer,
+    pub graphics: &'a mut Graphics<'a>,
+    pub input: &'a mut Input,
+}
+
 pub trait Plugin {
     fn init(&mut self, ctx: &mut InitContext);
-    fn update(
-        &mut self,
-        next: &mut dyn FnMut(&FrameTimer, &mut Graphics, &mut Input),
-        timer: &FrameTimer,
-        graphics: &mut Graphics,
-        input: &mut Input,
-    );
+    fn update(&mut self, next: &mut dyn FnMut(&mut Context), ctx: &mut Context);
 }

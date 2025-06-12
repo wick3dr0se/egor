@@ -694,7 +694,6 @@ version = "0.2.0"
 dependencies = [
  "dioxus-devtools",
  "egor_app",
- "egor_render",
 ]
 
 [[package]]

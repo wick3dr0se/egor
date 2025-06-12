@@ -12,4 +12,3 @@ keywords = ["egor", "subsecond"]
 dioxus-devtools = { version = "0.7.0-alpha.1" }
 
 egor_app = { path = "../egor_app" }
-egor_render = { path = "../egor_render" }
