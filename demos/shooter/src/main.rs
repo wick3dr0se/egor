@@ -99,12 +99,12 @@ fn main() {
         .to_rgba8();
     let mut time_since_recolor = 0.;
 
-    App::init(|ctx| {
+    App::init((), |ctx| {
         ctx.set_title("Egor Shooter Demo");
         ctx.load_texture(include_bytes!("../assets/soldier.png"));
         ctx.load_texture(include_bytes!("../assets/zombie.png"));
     })
-    .plugin(move |ctx: &mut Context| {
+    .plugin(move |ctx: &mut Context<()>| {
         let [w, h] = ctx.graphics.screen_size();
 
         if game_over {
