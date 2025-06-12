@@ -1,14 +1,17 @@
 use dioxus_devtools::{connect_subsecond, subsecond};
 use egor_app::{Context, InitContext, Plugin};
 
-pub struct HotReloadPlugin;
+pub struct HotReloadPlugin<T> {
+    internal: T,
+}
 
-impl Plugin for HotReloadPlugin {
-    fn init(&mut self, _ctx: &mut InitContext) {
+impl<T: Plugin> Plugin for HotReloadPlugin<T> {
+    fn init(&mut self, ctx: &mut InitContext) {
         connect_subsecond();
+        self.internal.init(ctx);
     }
 
-    fn update(&mut self, next: &mut dyn FnMut(&mut Context), ctx: &mut Context) {
-        subsecond::call(|| next(ctx));
+    fn update(&mut self, ctx: &mut Context) {
+        subsecond::call(|| self.internal.update(ctx));
     }
 }
