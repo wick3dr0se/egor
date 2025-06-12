@@ -104,10 +104,10 @@ impl Renderer {
     pub async fn create_graphics<'w>(
         inner_width: u32,
         inner_height: u32,
-        window: impl Into<SurfaceTarget<'static>> + Clone + Send + Sync + WindowHandle + 'w,
+        window: impl Into<SurfaceTarget<'static>> + WindowHandle + 'w,
     ) -> Renderer {
         let instance = Instance::default();
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
                 // Force find adapter that can present to this surface
