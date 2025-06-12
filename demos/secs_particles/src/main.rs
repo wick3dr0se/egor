@@ -59,7 +59,7 @@ fn main() {
             ctx.graphics
                 .rect()
                 .at(pos.x, pos.y)
-                .size(5.0, 1.0)
+                .size(10.0, 10.0)
                 .color(Color::WHITE);
         });
     });
