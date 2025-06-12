@@ -5,7 +5,7 @@ pub mod app {
 
 #[cfg(feature = "app")]
 pub mod input {
-    pub use egor_app::input::{KeyCode, MouseButton};
+    pub use egor_app::input::{Input, KeyCode, MouseButton};
 }
 
 #[cfg(feature = "render")]
