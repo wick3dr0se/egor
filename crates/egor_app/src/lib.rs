@@ -20,8 +20,8 @@ use egor_render::{Graphics, Renderer};
 
 use crate::{input::Input, time::FrameTimer};
 
-pub trait InitFn<S>: FnOnce(&mut InitContext<S>) + 'static {}
-impl<S, F: FnOnce(&mut InitContext<S>) + 'static> InitFn<S> for F {}
+pub trait InitFn<S>: FnOnce(&mut S, &mut InitContext) + 'static {}
+impl<S, F: FnOnce(&mut S, &mut InitContext) + 'static> InitFn<S> for F {}
 
 pub struct App<S, I> {
     state: S,
@@ -71,14 +71,19 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
                 if let Some(r) = self.renderer.as_mut() {
                     let mut graphics = Graphics::new(r);
 
+                    let Self {
+                        state,
+                        input,
+                        timer,
+                        ..
+                    } = self;
                     let mut cx = Context {
-                        timer: &self.timer,
+                        timer: &timer,
                         graphics: &mut graphics,
-                        input: &mut self.input,
-                        state: &mut self.state,
+                        input: input,
                     };
                     for plugin in self.plugins.iter_mut() {
-                        plugin.update(&mut cx);
+                        plugin.update(state, &mut cx);
                     }
                     r.render_frame();
                 }
@@ -105,16 +110,16 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
 
     fn user_event(&mut self, _: &ActiveEventLoop, mut renderer: Renderer) {
         if let Some(init) = self.init.take() {
+            let Self { state, window, .. } = self;
             let mut ctx = InitContext {
-                window: self.window.as_ref().unwrap().clone(),
+                window: window.as_ref().unwrap().clone(),
                 render: &mut renderer,
-                state: &mut self.state,
             };
 
             for plugin in &mut self.plugins {
-                plugin.init(&mut ctx);
+                plugin.init(state, &mut ctx);
             }
-            init(&mut ctx);
+            init(state, &mut ctx);
             self.renderer = Some(renderer);
         }
     }
@@ -134,11 +139,12 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
         }
     }
 
-    pub fn run(mut self) {
+    pub fn run(mut self, update: impl FnMut(&mut S, &mut Context) + 'static) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
         self.proxy = Some(event_loop.create_proxy());
+        self.plugins.insert(0, Box::new(update));
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -168,13 +174,12 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
     }
 }
 
-pub struct InitContext<'a, S> {
+pub struct InitContext<'a> {
     window: Rc<Window>,
     render: &'a mut Renderer,
-    pub state: &'a mut S,
 }
 
-impl<'a, S> InitContext<'a, S> {
+impl<'a> InitContext<'a> {
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title);
     }
@@ -184,25 +189,24 @@ impl<'a, S> InitContext<'a, S> {
     }
 }
 
-pub struct Context<'a, S> {
+pub struct Context<'a> {
     pub timer: &'a FrameTimer,
     pub graphics: &'a mut Graphics<'a>,
     pub input: &'a mut Input,
-    pub state: &'a mut S,
 }
 
 pub trait Plugin<S> {
-    fn init(&mut self, ctx: &mut InitContext<S>);
-    fn update(&mut self, ctx: &mut Context<S>);
+    fn init(&mut self, state: &mut S, ctx: &mut InitContext);
+    fn update(&mut self, state: &mut S, ctx: &mut Context);
 }
 
 impl<T, S> Plugin<S> for T
 where
-    T: FnMut(&mut Context<S>),
+    T: FnMut(&mut S, &mut Context),
 {
-    fn init(&mut self, _ctx: &mut InitContext<S>) {}
+    fn init(&mut self, _state: &mut S, _ctx: &mut InitContext) {}
 
-    fn update(&mut self, ctx: &mut Context<S>) {
-        self(ctx);
+    fn update(&mut self, state: &mut S, ctx: &mut Context) {
+        self(state, ctx);
     }
 }

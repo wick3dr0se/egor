@@ -32,14 +32,14 @@ fn main() {
             },
         ));
     }
-    App::init(world, move |ctx| {
+    App::init(world, move |_world, ctx| {
         ctx.set_title("Egor ECS Particles Demo");
     })
-    .plugin(move |ctx: &mut Context<World>| {
+    .run(move |world, ctx: &mut Context| {
         let [w, h] = ctx.graphics.screen_size();
         let (hw, hh) = (w / 2.0, h / 2.0);
 
-        ctx.state.query(|_, pos: &mut Position, vel: &Velocity| {
+        world.query(|_, pos: &mut Position, vel: &Velocity| {
             pos.x += vel.x * ctx.timer.delta * speed;
             pos.y += vel.y * ctx.timer.delta * speed;
 
@@ -62,6 +62,5 @@ fn main() {
                 .size(5.0, 1.0)
                 .color(Color::WHITE);
         });
-    })
-    .run();
+    });
 }

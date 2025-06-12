@@ -99,12 +99,12 @@ fn main() {
         .to_rgba8();
     let mut time_since_recolor = 0.;
 
-    App::init((), |ctx| {
+    App::init((), |_, ctx| {
         ctx.set_title("Egor Shooter Demo");
         ctx.load_texture(include_bytes!("../assets/soldier.png"));
         ctx.load_texture(include_bytes!("../assets/zombie.png"));
     })
-    .plugin(move |ctx: &mut Context<()>| {
+    .run(move |_, ctx: &mut Context| {
         let [w, h] = ctx.graphics.screen_size();
 
         if game_over {
@@ -266,6 +266,5 @@ fn main() {
         ctx.graphics
             .text(&format!("Bullet Spread: {spread}"))
             .at(10.0, 90.0);
-    })
-    .run();
+    });
 }

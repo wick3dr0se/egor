@@ -16,12 +16,12 @@ impl<S, T: Plugin<S>> HotReloadPlugin<T, S> {
 }
 
 impl<S, T: Plugin<S>> Plugin<S> for HotReloadPlugin<T, S> {
-    fn init(&mut self, ctx: &mut InitContext<S>) {
+    fn init(&mut self, state: &mut S, ctx: &mut InitContext) {
         connect_subsecond();
-        self.internal.init(ctx);
+        self.internal.init(state, ctx);
     }
 
-    fn update(&mut self, ctx: &mut Context<S>) {
-        subsecond::call(|| self.internal.update(ctx));
+    fn update(&mut self, state: &mut S, ctx: &mut Context) {
+        subsecond::call(|| self.internal.update(state, ctx));
     }
 }
