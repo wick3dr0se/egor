@@ -33,7 +33,11 @@ pub struct App<I, U> {
     timer: FrameTimer,
     renderer: Option<Renderer>,
     input: Input,
-    plugins: Vec<Box<dyn Plugin>>,
+    #[cfg(target_arch = "wasm32")]
+    plugins: Vec<Rc<std::cell::RefCell<dyn Plugin>>>,
+    #[cfg(not(target_arch = "wasm32"))]
+    plugins: Vec<Rc<std::sync::Mutex<dyn Plugin>>>,
+    update_chain: Option<Box<dyn FnMut(&mut Context)>>,
 }
 
 impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
@@ -73,26 +77,19 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 if let Some(r) = self.renderer.as_mut() {
                     let mut graphics = Graphics::new(r);
 
-                    let update_fn = self.update.as_mut().unwrap();
-                    let mut update: Box<dyn FnMut(&mut Context)> = Box::new(|ctx| {
-                        (update_fn)(ctx.timer, ctx.graphics, ctx.input);
-                    });
-
-                    // wrap user update in plugin chain
-                    for plugin in self.plugins.iter_mut().rev() {
-                        let mut last = update;
-                        update = Box::new(move |ctx| {
-                            plugin.update(&mut last, ctx);
+                    if let Some(update) = self.update_chain.as_mut() {
+                        update(&mut Context {
+                            timer: &self.timer,
+                            graphics: &mut graphics,
+                            input: &mut self.input,
                         });
+                    } else {
+                        let update_fn = self.update.as_mut().unwrap();
+                        update_fn(&self.timer, &mut graphics, &mut self.input);
                     }
 
-                    update(&mut Context {
-                        timer: &self.timer,
-                        graphics: &mut graphics,
-                        input: &mut self.input,
-                    });
                     r.render_frame();
-                };
+                }
                 self.input.end_frame();
                 self.window.as_ref().unwrap().request_redraw();
             }
@@ -122,10 +119,28 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             };
 
             for plugin in &mut self.plugins {
-                plugin.init(&mut ctx);
+                #[cfg(target_arch = "wasm32")]
+                plugin.borrow_mut().init(&mut ctx);
+                #[cfg(not(target_arch = "wasm32"))]
+                plugin.lock().unwrap().init(&mut ctx);
             }
             init(&mut ctx);
 
+            let mut update_fn = self.update.take().unwrap();
+            let mut chain: Box<dyn FnMut(&mut Context)> =
+                Box::new(move |ctx| update_fn(ctx.timer, ctx.graphics, ctx.input));
+
+            for plugin in self.plugins.iter().rev().cloned() {
+                let mut next = chain;
+                chain = Box::new(move |ctx| {
+                    #[cfg(target_arch = "wasm32")]
+                    plugin.borrow_mut().update(&mut next, ctx);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    plugin.lock().unwrap().update(&mut next, ctx);
+                });
+            }
+
+            self.update_chain = Some(chain);
             self.renderer = Some(renderer);
         }
     }
@@ -142,6 +157,7 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             renderer: None,
             input: Input::default(),
             plugins: Vec::new(),
+            update_chain: None,
         }
     }
 
@@ -175,7 +191,10 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
     }
 
     pub fn plugin<P: Plugin + 'static>(mut self, plugin: P) -> Self {
-        self.plugins.push(Box::new(plugin));
+        #[cfg(target_arch = "wasm32")]
+        self.plugins.push(Rc::new(std::cell::RefCell::new(plugin)));
+        #[cfg(not(target_arch = "wasm32"))]
+        self.plugins.push(Rc::new(std::sync::Mutex::new(plugin)));
         self
     }
 }
