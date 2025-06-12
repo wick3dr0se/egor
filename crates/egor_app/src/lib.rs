@@ -33,9 +33,6 @@ pub struct App<I, U> {
     timer: FrameTimer,
     renderer: Option<Renderer>,
     input: Input,
-    #[cfg(target_arch = "wasm32")]
-    plugins: Vec<Box<dyn Plugin>>,
-    #[cfg(not(target_arch = "wasm32"))]
     plugins: Vec<Box<dyn Plugin>>,
 }
 
@@ -76,6 +73,9 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 if let Some(r) = self.renderer.as_mut() {
                     let mut graphics = Graphics::new(r);
 
+                    let update_fn = self.update.as_mut().unwrap();
+                    update_fn(&self.timer, &mut graphics, &mut self.input);
+
                     let mut cx = Context {
                         timer: &self.timer,
                         graphics: &mut graphics,
@@ -115,9 +115,6 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
             };
 
             for plugin in &mut self.plugins {
-                #[cfg(target_arch = "wasm32")]
-                plugin.init(&mut ctx);
-                #[cfg(not(target_arch = "wasm32"))]
                 plugin.init(&mut ctx);
             }
             init(&mut ctx);
@@ -170,9 +167,6 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
     }
 
     pub fn plugin<P: Plugin + 'static>(mut self, plugin: P) -> Self {
-        #[cfg(target_arch = "wasm32")]
-        self.plugins.push(Box::new(plugin));
-        #[cfg(not(target_arch = "wasm32"))]
         self.plugins.push(Box::new(plugin));
         self
     }
