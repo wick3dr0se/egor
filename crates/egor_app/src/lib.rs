@@ -22,21 +22,18 @@ use crate::{input::Input, time::FrameTimer};
 
 pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
 impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
-pub trait UpdateFn: FnMut(&FrameTimer, &mut Graphics, &mut Input) + 'static {}
-impl<F: FnMut(&FrameTimer, &mut Graphics, &mut Input) + 'static> UpdateFn for F {}
 
-pub struct App<I, U> {
+pub struct App<I> {
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,
     init: Option<I>,
-    update: Option<U>,
     timer: FrameTimer,
     renderer: Option<Renderer>,
     input: Input,
     plugins: Vec<Box<dyn Plugin>>,
 }
 
-impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
+impl<I: InitFn> ApplicationHandler<Renderer> for App<I> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
@@ -72,9 +69,6 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
                     let mut graphics = Graphics::new(r);
-
-                    let update_fn = self.update.as_mut().unwrap();
-                    update_fn(&self.timer, &mut graphics, &mut self.input);
 
                     let mut cx = Context {
                         timer: &self.timer,
@@ -123,13 +117,12 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
     }
 }
 
-impl<I: InitFn, U: UpdateFn> App<I, U> {
+impl<I: InitFn> App<I> {
     pub fn init(init: I) -> Self {
         Self {
             window: None,
             proxy: None,
             init: Some(init),
-            update: None,
             timer: FrameTimer::new(),
             renderer: None,
             input: Input::default(),
@@ -137,12 +130,11 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
         }
     }
 
-    pub fn run(mut self, update: U) {
+    pub fn run(mut self) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
         self.proxy = Some(event_loop.create_proxy());
-        self.update = Some(update);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -177,7 +169,7 @@ pub struct InitContext<'a> {
     render: &'a mut Renderer,
 }
 
-impl InitContext<'_> {
+impl<'a> InitContext<'a> {
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title);
     }
@@ -195,5 +187,16 @@ pub struct Context<'a> {
 
 pub trait Plugin {
     fn init(&mut self, ctx: &mut InitContext);
-    fn update(&mut self, ctx: &'_ mut Context<'_>);
+    fn update(&mut self, ctx: &mut Context);
+}
+
+impl<T> Plugin for T
+where
+    T: FnMut(&mut Context),
+{
+    fn init(&mut self, _ctx: &mut InitContext) {}
+
+    fn update(&mut self, ctx: &mut Context) {
+        self(ctx);
+    }
 }

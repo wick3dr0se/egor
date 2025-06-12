@@ -5,6 +5,12 @@ pub struct HotReloadPlugin<T> {
     internal: T,
 }
 
+impl<T: Plugin> HotReloadPlugin<T> {
+    pub fn new(internal: T) -> Self {
+        Self { internal }
+    }
+}
+
 impl<T: Plugin> Plugin for HotReloadPlugin<T> {
     fn init(&mut self, ctx: &mut InitContext) {
         connect_subsecond();

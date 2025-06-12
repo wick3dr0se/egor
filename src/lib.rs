@@ -1,6 +1,6 @@
 #[cfg(feature = "app")]
 pub mod app {
-    pub use egor_app::App;
+    pub use egor_app::{App, Context, InitContext, Plugin};
 }
 
 #[cfg(feature = "app")]
