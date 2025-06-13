@@ -78,9 +78,9 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
                         ..
                     } = self;
                     let mut cx = Context {
-                        timer: &timer,
+                        timer,
                         graphics: &mut graphics,
-                        input: input,
+                        input,
                     };
                     for plugin in self.plugins.iter_mut() {
                         plugin.update(state, &mut cx);
@@ -179,7 +179,7 @@ pub struct InitContext<'a> {
     render: &'a mut Renderer,
 }
 
-impl<'a> InitContext<'a> {
+impl InitContext<'_> {
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title);
     }

@@ -38,9 +38,9 @@ impl Color {
     };
 }
 
-impl Into<wgpu::Color> for Color {
-    fn into(self) -> wgpu::Color {
-        let [r, g, b, a] = self.components();
+impl From<Color> for wgpu::Color {
+    fn from(value: Color) -> Self {
+        let [r, g, b, a] = value.components();
         wgpu::Color {
             r: r as f64,
             g: g as f64,
@@ -50,9 +50,9 @@ impl Into<wgpu::Color> for Color {
     }
 }
 
-impl Into<cosmic_text::Color> for Color {
-    fn into(self) -> cosmic_text::Color {
-        let rgba_8 = self.internal.to_rgba8();
+impl From<Color> for cosmic_text::Color {
+    fn from(value: Color) -> Self {
+        let rgba_8 = value.internal.to_rgba8();
         cosmic_text::Color::rgba(rgba_8.r, rgba_8.g, rgba_8.b, rgba_8.a)
     }
 }
