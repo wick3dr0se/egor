@@ -7,6 +7,17 @@ pub struct Color {
 }
 
 impl Color {
+    pub const fn new(components: [f32; 4]) -> Self {
+        Self {
+            internal: AlphaColor::new(components),
+        }
+    }
+    pub fn components(&self) -> [f32; 4] {
+        self.internal.components
+    }
+}
+
+impl Color {
     pub const BLACK: Color = Self {
         internal: AlphaColor::BLACK,
     };
@@ -25,9 +36,6 @@ impl Color {
     pub const BLUE: Color = Self {
         internal: AlphaColor::new([0., 0., 1., 1.]),
     };
-    fn components(&self) -> [f32; 4] {
-        self.internal.components
-    }
 }
 
 impl Into<wgpu::Color> for Color {
