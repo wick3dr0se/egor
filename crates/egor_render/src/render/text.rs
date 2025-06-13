@@ -1,5 +1,6 @@
+use crate::Color;
 use glyphon::{
-    Attrs, Buffer, Cache, Color, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
+    Attrs, Buffer, Cache, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
     TextAtlas, TextBounds, Viewport,
 };
 use wgpu::{Device, MultisampleState, Queue, TextureFormat};
@@ -77,7 +78,7 @@ impl TextRenderer {
                     bottom: h as i32,
                 },
                 scale: 1.0,
-                default_color: Color::rgb(0, 0, 0),
+                default_color: Color::BLACK.into(),
                 custom_glyphs: &[],
             });
         }
@@ -119,7 +120,7 @@ impl<'a> TextBuilder<'a> {
             text,
             position: (0.0, 0.0),
             size: 16.0,
-            color: Color::rgb(0, 0, 0),
+            color: Color::BLACK,
         }
     }
 
@@ -133,13 +134,8 @@ impl<'a> TextBuilder<'a> {
         self
     }
 
-    pub fn color(mut self, color: wgpu::Color) -> Self {
-        self.color = Color::rgba(
-            (color.r * 255.0).round() as u8,
-            (color.g * 255.0).round() as u8,
-            (color.b * 255.0).round() as u8,
-            (color.a * 255.0).round() as u8,
-        );
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
         self
     }
 }
@@ -150,7 +146,7 @@ impl Drop for TextBuilder<'_> {
         buffer.set_text(
             &mut self.renderer.font_system,
             &self.text,
-            &Attrs::new().color(self.color),
+            &Attrs::new().color(self.color.into()),
             Shaping::Advanced,
         );
 

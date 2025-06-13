@@ -10,11 +10,16 @@ keywords = ["2d", "graphics", "wgpu", "winit"]
 categories = ["egor", "graphics", "game-development"]
 
 [workspace]
-members = ["crates/*", "demos/no_windowing", "demos/secs_particles", "demos/shooter"]
+members = [
+    "crates/*",
+    "demos/no_windowing",
+    "demos/secs_particles",
+    "demos/shooter",
+]
 resolver = "2"
 
 [features]
-default=["app", "render"]
+default = ["app", "render"]
 app = ["dep:egor_app"]
 render = ["dep:egor_render"]
 

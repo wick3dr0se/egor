@@ -330,6 +330,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "color"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ae467d04a8a8aea5d9a49018a6ade2e4221d92968e8ce55a48c0b1164e5f698"
+
+[[package]]
 name = "colorchoice"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -683,6 +689,7 @@ name = "egor_render"
 version = "0.2.0"
 dependencies = [
  "bytemuck",
+ "color",
  "glyphon",
  "image",
  "wgpu",
