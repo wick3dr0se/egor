@@ -1,7 +1,7 @@
 mod animation;
 
 use egor::{
-    app::App,
+    app::{App, Context},
     input::{KeyCode, MouseButton},
     render::Color,
 };
@@ -99,38 +99,39 @@ fn main() {
         .to_rgba8();
     let mut time_since_recolor = 0.;
 
-    App::init(|ctx| {
+    App::init((), |_, ctx| {
         ctx.set_title("Egor Shooter Demo");
         ctx.load_texture(include_bytes!("../assets/soldier.png"));
         ctx.load_texture(include_bytes!("../assets/zombie.png"));
     })
-    .run(move |t, g, i| {
-        let [w, h] = g.screen_size();
+    .run(move |_, ctx: &mut Context| {
+        let [w, h] = ctx.graphics.screen_size();
 
         if game_over {
-            g.text("GAME OVER")
+            ctx.graphics
+                .text("GAME OVER")
                 .color(Color::RED)
                 .at(w / 2. - 40., h / 2.);
             return;
         }
 
-        g.clear(Color::WHITE);
+        ctx.graphics.clear(Color::WHITE);
 
-        let (mx, my) = i.mouse_position();
+        let (mx, my) = ctx.input.mouse_position();
         let (cx, cy) = (player.x - w / 2. + mx, player.y - h / 2. + my);
 
-        let dx = i.keys_held(&[KeyCode::KeyD, KeyCode::ArrowRight]) as i8
-            - i.keys_held(&[KeyCode::KeyA, KeyCode::ArrowLeft]) as i8;
-        let dy = i.keys_held(&[KeyCode::KeyS, KeyCode::ArrowDown]) as i8
-            - i.keys_held(&[KeyCode::KeyW, KeyCode::ArrowUp]) as i8;
+        let dx = ctx.input.keys_held(&[KeyCode::KeyD, KeyCode::ArrowRight]) as i8
+            - ctx.input.keys_held(&[KeyCode::KeyA, KeyCode::ArrowLeft]) as i8;
+        let dy = ctx.input.keys_held(&[KeyCode::KeyS, KeyCode::ArrowDown]) as i8
+            - ctx.input.keys_held(&[KeyCode::KeyW, KeyCode::ArrowUp]) as i8;
         let moving = dx != 0 || dy != 0;
 
-        player.x += dx as f32 * 200.0 * t.delta;
-        player.y += dy as f32 * 200.0 * t.delta;
-        g.camera().target(player.x, player.y);
+        player.x += dx as f32 * 200.0 * ctx.timer.delta;
+        player.y += dy as f32 * 200.0 * ctx.timer.delta;
+        ctx.graphics.camera().target(player.x, player.y);
 
-        fire_cd -= t.delta;
-        if i.mouse_held(MouseButton::Left) && fire_cd <= 0.0 {
+        fire_cd -= ctx.timer.delta;
+        if ctx.input.mouse_held(MouseButton::Left) && fire_cd <= 0.0 {
             bullets.extend(spawn_bullets(player.x, player.y, cx, cy, spread));
             fire_cd = 1.0 / fire_rate;
         }
@@ -138,8 +139,8 @@ fn main() {
         for e in &mut enemies {
             let (dx, dy) = (player.x - e.x, player.y - e.y);
             let dist = (dx * dx + dy * dy).sqrt().max(0.001);
-            e.x += dx / dist * e.speed * t.delta;
-            e.y += dy / dist * e.speed * t.delta;
+            e.x += dx / dist * e.speed * ctx.timer.delta;
+            e.y += dy / dist * e.speed * ctx.timer.delta;
         }
 
         bullets.retain(|b| {
@@ -167,16 +168,20 @@ fn main() {
         });
 
         for b in &mut bullets {
-            b.x += b.vx * t.delta;
-            b.y += b.vy * t.delta;
-            g.rect().at(b.x, b.y).size(5., 10.).color(Color::BLUE);
+            b.x += b.vx * ctx.timer.delta;
+            b.y += b.vy * ctx.timer.delta;
+            ctx.graphics
+                .rect()
+                .at(b.x, b.y)
+                .size(5., 10.)
+                .color(Color::BLUE);
         }
-        time_since_recolor += t.delta;
+        time_since_recolor += ctx.timer.delta;
         if time_since_recolor > 1. {
             time_since_recolor = 0.;
             recolor_image(&mut zombie_image);
 
-            g.update_texture_raw(
+            ctx.graphics.update_texture_raw(
                 1,
                 zombie_image.width(),
                 zombie_image.height(),
@@ -184,15 +189,16 @@ fn main() {
             );
         }
 
-        enemy_anim.update(t.delta);
+        enemy_anim.update(ctx.timer.delta);
         for e in &mut enemies {
             let angle = (player.y - e.y).atan2(player.x - e.x);
             if ((player.x - e.x).powi(2) + (player.y - e.y).powi(2)).sqrt() < 15.0 {
                 player.hp -= 1.0;
                 player.flash = 0.1;
             }
-            e.flash = (e.flash - t.delta).max(0.0);
-            g.rect()
+            e.flash = (e.flash - ctx.timer.delta).max(0.0);
+            ctx.graphics
+                .rect()
                 .at(e.x, e.y)
                 .size(64., 64.)
                 .rotation(angle + std::f32::consts::FRAC_PI_2)
@@ -209,16 +215,17 @@ fn main() {
             game_over = true;
         }
 
-        player.flash = (player.flash - t.delta).max(0.0);
+        player.flash = (player.flash - ctx.timer.delta).max(0.0);
         let rot = (cy - player.y).atan2(cx - player.x) + std::f32::consts::FRAC_PI_2;
         let uv = if moving {
-            player_anim.update(t.delta);
+            player_anim.update(ctx.timer.delta);
             player_anim.uv()
         } else {
             player_anim.frame_uv(0)
         };
 
-        g.rect()
+        ctx.graphics
+            .rect()
             .at(player.x, player.y)
             .size(64., 64.)
             .rotation(rot)
@@ -246,11 +253,18 @@ fn main() {
             );
         }
 
-        g.text(&format!("Wave: {wave}")).at(10.0, 10.0);
-        g.text(&format!("Zombies killed: {kills}")).at(10.0, 30.0);
-        g.text(&format!("HP: {:.0}", player.hp)).at(10.0, 50.0);
-        g.text(&format!("Fire rate: {:.1}/s", fire_rate))
+        ctx.graphics.text(&format!("Wave: {wave}")).at(10.0, 10.0);
+        ctx.graphics
+            .text(&format!("Zombies killed: {kills}"))
+            .at(10.0, 30.0);
+        ctx.graphics
+            .text(&format!("HP: {:.0}", player.hp))
+            .at(10.0, 50.0);
+        ctx.graphics
+            .text(&format!("Fire rate: {:.1}/s", fire_rate))
             .at(10.0, 70.0);
-        g.text(&format!("Bullet Spread: {spread}")).at(10.0, 90.0);
+        ctx.graphics
+            .text(&format!("Bullet Spread: {spread}"))
+            .at(10.0, 90.0);
     });
 }
