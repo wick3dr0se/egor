@@ -1,3 +1,5 @@
+use crate::Color;
+
 use super::{text::TextRenderer, texture::Texture, vertex::Vertex};
 use wgpu::{
     BindGroupLayout, BlendState, Buffer, BufferDescriptor, BufferUsages, ColorTargetState,
@@ -6,8 +8,6 @@ use wgpu::{
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions, StoreOp,
     Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle, include_wgsl,
 };
-
-pub use wgpu::Color;
 
 const MAX_INDICES: usize = u16::MAX as usize * 32;
 const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
@@ -209,7 +209,7 @@ impl Renderer {
                     view: &view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Clear(self.clear_color),
+                        load: LoadOp::Clear(self.clear_color.into()),
                         store: StoreOp::Store,
                     },
                 })],

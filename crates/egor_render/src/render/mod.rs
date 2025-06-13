@@ -1,4 +1,5 @@
 pub mod camera;
+pub mod color;
 pub mod primitives;
 mod renderer;
 mod text;
@@ -10,7 +11,8 @@ pub use renderer::Renderer;
 use camera::Camera;
 use primitives::{RectangleBuilder, TriangleBuilder};
 use text::TextBuilder;
-use wgpu::Color;
+
+use crate::Color;
 
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,

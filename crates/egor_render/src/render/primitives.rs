@@ -1,6 +1,5 @@
-use wgpu::Color;
-
 use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
+use crate::Color;
 
 fn rotate_and_transform(
     x: f32,
@@ -94,7 +93,7 @@ impl Drop for TriangleBuilder<'_> {
             .map(|[px, py]| {
                 Vertex::new(
                     transform_to(self.renderer, self.camera, *px, *py),
-                    self.color,
+                    self.color.into(),
                     [-1.0, -1.0],
                 )
             })
@@ -194,7 +193,7 @@ impl Drop for RectangleBuilder<'_> {
             .map(|&(vx, vy, uv)| {
                 Vertex::new(
                     rotate_and_transform(vx, vy, x, y, self.rotation, self.renderer, self.camera),
-                    self.color,
+                    self.color.into(),
                     uv,
                 )
             })

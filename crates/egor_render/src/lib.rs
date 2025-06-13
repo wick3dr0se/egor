@@ -1,4 +1,2 @@
 mod render;
-pub use wgpu::Color;
-
-pub use render::{Graphics, Renderer, primitives::Anchor};
+pub use render::{Graphics, Renderer, color::Color, primitives::Anchor};
