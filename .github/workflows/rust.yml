@@ -1,0 +1,46 @@
+name: rust
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build & test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build native
+        run: cargo build --verbose
+      - name: Build wasm
+        run: cargo build --target wasm32-unknown-unknown --verbose
+      - name: Run tests
+        run: cargo test --verbose
+      - name: Build examples
+        run: |
+          set -euxo pipefail
+          for d in demos/*/ ; do
+            echo "Building demo $d"
+            (cd "$d" && CARGO_TARGET_DIR=../target cargo build --verbose)
+            echo "Building demo for wasm $d"
+            (cd "$d" && CARGO_TARGET_DIR=../target cargo build --target wasm32-unknown-unknown --verbose)
+          done
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run clippy
+        run: cargo clippy -- --deny warnings
