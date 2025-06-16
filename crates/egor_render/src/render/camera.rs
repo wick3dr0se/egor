@@ -1,4 +1,6 @@
-use glam::{Vec2, vec2};
+use glam::Vec2;
+
+use crate::render::math::Rect;
 
 pub struct Camera {
     position: Vec2,
@@ -21,20 +23,15 @@ impl Camera {
         self.zoom = zoom.clamp(0.1, 10.0);
     }
 
-    pub fn viewport(&self, screen_w: f32, screen_h: f32) -> (Vec2, Vec2) {
-        let half_extents = vec2(screen_w, screen_h) * 0.5 / self.zoom;
-        let min = self.position - half_extents;
-        let max = self.position + half_extents;
-        (min, max)
+    pub fn viewport(&self, screen_size: Vec2) -> Rect {
+        Rect::new(self.position, screen_size / self.zoom)
     }
 
-    pub fn world_to_screen(&self, world: Vec2, screen_w: f32, screen_h: f32) -> Vec2 {
-        let screen_center = vec2(screen_w, screen_h) * 0.5;
-        (world - self.position) * self.zoom + screen_center
+    pub fn world_to_screen(&self, world: Vec2, screen_size: Vec2) -> Vec2 {
+        (world - self.position) * self.zoom + (screen_size / 2.0)
     }
 
-    pub fn screen_to_world(&self, screen: Vec2, screen_w: f32, screen_h: f32) -> Vec2 {
-        let screen_center = vec2(screen_w, screen_h) * 0.5;
-        (screen - screen_center) / self.zoom + self.position
+    pub fn screen_to_world(&self, screen: Vec2, screen_size: Vec2) -> Vec2 {
+        (screen - screen_size / 2.0) / self.zoom + self.position
     }
 }

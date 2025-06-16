@@ -66,8 +66,7 @@ impl ApplicationHandler for Application {
         match event {
             WindowEvent::RedrawRequested => {
                 window.pre_present_notify();
-                let width = renderer.screen_width();
-                let height = renderer.screen_height();
+                let (width, height) = renderer.surface_size();
                 let mut g = Graphics::new(renderer);
                 g.clear(Color::BLACK);
                 g.rect().anchor(Anchor::Center).at(vec2(

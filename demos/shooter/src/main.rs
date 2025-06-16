@@ -4,28 +4,28 @@ use crate::animation::SpriteAnim;
 use egor::{
     app::{App, Context},
     input::{KeyCode, MouseButton},
-    math::{Vec2, vec2},
+    math::{Rect, Vec2, vec2},
     render::Color,
 };
 use rand::{Rng, RngCore};
 
 const PLAYER_SIZE: f32 = 64.0;
-const BULLET_RADIUS: f32 = 5.0;
-const BULLET_LENGTH: f32 = 10.0;
-const HIT_RADIUS: f32 = 10.0;
+const BULLET_SIZE: Vec2 = vec2(5.0, 10.0);
 
 struct Bullet {
-    pos: Vec2,
+    rect: Rect,
     vel: Vec2,
 }
+
 struct Zombie {
-    pos: Vec2,
+    rect: Rect,
     speed: f32,
     hp: f32,
     flash: f32,
 }
+
 struct Soldier {
-    pos: Vec2,
+    rect: Rect,
     hp: f32,
     flash: f32,
 }
@@ -53,8 +53,9 @@ fn spawn_wave(origin: Vec2, count: usize, speed: (f32, f32), hp: f32) -> Vec<Zom
         .map(|_| {
             let a = rng.gen_range(0.0..std::f32::consts::TAU);
             let d = rng.gen_range(300.0..800.0);
+            let pos = origin + vec2(a.cos(), a.sin()) * d;
             Zombie {
-                pos: origin + vec2(a.cos(), a.sin()) * d,
+                rect: Rect::new(pos, Vec2::splat(PLAYER_SIZE)),
                 speed: rng.gen_range(speed.0..speed.1),
                 hp,
                 flash: 0.0,
@@ -73,7 +74,7 @@ fn spawn_bullets(origin: Vec2, target: Vec2, count: usize) -> Vec<Bullet> {
             let offset = (i as f32 - half) * spread / half.max(1.0);
             let a = angle + offset;
             Bullet {
-                pos: origin,
+                rect: Rect::new(origin, BULLET_SIZE),
                 vel: vec2(a.cos(), a.sin()) * 500.0,
             }
         })
@@ -92,13 +93,13 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
     let mut kills = 0;
     bullets.retain(|b| {
         for e in enemies.iter_mut() {
-            if b.pos.distance(e.pos) < HIT_RADIUS {
+            if e.rect.contains(b.rect.origin) {
                 e.hp -= 1.0;
                 e.flash = 0.1;
                 return false;
             }
         }
-        let offscreen = (b.pos - player).length() > 2000.0;
+        let offscreen = (b.rect.origin - player).length() > 2000.0;
         !offscreen
     });
 
@@ -117,7 +118,7 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 fn main() {
     let state = GameState {
         player: Soldier {
-            pos: Vec2::ZERO,
+            rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
             hp: 100.0,
             flash: 0.0,
         },
@@ -158,7 +159,7 @@ fn main() {
         ctx.graphics.clear(Color::WHITE);
 
         let origin =
-            state.player.pos - screen_half + Into::<Vec2>::into(ctx.input.mouse_position());
+            state.player.rect.origin - screen_half + Into::<Vec2>::into(ctx.input.mouse_position());
 
         let dx = ctx.input.keys_held(&[KeyCode::KeyD, KeyCode::ArrowRight]) as i8
             - ctx.input.keys_held(&[KeyCode::KeyA, KeyCode::ArrowLeft]) as i8;
@@ -166,30 +167,36 @@ fn main() {
             - ctx.input.keys_held(&[KeyCode::KeyW, KeyCode::ArrowUp]) as i8;
         let moving = dx != 0 || dy != 0;
 
-        state.player.pos += vec2(dx as f32, dy as f32) * 200.0 * ctx.timer.delta;
-        ctx.graphics.camera().target(state.player.pos);
+        state.player.rect.origin += vec2(dx as f32, dy as f32) * 200.0 * ctx.timer.delta;
+        ctx.graphics.camera().target(state.player.rect.origin);
 
         state.fire_cd -= ctx.timer.delta;
         if ctx.input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
-            state
-                .bullets
-                .extend(spawn_bullets(state.player.pos, origin, state.spread));
+            state.bullets.extend(spawn_bullets(
+                state.player.rect.origin,
+                origin,
+                state.spread,
+            ));
             state.fire_cd = 1.0 / state.fire_rate;
         }
 
         for e in &mut state.enemies {
-            let dir = (state.player.pos - e.pos).normalize_or_zero();
-            e.pos += dir * e.speed * ctx.timer.delta;
+            let dir = (state.player.rect.origin - e.rect.origin).normalize_or_zero();
+            e.rect.origin += dir * e.speed * ctx.timer.delta;
         }
 
-        state.kills += handle_bullet_hits(&mut state.bullets, &mut state.enemies, state.player.pos);
+        state.kills += handle_bullet_hits(
+            &mut state.bullets,
+            &mut state.enemies,
+            state.player.rect.origin,
+        );
 
         for b in &mut state.bullets {
-            b.pos += b.vel * ctx.timer.delta;
+            b.rect.origin += b.vel * ctx.timer.delta;
             ctx.graphics
                 .rect()
-                .at(b.pos)
-                .size(BULLET_RADIUS, BULLET_LENGTH)
+                .at(b.rect.origin)
+                .size(b.rect.size)
                 .color(Color::BLUE);
         }
 
@@ -207,7 +214,7 @@ fn main() {
 
         state.enemy_anim.update(ctx.timer.delta);
         for e in &mut state.enemies {
-            let dir = state.player.pos - e.pos;
+            let dir = state.player.rect.origin - e.rect.origin;
             let angle = dir.y.atan2(dir.x);
 
             if dir.length() < 15.0 {
@@ -218,8 +225,8 @@ fn main() {
             e.flash = (e.flash - ctx.timer.delta).max(0.0);
             ctx.graphics
                 .rect()
-                .at(e.pos)
-                .size(PLAYER_SIZE, PLAYER_SIZE)
+                .at(e.rect.origin)
+                .size(e.rect.size)
                 .rotation(angle + std::f32::consts::FRAC_PI_2)
                 .color(if e.flash > 0.0 {
                     Color::RED
@@ -235,7 +242,7 @@ fn main() {
         }
 
         state.player.flash = (state.player.flash - ctx.timer.delta).max(0.0);
-        let dir = origin - state.player.pos;
+        let dir = origin - state.player.rect.origin;
         let rot = dir.y.atan2(dir.x) + std::f32::consts::FRAC_PI_2;
 
         let uv = if moving {
@@ -247,8 +254,8 @@ fn main() {
 
         ctx.graphics
             .rect()
-            .at(state.player.pos)
-            .size(PLAYER_SIZE, PLAYER_SIZE)
+            .at(state.player.rect.origin)
+            .size(state.player.rect.size)
             .rotation(rot)
             .color(if state.player.flash > 0.0 {
                 Color::RED
@@ -266,7 +273,7 @@ fn main() {
             }
             state.fire_rate += 0.1;
             state.enemies = spawn_wave(
-                state.player.pos,
+                state.player.rect.origin,
                 (state.wave + 2) * 3,
                 (
                     50. + state.wave as f32 * 3.0,

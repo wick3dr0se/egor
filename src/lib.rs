@@ -15,5 +15,5 @@ pub mod render {
 
 #[cfg(feature = "render")]
 pub mod math {
-    pub use egor_render::{Vec2, vec2};
+    pub use egor_render::{Rect, Vec2, vec2};
 }

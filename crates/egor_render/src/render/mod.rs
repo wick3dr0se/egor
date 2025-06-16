@@ -1,12 +1,13 @@
 pub mod camera;
 pub mod color;
+pub mod math;
 pub mod primitives;
 mod renderer;
 mod text;
 mod texture;
 pub(crate) mod vertex;
 
-use glam::{Vec2, vec2};
+use glam::Vec2;
 pub use renderer::Renderer;
 
 use camera::Camera;
@@ -41,7 +42,7 @@ impl<'a> Graphics<'a> {
     }
 
     pub fn screen_size(&self) -> Vec2 {
-        vec2(self.renderer.screen_width(), self.renderer.screen_height())
+        self.renderer.surface_size().into()
     }
 
     pub fn camera(&mut self) -> &mut Camera {

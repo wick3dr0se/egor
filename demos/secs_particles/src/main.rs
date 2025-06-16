@@ -46,7 +46,7 @@ fn main() {
             ctx.graphics
                 .rect()
                 .at(pos.vec)
-                .size(10.0, 10.0)
+                .size(Vec2::splat(10.0))
                 .color(Color::WHITE);
         });
     });

@@ -1,30 +1,16 @@
 use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
-use crate::Color;
-use glam::{Vec2, vec2};
-
-fn rotate_and_transform(
-    pos: Vec2,
-    center: Vec2,
-    angle: f32,
-    renderer: &Renderer,
-    camera: &Camera,
-) -> [f32; 2] {
-    let delta = pos - center;
-    let (sin, cos) = angle.sin_cos();
-    let rotated = vec2(cos * delta.x - sin * delta.y, sin * delta.x + cos * delta.y) + center;
-
-    transform_to(renderer, camera, rotated)
-}
-
-fn transform_to(renderer: &Renderer, camera: &Camera, pos: Vec2) -> [f32; 2] {
-    let screen = camera.world_to_screen(pos, renderer.screen_width(), renderer.screen_height());
-    renderer.to_ndc(screen.x, screen.y)
-}
+use crate::{Color, render::math::Rect};
+use glam::{Mat2, Vec2, vec2};
 
 #[derive(Clone, Copy)]
 pub enum Anchor {
     Center,
     TopLeft,
+}
+
+fn transform(renderer: &Renderer, camera: &Camera, position: Vec2) -> [f32; 2] {
+    let Vec2 { x, y } = camera.world_to_screen(position, renderer.surface_size().into());
+    renderer.to_ndc(x, y)
 }
 
 pub struct TriangleBuilder<'a> {
@@ -81,22 +67,23 @@ impl Drop for TriangleBuilder<'_> {
         let half = self.size / 2.0;
         let points = match self.anchor {
             Anchor::TopLeft => [
-                self.position + vec2(half, 0.0),
-                self.position + vec2(0.0, self.size),
-                self.position + vec2(self.size, self.size),
+                vec2(self.position.x + half, self.position.y),
+                vec2(self.position.x, self.position.y + self.size),
+                vec2(self.position.x + self.size, self.position.y + self.size),
             ],
             Anchor::Center => [
-                self.position + vec2(0.0, -half),
-                self.position + vec2(-half, half),
-                self.position + vec2(half, half),
+                vec2(self.position.x, self.position.y - half),
+                vec2(self.position.x - half, self.position.y + half),
+                vec2(self.position.x + half, self.position.y + half),
             ],
         };
-
-        let verts: Vec<_> = points
+        let rot = Mat2::from_angle(self.rotation);
+        let verts: Vec<Vertex> = points
             .iter()
             .map(|&p| {
+                let rotated = rot * (p - self.position) + self.position;
                 Vertex::new(
-                    transform_to(self.renderer, self.camera, p),
+                    transform(self.renderer, self.camera, rotated),
                     self.color.into(),
                     [-1.0, -1.0],
                 )
@@ -144,8 +131,8 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
-    pub fn size(mut self, w: f32, h: f32) -> Self {
-        self.size = vec2(w, h);
+    pub fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
         self
     }
 
@@ -177,34 +164,16 @@ impl<'a> RectangleBuilder<'a> {
 
 impl Drop for RectangleBuilder<'_> {
     fn drop(&mut self) {
-        let half_size = self.size * 0.5;
-        let corners = match self.anchor {
-            Anchor::TopLeft => [
-                self.position,
-                self.position + vec2(self.size.x, 0.0),
-                self.position + self.size,
-                self.position + vec2(0.0, self.size.y),
-            ],
-            Anchor::Center => [
-                self.position + vec2(-half_size.x, -half_size.y),
-                self.position + vec2(half_size.x, -half_size.y),
-                self.position + vec2(half_size.x, half_size.y),
-                self.position + vec2(-half_size.x, half_size.y),
-            ],
-        };
-
-        let vertices: Vec<_> = corners
+        let rect = Rect::from_anchor(self.position, self.size, self.anchor);
+        let rot = Mat2::from_angle(self.rotation);
+        let verts: Vec<_> = rect
+            .corners()
             .iter()
             .zip(self.tex_coords.iter())
-            .map(|(&pos, &uv)| {
+            .map(|(&corner, &uv)| {
+                let rotated = rot * (corner - rect.origin) + rect.origin;
                 Vertex::new(
-                    rotate_and_transform(
-                        pos,
-                        self.position,
-                        self.rotation,
-                        self.renderer,
-                        self.camera,
-                    ),
+                    transform(self.renderer, self.camera, rotated),
                     self.color.into(),
                     uv,
                 )
@@ -212,6 +181,6 @@ impl Drop for RectangleBuilder<'_> {
             .collect();
 
         self.renderer
-            .submit(&vertices, &[0, 1, 2, 2, 3, 0], self.tex_idx);
+            .submit(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
     }
 }
