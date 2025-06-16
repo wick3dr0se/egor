@@ -6,6 +6,7 @@ mod text;
 mod texture;
 pub(crate) mod vertex;
 
+use glam::{Vec2, vec2};
 pub use renderer::Renderer;
 
 use camera::Camera;
@@ -39,8 +40,8 @@ impl<'a> Graphics<'a> {
         self.renderer.clear(color);
     }
 
-    pub fn screen_size(&self) -> [f32; 2] {
-        [self.renderer.screen_width(), self.renderer.screen_height()]
+    pub fn screen_size(&self) -> Vec2 {
+        vec2(self.renderer.screen_width(), self.renderer.screen_height())
     }
 
     pub fn camera(&mut self) -> &mut Camera {

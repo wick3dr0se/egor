@@ -1,28 +1,27 @@
 use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
 use crate::Color;
+use glam::{Vec2, vec2};
 
 fn rotate_and_transform(
-    x: f32,
-    y: f32,
-    cx: f32,
-    cy: f32,
+    pos: Vec2,
+    center: Vec2,
     angle: f32,
     renderer: &Renderer,
     camera: &Camera,
 ) -> [f32; 2] {
-    let (dx, dy) = (x - cx, y - cy);
+    let delta = pos - center;
     let (sin, cos) = angle.sin_cos();
-    let rx = cos * dx - sin * dy + cx;
-    let ry = sin * dx + cos * dy + cy;
-    transform_to(renderer, camera, rx, ry)
+    let rotated = vec2(cos * delta.x - sin * delta.y, sin * delta.x + cos * delta.y) + center;
+
+    transform_to(renderer, camera, rotated)
 }
 
-fn transform_to(renderer: &Renderer, camera: &Camera, x: f32, y: f32) -> [f32; 2] {
-    let (screen_x, screen_y) =
-        camera.world_to_screen(x, y, renderer.screen_width(), renderer.screen_height());
-    renderer.to_ndc(screen_x, screen_y)
+fn transform_to(renderer: &Renderer, camera: &Camera, pos: Vec2) -> [f32; 2] {
+    let screen = camera.world_to_screen(pos, renderer.screen_width(), renderer.screen_height());
+    renderer.to_ndc(screen.x, screen.y)
 }
 
+#[derive(Clone, Copy)]
 pub enum Anchor {
     Center,
     TopLeft,
@@ -32,7 +31,7 @@ pub struct TriangleBuilder<'a> {
     renderer: &'a mut Renderer,
     camera: &'a Camera,
     anchor: Anchor,
-    position: [f32; 2],
+    position: Vec2,
     size: f32,
     rotation: f32,
     color: Color,
@@ -44,7 +43,7 @@ impl<'a> TriangleBuilder<'a> {
             renderer,
             camera,
             anchor: Anchor::Center,
-            position: [0.0, 0.0],
+            position: Vec2::ZERO,
             size: 64.0,
             rotation: 0.0,
             color: Color::RED,
@@ -56,8 +55,8 @@ impl<'a> TriangleBuilder<'a> {
         self
     }
 
-    pub fn at(mut self, x: f32, y: f32) -> Self {
-        self.position = [x, y];
+    pub fn at(mut self, position: Vec2) -> Self {
+        self.position = position;
         self
     }
 
@@ -79,20 +78,25 @@ impl<'a> TriangleBuilder<'a> {
 
 impl Drop for TriangleBuilder<'_> {
     fn drop(&mut self) {
-        let [x, y] = self.position;
-        let size = self.size;
-        let half = size / 2.0;
-
+        let half = self.size / 2.0;
         let points = match self.anchor {
-            Anchor::TopLeft => [[x + half, y], [x, y + size], [x + size, y + size]],
-            Anchor::Center => [[x, y - half], [x - half, y + half], [x + half, y + half]],
+            Anchor::TopLeft => [
+                self.position + vec2(half, 0.0),
+                self.position + vec2(0.0, self.size),
+                self.position + vec2(self.size, self.size),
+            ],
+            Anchor::Center => [
+                self.position + vec2(0.0, -half),
+                self.position + vec2(-half, half),
+                self.position + vec2(half, half),
+            ],
         };
 
-        let verts: Vec<Vertex> = points
+        let verts: Vec<_> = points
             .iter()
-            .map(|[px, py]| {
+            .map(|&p| {
                 Vertex::new(
-                    transform_to(self.renderer, self.camera, *px, *py),
+                    transform_to(self.renderer, self.camera, p),
                     self.color.into(),
                     [-1.0, -1.0],
                 )
@@ -107,8 +111,8 @@ pub struct RectangleBuilder<'a> {
     renderer: &'a mut Renderer,
     camera: &'a Camera,
     anchor: Anchor,
-    position: [f32; 2],
-    size: [f32; 2],
+    position: Vec2,
+    size: Vec2,
     rotation: f32,
     color: Color,
     tex_coords: [[f32; 2]; 4],
@@ -121,8 +125,8 @@ impl<'a> RectangleBuilder<'a> {
             renderer,
             camera,
             anchor: Anchor::Center,
-            position: [0.0, 0.0],
-            size: [64.0, 64.0],
+            position: Vec2::ZERO,
+            size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
             tex_coords: [[-1.0, -1.0]; 4],
@@ -135,13 +139,13 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
-    pub fn at(mut self, x: f32, y: f32) -> Self {
-        self.position = [x, y];
+    pub fn at(mut self, position: Vec2) -> Self {
+        self.position = position;
         self
     }
 
     pub fn size(mut self, w: f32, h: f32) -> Self {
-        self.size = [w, h];
+        self.size = vec2(w, h);
         self
     }
 
@@ -173,26 +177,34 @@ impl<'a> RectangleBuilder<'a> {
 
 impl Drop for RectangleBuilder<'_> {
     fn drop(&mut self) {
-        let [x, y] = self.position;
-        let [w, h] = self.size;
-        let (a, b, c, d) = match self.anchor {
-            Anchor::TopLeft => (x, y, x + w, y + h),
-            Anchor::Center => {
-                let (hw, hh) = (w / 2.0, h / 2.0);
-                (x - hw, y - hh, x + hw, y + hh)
-            }
+        let half_size = self.size * 0.5;
+        let corners = match self.anchor {
+            Anchor::TopLeft => [
+                self.position,
+                self.position + vec2(self.size.x, 0.0),
+                self.position + self.size,
+                self.position + vec2(0.0, self.size.y),
+            ],
+            Anchor::Center => [
+                self.position + vec2(-half_size.x, -half_size.y),
+                self.position + vec2(half_size.x, -half_size.y),
+                self.position + vec2(half_size.x, half_size.y),
+                self.position + vec2(-half_size.x, half_size.y),
+            ],
         };
-        let verts = [
-            (a, b, self.tex_coords[0]),
-            (c, b, self.tex_coords[1]),
-            (c, d, self.tex_coords[2]),
-            (a, d, self.tex_coords[3]),
-        ];
-        let vertices: Vec<_> = verts
+
+        let vertices: Vec<_> = corners
             .iter()
-            .map(|&(vx, vy, uv)| {
+            .zip(self.tex_coords.iter())
+            .map(|(&pos, &uv)| {
                 Vertex::new(
-                    rotate_and_transform(vx, vy, x, y, self.rotation, self.renderer, self.camera),
+                    rotate_and_transform(
+                        pos,
+                        self.position,
+                        self.rotation,
+                        self.renderer,
+                        self.camera,
+                    ),
                     self.color.into(),
                     uv,
                 )

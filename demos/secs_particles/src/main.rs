@@ -3,16 +3,19 @@ use secs::World;
 
 use egor::{
     app::{App, Context},
+    math::{Vec2, vec2},
     render::Color,
 };
 
 struct Position {
-    x: f32,
-    y: f32,
+    vec: Vec2,
 }
 struct Velocity {
-    x: f32,
-    y: f32,
+    vec: Vec2,
+}
+
+fn wraparound(v: &mut Vec2, size: Vec2) {
+    *v = (*v + size / 2.0).rem_euclid(size) - size / 2.0;
 }
 
 fn main() {
@@ -23,12 +26,10 @@ fn main() {
     for _ in 0..9999 {
         world.spawn((
             Position {
-                x: rng.gen_range(-300.0..300.0),
-                y: rng.gen_range(-300.0..300.0),
+                vec: vec2(rng.gen_range(-300.0..300.0), rng.gen_range(-300.0..300.0)),
             },
             Velocity {
-                x: rng.gen_range(-1.0..1.0),
-                y: rng.gen_range(-1.0..1.0),
+                vec: vec2(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0)),
             },
         ));
     }
@@ -36,29 +37,15 @@ fn main() {
         ctx.set_title("Egor ECS Particles Demo");
     })
     .run(move |world, ctx: &mut Context| {
-        let [w, h] = ctx.graphics.screen_size();
-        let (hw, hh) = (w / 2.0, h / 2.0);
+        let screen_size = ctx.graphics.screen_size();
 
         world.query(|_, pos: &mut Position, vel: &Velocity| {
-            pos.x += vel.x * ctx.timer.delta * speed;
-            pos.y += vel.y * ctx.timer.delta * speed;
-
-            if pos.x < -hw {
-                pos.x += w;
-            }
-            if pos.x > hw {
-                pos.x -= w;
-            }
-            if pos.y < -hh {
-                pos.y += h;
-            }
-            if pos.y > hh {
-                pos.y -= h;
-            }
+            pos.vec += vel.vec * speed * ctx.timer.delta;
+            wraparound(&mut pos.vec, screen_size);
 
             ctx.graphics
                 .rect()
-                .at(pos.x, pos.y)
+                .at(pos.vec)
                 .size(10.0, 10.0)
                 .color(Color::WHITE);
         });
