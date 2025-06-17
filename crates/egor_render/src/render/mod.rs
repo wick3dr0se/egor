@@ -25,7 +25,7 @@ impl<'a> Graphics<'a> {
     pub fn new(renderer: &'a mut Renderer) -> Self {
         Self {
             renderer,
-            camera: Camera::new(),
+            camera: Camera::default(),
         }
     }
 

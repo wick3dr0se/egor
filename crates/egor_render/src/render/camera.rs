@@ -7,14 +7,16 @@ pub struct Camera {
     zoom: f32,
 }
 
-impl Camera {
-    pub fn new() -> Self {
+impl Default for Camera {
+    fn default() -> Self {
         Self {
             position: Vec2::ZERO,
             zoom: 1.0,
         }
     }
+}
 
+impl Camera {
     pub fn target(&mut self, position: Vec2) {
         self.position = position;
     }
