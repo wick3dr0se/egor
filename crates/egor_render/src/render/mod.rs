@@ -11,7 +11,7 @@ use glam::Vec2;
 pub use renderer::Renderer;
 
 use camera::Camera;
-use primitives::{RectangleBuilder, TriangleBuilder};
+use primitives::RectangleBuilder;
 use text::TextBuilder;
 
 use crate::Color;
@@ -27,10 +27,6 @@ impl<'a> Graphics<'a> {
             renderer,
             camera: Camera::new(),
         }
-    }
-
-    pub fn tri(&mut self) -> TriangleBuilder {
-        TriangleBuilder::new(self.renderer, &self.camera)
     }
 
     pub fn rect(&mut self) -> RectangleBuilder {
