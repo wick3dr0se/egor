@@ -2,7 +2,6 @@ use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
 use crate::{Color, render::math::Rect};
 use glam::{Mat2, Vec2, vec2};
 
-#[derive(Clone, Copy)]
 pub enum Anchor {
     Center,
     TopLeft,
@@ -64,31 +63,26 @@ impl<'a> TriangleBuilder<'a> {
 
 impl Drop for TriangleBuilder<'_> {
     fn drop(&mut self) {
-        let half = self.size / 2.0;
-        let points = match self.anchor {
-            Anchor::TopLeft => [
-                vec2(self.position.x + half, self.position.y),
-                vec2(self.position.x, self.position.y + self.size),
-                vec2(self.position.x + self.size, self.position.y + self.size),
-            ],
-            Anchor::Center => [
-                vec2(self.position.x, self.position.y - half),
-                vec2(self.position.x - half, self.position.y + half),
-                vec2(self.position.x + half, self.position.y + half),
-            ],
+        let offset = match self.anchor {
+            Anchor::TopLeft => Vec2::ZERO,
+            Anchor::Center => vec2(0.0, -self.size / 3.0),
         };
+        let p0 = self.position + offset + vec2(-self.size / 2.0, self.size / 3.0);
+        let p1 = self.position + offset + vec2(self.size / 2.0, self.size / 3.0);
+        let p2 = self.position + offset + vec2(0.0, -2.0 * self.size / 3.0);
+        let center = self.position + offset;
         let rot = Mat2::from_angle(self.rotation);
-        let verts: Vec<Vertex> = points
+        let verts = [p0, p1, p2]
             .iter()
             .map(|&p| {
-                let rotated = rot * (p - self.position) + self.position;
+                let rotated = rot * (p - center) + center;
                 Vertex::new(
                     transform(self.renderer, self.camera, rotated),
                     self.color.into(),
                     [-1.0, -1.0],
                 )
             })
-            .collect();
+            .collect::<Vec<_>>();
 
         self.renderer.submit(&verts, &[0, 1, 2], 0);
     }
@@ -111,7 +105,7 @@ impl<'a> RectangleBuilder<'a> {
         Self {
             renderer,
             camera,
-            anchor: Anchor::Center,
+            anchor: Anchor::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
             rotation: 0.0,
@@ -119,6 +113,12 @@ impl<'a> RectangleBuilder<'a> {
             tex_coords: [[-1.0, -1.0]; 4],
             tex_idx: 0,
         }
+    }
+
+    pub fn with(mut self, rect: &Rect) -> Self {
+        self.position = rect.position;
+        self.size = rect.size;
+        self
     }
 
     pub fn anchor(mut self, anchor: Anchor) -> Self {
@@ -164,14 +164,19 @@ impl<'a> RectangleBuilder<'a> {
 
 impl Drop for RectangleBuilder<'_> {
     fn drop(&mut self) {
-        let rect = Rect::from_anchor(self.position, self.size, self.anchor);
+        let offset = match self.anchor {
+            Anchor::TopLeft => Vec2::ZERO,
+            Anchor::Center => -self.size / 2.0,
+        };
+        let top_left = self.position + offset;
+        let rect = Rect::new(top_left, self.size);
         let rot = Mat2::from_angle(self.rotation);
         let verts: Vec<_> = rect
             .corners()
             .iter()
             .zip(self.tex_coords.iter())
             .map(|(&corner, &uv)| {
-                let rotated = rot * (corner - rect.origin) + rect.origin;
+                let rotated = rot * (corner - rect.center()) + rect.center();
                 Vertex::new(
                     transform(self.renderer, self.camera, rotated),
                     self.color.into(),

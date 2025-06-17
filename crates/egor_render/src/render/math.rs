@@ -1,47 +1,40 @@
 pub use glam::{Vec2, vec2};
 
-use crate::Anchor;
-
 pub struct Rect {
-    pub origin: Vec2,
+    pub position: Vec2,
     pub size: Vec2,
 }
 
 impl Rect {
-    pub fn new(origin: Vec2, size: Vec2) -> Self {
-        Self { origin, size }
+    pub fn new(position: Vec2, size: Vec2) -> Self {
+        Self { position, size }
     }
 
-    pub(crate) fn from_anchor(position: Vec2, size: Vec2, anchor: Anchor) -> Self {
-        match anchor {
-            Anchor::TopLeft => Self {
-                origin: position + size * 0.5,
-                size,
-            },
-            Anchor::Center => Self {
-                origin: position,
-                size,
-            },
-        }
+    pub fn min(&self) -> Vec2 {
+        self.position
+    }
+
+    pub fn max(&self) -> Vec2 {
+        self.position + self.size
     }
 
     pub fn center(&self) -> Vec2 {
-        self.origin + self.size * 0.5
+        self.position + self.size * 0.5
     }
 
-    pub fn corners(&self) -> [Vec2; 4] {
-        let half = self.size * 0.5;
-        let tl = self.origin - half;
-        let br = self.origin + half;
-        [
-            vec2(tl.x, tl.y),
-            vec2(br.x, tl.y),
-            vec2(br.x, br.y),
-            vec2(tl.x, br.y),
-        ]
+    pub fn translate(&mut self, delta: Vec2) {
+        self.position += delta;
     }
 
     pub fn contains(&self, point: Vec2) -> bool {
-        point.cmpge(self.origin).all() && point.cmple(self.origin + self.size).all()
+        point.cmpge(self.position).all() && point.cmple(self.position + self.size).all()
+    }
+
+    pub fn corners(&self) -> [Vec2; 4] {
+        let tl = self.position;
+        let tr = vec2(tl.x + self.size.x, tl.y);
+        let br = vec2(tl.x + self.size.x, tl.y + self.size.y);
+        let bl = vec2(tl.x, tl.y + self.size.y);
+        [tl, tr, br, bl]
     }
 }
