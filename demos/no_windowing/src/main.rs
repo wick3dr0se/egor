@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
+use egor::math::vec2;
 use egor::render::{Anchor, Color, Graphics, Renderer};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -65,14 +66,13 @@ impl ApplicationHandler for Application {
         match event {
             WindowEvent::RedrawRequested => {
                 window.pre_present_notify();
-                let width = renderer.screen_width();
-                let height = renderer.screen_height();
+                let (width, height) = renderer.surface_size();
                 let mut g = Graphics::new(renderer);
                 g.clear(Color::BLACK);
-                g.rect().anchor(Anchor::Center).at(
+                g.rect().anchor(Anchor::Center).at(vec2(
                     mouse_position.0 - (width * 0.5),
                     mouse_position.1 - (height * 0.5),
-                );
+                ));
                 renderer.render_frame();
             }
             WindowEvent::CursorMoved {

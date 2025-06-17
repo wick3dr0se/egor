@@ -258,12 +258,11 @@ impl Renderer {
         self.clear_color = color;
     }
 
-    pub fn screen_width(&self) -> f32 {
-        self.target.config.width as f32
-    }
-
-    pub fn screen_height(&self) -> f32 {
-        self.target.config.height as f32
+    pub fn surface_size(&self) -> (f32, f32) {
+        (
+            self.target.config.width as f32,
+            self.target.config.height as f32,
+        )
     }
 
     pub(crate) fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
@@ -280,7 +279,7 @@ impl Renderer {
     }
 
     pub(crate) fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
-        let (w, h) = (self.screen_width(), self.screen_height());
+        let (w, h) = self.surface_size();
         [(x / w) * 2.0 - 1.0, 1.0 - (y / h) * 2.0]
     }
 

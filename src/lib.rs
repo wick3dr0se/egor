@@ -12,3 +12,8 @@ pub mod input {
 pub mod render {
     pub use egor_render::{Anchor, Color, Graphics, Renderer};
 }
+
+#[cfg(feature = "render")]
+pub mod math {
+    pub use egor_render::{Rect, Vec2, vec2};
+}

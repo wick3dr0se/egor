@@ -1,15 +1,17 @@
 pub mod camera;
 pub mod color;
+pub mod math;
 pub mod primitives;
 mod renderer;
 mod text;
 mod texture;
 pub(crate) mod vertex;
 
+use glam::Vec2;
 pub use renderer::Renderer;
 
 use camera::Camera;
-use primitives::{RectangleBuilder, TriangleBuilder};
+use primitives::RectangleBuilder;
 use text::TextBuilder;
 
 use crate::Color;
@@ -23,12 +25,8 @@ impl<'a> Graphics<'a> {
     pub fn new(renderer: &'a mut Renderer) -> Self {
         Self {
             renderer,
-            camera: Camera::new(),
+            camera: Camera::default(),
         }
-    }
-
-    pub fn tri(&mut self) -> TriangleBuilder {
-        TriangleBuilder::new(self.renderer, &self.camera)
     }
 
     pub fn rect(&mut self) -> RectangleBuilder {
@@ -39,8 +37,8 @@ impl<'a> Graphics<'a> {
         self.renderer.clear(color);
     }
 
-    pub fn screen_size(&self) -> [f32; 2] {
-        [self.renderer.screen_width(), self.renderer.screen_height()]
+    pub fn screen_size(&self) -> Vec2 {
+        self.renderer.surface_size().into()
     }
 
     pub fn camera(&mut self) -> &mut Camera {
