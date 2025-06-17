@@ -1,5 +1,5 @@
 use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
-use crate::{Color, render::math::Rect};
+use crate::{Color, math::Rect};
 use glam::{Mat2, Vec2, vec2};
 
 pub enum Anchor {

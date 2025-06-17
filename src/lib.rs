@@ -10,10 +10,10 @@ pub mod input {
 
 #[cfg(feature = "render")]
 pub mod render {
-    pub use egor_render::{Anchor, Color, Graphics, Renderer};
+    pub use egor_render::{Graphics, Renderer, color::Color, primitives::Anchor};
 }
 
 #[cfg(feature = "render")]
 pub mod math {
-    pub use egor_render::{Rect, Vec2, vec2};
+    pub use egor_render::math::{Rect, Vec2, vec2};
 }

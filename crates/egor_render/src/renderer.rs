@@ -136,7 +136,7 @@ impl Renderer {
         surface_cfg.present_mode = PresentMode::Fifo;
         surface.configure(&device, &surface_cfg);
 
-        let shader = device.create_shader_module(include_wgsl!("../../shader.wgsl"));
+        let shader = device.create_shader_module(include_wgsl!("../shader.wgsl"));
         let bind_group_layout = Texture::create_bind_group_layout(&device);
         let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
             label: None,

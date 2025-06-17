@@ -24,7 +24,7 @@ impl TextRenderer {
         let mut font_system = FontSystem::new();
         font_system
             .db_mut()
-            .load_font_data(include_bytes!("../../inter-v19-latin-regular.ttf").to_vec());
+            .load_font_data(include_bytes!("../inter-v19-latin-regular.ttf").to_vec());
         let swash_cache = SwashCache::new();
         let cache = Cache::new(device);
         let viewport = Viewport::new(device, &cache);

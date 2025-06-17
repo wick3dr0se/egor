@@ -1,6 +1,6 @@
 use glam::Vec2;
 
-use crate::render::math::Rect;
+use crate::math::Rect;
 
 pub struct Camera {
     position: Vec2,
