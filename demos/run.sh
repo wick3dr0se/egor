@@ -78,9 +78,6 @@ run_native() {
 serve_wasm() {
     echo "Compiling $wasmBuild WebAssembly build with rustc flags: ${RUSTFLAGS-}.."
 
-    (( liveReload )) && dx serve --hotpatch --platform web -- --no-default-features && return
-    
-    type trunk || cargo install --locked trunk
     trunk serve "${flags[@]}"
 }
 
@@ -101,6 +98,11 @@ while (( $# )); do
     esac
     shift
 done
+
+if (( wasmBuild && liveReload )); then
+    panic "--live-reload is only supported for native builds (for now)"
+fi
+
 (( verbose )) && set -x && flags+=(--verbose)
 (( debug )) || flags+=(--release)
 
@@ -111,8 +113,6 @@ done
 }
 
 [[ $memPath ]] && link_in_memory "$memPath"
-
-(( liveReload )) && { type dx || cargo install --git https://github.com/DioxusLabs/dioxus dioxus-cli --locked; }
 
 setup_toolchain
 
