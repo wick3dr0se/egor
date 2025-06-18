@@ -10,7 +10,7 @@
 </div>
 
 ## Why Egor?
-- **Stupid Simple** – You can grok the whole engine without diving into a rabbit hole
+- **Stupid Simple** – You can grok the whole engine without falling into a rabbit hole
 - **Cross-Platform** – Same code runs native & on the web via WASM
 - **Zero Boilerplate** – Primitives, textures, input, text & more without writing a book
 - **Extensible & Minimal** – If it's not required, it’s probably not included (by default)
@@ -32,7 +32,7 @@ Linux | Vulkan, OpenGL | ✅ Stable
 Web (WASM) | WebGPU, WebGL2 | ✅ Working
 
 > [!NOTE]
-> Mobile (Android/iOS) isn't (intended to be) supported & neither is touch
+> Mobile (Android/iOS) isn't (intended to be) supported & neither is touch input
 
 ## Getting Started
 Add **egor** to your project:
@@ -57,7 +57,7 @@ App::init(MyState::default() | _, ctx | ctx.set_title("Stateful App")).run(|stat
 To see more of **egor** in action, checkout [demos/](demos)
 
 > [!TIP]
-> Running a web demo? You’ll need to move [index.html](demos/index.html) into a demo, or just use the included [run.sh](demos/run.sh) script (see usage). It handles setup and running for native, WASM, and hot-reloading builds
+> Running a demo for WASM? You’ll need to move [index.html](demos/index.html) into a demo, or just use the included [run.sh](demos/run.sh) script (see usage). It simplifies running native, WASM & hot-reload builds
 
 ### Running a Native Build
 Simply run `cargo`:
@@ -90,7 +90,7 @@ dx serve --hot-patch
 > Subsecond hot-reloading is experimental; native is working
 
 ## Contributing
-Egor’s growing fast.. Got an idea, bugfix, or question?
+**egor** is moving fast.. Got an idea, bugfix, or question?
 Check out some [issues](https://github.com/wick3dr0se/egor/issues), open a new one, drop a PR, or come hang in [Discord](https://opensourceforce.net/discord)
 
 ---
