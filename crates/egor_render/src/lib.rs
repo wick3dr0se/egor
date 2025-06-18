@@ -29,7 +29,7 @@ impl<'a> Graphics<'a> {
         }
     }
 
-    pub fn rect(&mut self) -> RectangleBuilder {
+    pub fn rect(&mut self) -> RectangleBuilder<'_> {
         RectangleBuilder::new(self.renderer, &self.camera)
     }
 
@@ -45,7 +45,7 @@ impl<'a> Graphics<'a> {
         &mut self.camera
     }
 
-    pub fn text(&mut self, text: &str) -> TextBuilder {
+    pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         TextBuilder::new(&mut self.renderer.text, text.to_string())
     }
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {

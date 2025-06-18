@@ -59,11 +59,9 @@ impl Input {
     }
 
     pub fn mouse_pressed(&self, button: MouseButton) -> bool {
-        self.mouse_buttons
-            .get(&button)
-            .is_some_and(|(curr, prev)| {
-                *curr == ElementState::Pressed && *prev != ElementState::Pressed
-            })
+        self.mouse_buttons.get(&button).is_some_and(|(curr, prev)| {
+            *curr == ElementState::Pressed && *prev != ElementState::Pressed
+        })
     }
 
     pub fn mouse_held(&self, button: MouseButton) -> bool {
