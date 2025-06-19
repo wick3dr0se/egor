@@ -34,8 +34,8 @@ impl<'a> RectangleBuilder<'a> {
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
-            tex_coords: [[-1.0, -1.0]; 4],
-            tex_idx: 0,
+            tex_coords: [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+            tex_idx: usize::MAX,
         }
     }
 
@@ -72,11 +72,6 @@ impl<'a> RectangleBuilder<'a> {
 
     pub fn texture(mut self, idx: usize) -> Self {
         self.tex_idx = idx;
-
-        if self.tex_coords == [[-1.0, -1.0]; 4] {
-            self.tex_coords = [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]];
-        }
-
         self
     }
 

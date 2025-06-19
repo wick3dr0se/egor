@@ -24,9 +24,5 @@ fn vs_main(input: VertexInput) -> VertexOutput {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    if (input.tex_coords.x < 0.0 || input.tex_coords.x > 1.0 || 
-        input.tex_coords.y < 0.0 || input.tex_coords.y > 1.0) {
-        return input.color;
-    }
     return textureSample(texture, tex_sampler, input.tex_coords) * input.color;
 }
