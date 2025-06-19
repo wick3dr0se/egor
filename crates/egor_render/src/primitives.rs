@@ -1,20 +1,14 @@
 use glam::{Mat2, Vec2, vec2};
 
-use super::{Color, camera::Camera, math::Rect, renderer::Renderer, vertex::Vertex};
+use super::{Color, GeometrySink, math::Rect, vertex::Vertex};
 
 pub enum Anchor {
     Center,
     TopLeft,
 }
 
-fn transform(renderer: &Renderer, camera: &Camera, position: Vec2) -> [f32; 2] {
-    let Vec2 { x, y } = camera.world_to_screen(position, renderer.surface_size().into());
-    renderer.to_ndc(x, y)
-}
-
 pub struct RectangleBuilder<'a> {
-    renderer: &'a mut Renderer,
-    camera: &'a Camera,
+    sink: &'a mut dyn GeometrySink,
     anchor: Anchor,
     position: Vec2,
     size: Vec2,
@@ -25,10 +19,9 @@ pub struct RectangleBuilder<'a> {
 }
 
 impl<'a> RectangleBuilder<'a> {
-    pub fn new(renderer: &'a mut Renderer, camera: &'a Camera) -> Self {
+    pub(crate) fn new(sink: &'a mut dyn GeometrySink) -> Self {
         Self {
-            renderer,
-            camera,
+            sink,
             anchor: Anchor::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
@@ -96,15 +89,10 @@ impl Drop for RectangleBuilder<'_> {
             .zip(self.tex_coords.iter())
             .map(|(&corner, &uv)| {
                 let rotated = rot * (corner - rect.center()) + rect.center();
-                Vertex::new(
-                    transform(self.renderer, self.camera, rotated),
-                    self.color.into(),
-                    uv,
-                )
+                Vertex::new(self.sink.world_to_ndc(rotated), self.color.into(), uv)
             })
             .collect();
 
-        self.renderer
-            .submit_geometry(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
+        self.sink.queue(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
     }
 }

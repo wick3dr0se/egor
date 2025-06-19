@@ -14,7 +14,7 @@ use camera::Camera;
 use primitives::RectangleBuilder;
 use text::TextBuilder;
 
-use crate::color::Color;
+use crate::{color::Color, vertex::Vertex};
 
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
@@ -30,7 +30,7 @@ impl<'a> Graphics<'a> {
     }
 
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(self.renderer, &self.camera)
+        RectangleBuilder::new(self)
     }
 
     pub fn clear(&mut self, color: Color) {
@@ -48,10 +48,30 @@ impl<'a> Graphics<'a> {
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         TextBuilder::new(&mut self.renderer.text, text.to_string())
     }
+
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
         self.renderer.update_texture(index, data);
     }
+
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         self.renderer.update_texture_raw(index, w, h, data);
+    }
+}
+
+pub(crate) trait GeometrySink {
+    fn world_to_ndc(&self, pos: Vec2) -> [f32; 2];
+    fn queue(&mut self, verts: &[Vertex], indices: &[u16], texture_index: usize);
+}
+
+impl<'a> GeometrySink for Graphics<'a> {
+    fn world_to_ndc(&self, pos: Vec2) -> [f32; 2] {
+        let screen = self
+            .camera
+            .world_to_screen(pos, self.renderer.surface_size().into());
+        self.renderer.to_ndc(screen.x, screen.y)
+    }
+
+    fn queue(&mut self, verts: &[Vertex], indices: &[u16], texture_index: usize) {
+        self.renderer.queue_geometry(verts, indices, texture_index);
     }
 }

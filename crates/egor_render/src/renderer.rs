@@ -273,7 +273,7 @@ impl Renderer {
         )
     }
 
-    pub(crate) fn submit_geometry(
+    pub(crate) fn queue_geometry(
         &mut self,
         vertices: &[Vertex],
         indices: &[u16],
