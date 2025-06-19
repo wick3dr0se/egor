@@ -1,6 +1,5 @@
-use crate::Color;
+use std::collections::HashMap;
 
-use super::{text::TextRenderer, texture::Texture, vertex::Vertex};
 use wgpu::{
     BindGroupLayout, BlendState, Buffer, BufferDescriptor, BufferUsages, ColorTargetState,
     ColorWrites, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
@@ -9,18 +8,25 @@ use wgpu::{
     Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle, include_wgsl,
 };
 
+use super::{Color, text::TextRenderer, texture::Texture, vertex::Vertex};
+
 const MAX_INDICES: usize = u16::MAX as usize * 32;
 const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
 
-pub struct RenderBatch {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct BatchKey {
+    texture_index: usize,
+    // can add z_index, blend_mode later
+}
+
+pub struct GeometryBatch {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,
-    pub texture_index: usize,
     vertex_buffer: Buffer,
     index_buffer: Buffer,
 }
 
-impl RenderBatch {
+impl GeometryBatch {
     pub fn new(device: &Device) -> Self {
         let vertex_buffer = device.create_buffer(&BufferDescriptor {
             label: None,
@@ -38,17 +44,19 @@ impl RenderBatch {
         Self {
             vertices: Vec::with_capacity(MAX_VERTICES),
             indices: Vec::with_capacity(MAX_INDICES),
-            texture_index: 0,
             vertex_buffer,
             index_buffer,
         }
     }
 
-    pub fn submit(&mut self, vertices: &[Vertex], indices: &[u16], tex_idx: usize) {
-        let idx = self.vertices.len() as u16;
+    pub fn push(&mut self, vertices: &[Vertex], indices: &[u16]) {
+        let idx_offset = self.vertices.len();
+        assert!(idx_offset + vertices.len() <= MAX_VERTICES);
+        assert!(self.indices.len() + indices.len() <= MAX_INDICES);
+
         self.vertices.extend_from_slice(vertices);
-        self.indices.extend(indices.iter().map(|i| i + idx));
-        self.texture_index = tex_idx;
+        self.indices
+            .extend(indices.iter().map(|i| i + idx_offset as u16));
     }
 
     pub fn upload(&self, queue: &Queue) {
@@ -92,7 +100,7 @@ pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
     pipeline: RenderPipeline,
-    batches: Vec<RenderBatch>,
+    geometry_batches: HashMap<BatchKey, GeometryBatch>,
     clear_color: Color,
     bind_group_layout: BindGroupLayout,
     textures: Vec<Texture>,
@@ -182,7 +190,7 @@ impl Renderer {
                 config: surface_cfg,
             },
             pipeline,
-            batches: vec![RenderBatch::new(&device)],
+            geometry_batches: HashMap::new(),
             clear_color: Color::BLACK,
             bind_group_layout,
             textures: Vec::new(),
@@ -218,14 +226,14 @@ impl Renderer {
 
             r_pass.set_pipeline(&self.pipeline);
 
-            for batch in &self.batches {
+            for (key, batch) in self.geometry_batches.iter() {
                 if batch.vertices.is_empty() {
                     continue;
                 }
 
                 let texture = self
                     .textures
-                    .get(batch.texture_index)
+                    .get(key.texture_index)
                     .unwrap_or(&self.default_texture);
                 texture.bind(&mut r_pass, 0);
 
@@ -241,7 +249,7 @@ impl Renderer {
         self.gpu.queue.submit(Some(encoder.finish()));
         frame.present();
 
-        for batch in &mut self.batches {
+        for batch in self.geometry_batches.values_mut() {
             batch.clear();
         }
     }
@@ -265,17 +273,19 @@ impl Renderer {
         )
     }
 
-    pub(crate) fn submit(&mut self, vertices: &[Vertex], indices: &[u16], texture_index: usize) {
-        for batch in &mut self.batches {
-            if batch.texture_index == texture_index {
-                batch.submit(vertices, indices, texture_index);
-                return;
-            }
-        }
+    pub(crate) fn submit_geometry(
+        &mut self,
+        vertices: &[Vertex],
+        indices: &[u16],
+        texture_index: usize,
+    ) {
+        let key = BatchKey { texture_index };
+        let batch = self
+            .geometry_batches
+            .entry(key)
+            .or_insert_with(|| GeometryBatch::new(&self.gpu.device));
 
-        let mut new_batch = RenderBatch::new(&self.gpu.device);
-        new_batch.submit(vertices, indices, texture_index);
-        self.batches.push(new_batch);
+        batch.push(vertices, indices);
     }
 
     pub(crate) fn to_ndc(&self, x: f32, y: f32) -> [f32; 2] {
@@ -286,9 +296,9 @@ impl Renderer {
     pub fn add_texture(&mut self, data: &[u8]) -> usize {
         let img = image::load_from_memory(data).unwrap().to_rgba8();
         let (w, h) = img.dimensions();
-
         self.add_texture_raw(w, h, &img)
     }
+
     pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
         let tex = Texture::from_bytes(
             &self.gpu.device,
@@ -300,14 +310,15 @@ impl Renderer {
         );
         let texture_idx = self.textures.len();
         self.textures.push(tex);
-
         texture_idx
     }
+
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
         let img = image::load_from_memory(data).unwrap().to_rgba8();
         let (w, h) = img.dimensions();
         self.update_texture_raw(index, w, h, &img)
     }
+
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         let tex = Texture::from_bytes(
             &self.gpu.device,

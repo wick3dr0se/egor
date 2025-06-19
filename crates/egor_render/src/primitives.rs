@@ -1,6 +1,6 @@
-use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
-use crate::{Color, math::Rect};
 use glam::{Mat2, Vec2, vec2};
+
+use super::{Color, camera::Camera, math::Rect, renderer::Renderer, vertex::Vertex};
 
 pub enum Anchor {
     Center,
@@ -105,6 +105,6 @@ impl Drop for RectangleBuilder<'_> {
             .collect();
 
         self.renderer
-            .submit(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
+            .submit_geometry(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
     }
 }
