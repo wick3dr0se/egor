@@ -1,13 +1,5 @@
-pub mod time;
-pub use winit::keyboard::KeyCode;
-
 pub mod input;
-
-#[cfg(target_arch = "wasm32")]
-pub type Rc<T> = std::rc::Rc<T>;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub type Rc<T> = std::sync::Arc<T>;
+pub mod time;
 
 use winit::{
     application::ApplicationHandler,
@@ -20,18 +12,25 @@ use egor_render::{Graphics, Renderer};
 
 use crate::{input::Input, time::FrameTimer};
 
+#[cfg(target_arch = "wasm32")]
+pub type Rc<T> = std::rc::Rc<T>;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type Rc<T> = std::sync::Arc<T>;
+
 pub trait InitFn<S>: FnOnce(&mut S, &mut InitContext) + 'static {}
 impl<S, F: FnOnce(&mut S, &mut InitContext) + 'static> InitFn<S> for F {}
 
 pub struct App<S, I> {
     state: S,
+    init: Option<I>,
+    on_quit: Option<Box<dyn FnMut(&mut S)>>,
+    plugins: Vec<Box<dyn Plugin<S>>>,
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,
-    init: Option<I>,
-    timer: FrameTimer,
     renderer: Option<Renderer>,
     input: Input,
-    plugins: Vec<Box<dyn Plugin<S>>>,
+    timer: FrameTimer,
 }
 
 impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
@@ -65,7 +64,12 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
-            WindowEvent::CloseRequested => event_loop.exit(),
+            WindowEvent::CloseRequested => {
+                if let Some(on_quit) = self.on_quit.as_mut() {
+                    on_quit(&mut self.state);
+                }
+                event_loop.exit();
+            }
             WindowEvent::RedrawRequested => {
                 self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
@@ -78,9 +82,9 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
                         ..
                     } = self;
                     let mut cx = Context {
-                        timer,
                         graphics: &mut graphics,
                         input,
+                        timer,
                     };
                     for plugin in self.plugins.iter_mut() {
                         plugin.update(state, &mut cx);
@@ -129,13 +133,14 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
     pub fn init(state: S, init: I) -> Self {
         Self {
             state,
+            init: Some(init),
+            on_quit: None,
+            plugins: Vec::new(),
             window: None,
             proxy: None,
-            init: Some(init),
-            timer: FrameTimer::new(),
             renderer: None,
             input: Input::default(),
-            plugins: Vec::new(),
+            timer: FrameTimer::default(),
         }
     }
 
@@ -168,6 +173,10 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
         }
     }
 
+    pub fn on_quit<F: FnMut(&mut S) + 'static>(&mut self, f: F) {
+        self.on_quit = Some(Box::new(f));
+    }
+
     pub fn plugin<P: Plugin<S> + 'static>(mut self, plugin: P) -> Self {
         self.plugins.push(Box::new(plugin));
         self
@@ -190,9 +199,9 @@ impl InitContext<'_> {
 }
 
 pub struct Context<'a> {
-    pub timer: &'a FrameTimer,
     pub graphics: &'a mut Graphics<'a>,
     pub input: &'a mut Input,
+    pub timer: &'a FrameTimer,
 }
 
 pub trait Plugin<S> {

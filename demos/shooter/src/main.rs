@@ -138,13 +138,17 @@ fn main() {
             .to_rgba8(),
         time_since_recolor: 0.0,
     };
-
-    App::init(state, |_, ctx| {
+    let mut app = App::init(state, |_, ctx| {
         ctx.set_title("Egor Shooter Demo");
         ctx.load_texture(include_bytes!("../assets/soldier.png"));
         ctx.load_texture(include_bytes!("../assets/zombie.png"));
-    })
-    .run(move |state, ctx: &mut Context| {
+    });
+
+    app.on_quit(|_| {
+        println!("Quitting already? Don't be a sore loser");
+    });
+
+    app.run(move |state, ctx: &mut Context| {
         let screen_size = ctx.graphics.screen_size();
         let screen_half = screen_size / 2.0;
 
