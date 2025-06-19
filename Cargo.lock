@@ -520,8 +520,6 @@ name = "demo_egor_secs_particles"
 version = "0.1.0"
 dependencies = [
  "egor",
- "getrandom 0.2.16",
- "rand 0.8.5",
  "secs",
 ]
 
@@ -530,9 +528,7 @@ name = "demo_egor_shooter"
 version = "0.1.0"
 dependencies = [
  "egor",
- "getrandom 0.2.16",
  "image",
- "rand 0.8.5",
 ]
 
 [[package]]
@@ -667,6 +663,8 @@ version = "0.2.0"
 dependencies = [
  "egor_app",
  "egor_render",
+ "getrandom 0.2.16",
+ "rand 0.8.5",
 ]
 
 [[package]]

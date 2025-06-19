@@ -5,9 +5,9 @@ use egor::{
     app::{App, Context},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
+    rand::{Rng, RngCore, thread_rng},
     render::{Anchor, Color},
 };
-use rand::{Rng, RngCore};
 
 const PLAYER_SIZE: f32 = 64.0;
 const BULLET_SIZE: Vec2 = vec2(5.0, 10.0);
@@ -48,7 +48,7 @@ struct GameState {
 }
 
 fn spawn_wave(position: Vec2, count: usize, speed: (f32, f32), hp: f32) -> Vec<Zombie> {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     (0..count)
         .map(|_| {
             let a = rng.gen_range(0.0..std::f32::consts::TAU);
@@ -83,7 +83,7 @@ fn spawn_bullets(position: Vec2, target: Vec2, count: usize) -> Vec<Bullet> {
 
 fn recolor_image(im: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
     let mut rgb = [0u8; 3];
-    rand::thread_rng().fill_bytes(&mut rgb);
+    thread_rng().fill_bytes(&mut rgb);
     for p in im.pixels_mut() {
         p.0[..3].copy_from_slice(&rgb);
     }

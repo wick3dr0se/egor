@@ -1,9 +1,9 @@
-use rand::Rng;
 use secs::World;
 
 use egor::{
     app::{App, Context},
     math::{Vec2, vec2},
+    rand::{Rng, thread_rng},
     render::Color,
 };
 
@@ -19,7 +19,7 @@ fn wraparound(v: &mut Vec2, size: Vec2) {
 }
 
 fn main() {
-    let mut rng = rand::thread_rng();
+    let mut rng = thread_rng();
     let world = World::default();
     let speed = 100.0;
 

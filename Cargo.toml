@@ -20,12 +20,20 @@ resolver = "2"
 
 [features]
 default = ["app", "render"]
-app = ["dep:egor_app"]
-render = ["dep:egor_render"]
+
+app = ["egor_app"]
+render = ["egor_render"]
+
+rand = ["dep:rand", "getrandom"]
 
 [dependencies]
 egor_app = { path = "crates/egor_app", optional = true }
 egor_render = { path = "crates/egor_render", optional = true }
+
+rand = { version = "0.8", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"], optional = true }
 
 [profile.dev]
 opt-level = 1
