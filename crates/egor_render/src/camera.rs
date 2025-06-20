@@ -34,7 +34,7 @@ impl Camera {
         let bottom = self.position.y - half_height;
         let top = self.position.y + half_height;
 
-        Mat4::orthographic_rh_gl(left, right, bottom, top, -1.0, 1.0)
+        Mat4::orthographic_lh(left, right, top, bottom, -1.0, 1.0)
     }
 
     pub fn viewport(&self, screen_size: Vec2) -> Rect {
