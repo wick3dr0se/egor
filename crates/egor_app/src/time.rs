@@ -23,12 +23,6 @@ pub struct FrameTimer {
 
 impl Default for FrameTimer {
     fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl FrameTimer {
-    pub fn new() -> Self {
         Self {
             #[cfg(not(target_arch = "wasm32"))]
             start: Instant::now(),
@@ -39,7 +33,9 @@ impl FrameTimer {
             fps: 0,
         }
     }
+}
 
+impl FrameTimer {
     pub fn update(&mut self) -> u32 {
         let cur_time = {
             #[cfg(not(target_arch = "wasm32"))]

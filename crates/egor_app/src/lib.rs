@@ -21,10 +21,12 @@ pub type Rc<T> = std::sync::Arc<T>;
 pub trait InitFn<S>: FnOnce(&mut S, &mut InitContext) + 'static {}
 impl<S, F: FnOnce(&mut S, &mut InitContext) + 'static> InitFn<S> for F {}
 
+type OnQuit<S> = Box<dyn FnMut(&mut S)>;
+
 pub struct App<S, I> {
     state: S,
     init: Option<I>,
-    on_quit: Option<Box<dyn FnMut(&mut S)>>,
+    on_quit: Option<OnQuit<S>>,
     plugins: Vec<Box<dyn Plugin<S>>>,
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,

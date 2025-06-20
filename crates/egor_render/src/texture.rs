@@ -75,8 +75,7 @@ impl Texture {
     }
 
     pub fn create_default(device: &Device, queue: &Queue, layout: &BindGroupLayout) -> Self {
-        let white_pixel = [255u8, 255, 255, 255];
-        Self::from_bytes(device, queue, layout, &white_pixel, 1, 1)
+        Self::from_bytes(device, queue, layout, &[255u8, 255, 255, 255], 1, 1)
     }
 
     pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {

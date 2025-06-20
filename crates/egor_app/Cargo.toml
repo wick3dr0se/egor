@@ -12,9 +12,9 @@ keywords = ["egor"]
 default = []
 log = [
     "dep:log",
-    "dep:env_logger",
-    "dep:console_log",
-    "dep:console_error_panic_hook",
+    "env_logger",
+    "console_log",
+    "console_error_panic_hook",
 ]
 
 [dependencies]
