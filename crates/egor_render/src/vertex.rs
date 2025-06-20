@@ -1,24 +1,21 @@
 use bytemuck::{Pod, Zeroable};
-use wgpu::{Color, VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
+use wgpu::{VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
+
+use crate::color::Color;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Vertex {
-    pub position: [f32; 2],
-    pub color: [f32; 4],
-    pub tex_coords: [f32; 2],
+    position: [f32; 2],
+    color: [f32; 4],
+    tex_coords: [f32; 2],
 }
 
 impl Vertex {
     pub fn new(position: [f32; 2], color: Color, tex_coords: [f32; 2]) -> Self {
         Self {
             position,
-            color: [
-                color.r as f32,
-                color.g as f32,
-                color.b as f32,
-                color.a as f32,
-            ],
+            color: color.components(),
             tex_coords,
         }
     }
