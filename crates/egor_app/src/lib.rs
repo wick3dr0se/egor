@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use egor_render::{Graphics, Renderer};
+use egor_render::{Graphics, GraphicsInternal, Renderer};
 
 use crate::{input::Input, time::FrameTimer};
 
@@ -75,26 +75,25 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
             WindowEvent::RedrawRequested => {
                 self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
-                    {
-                        let Self {
-                            state,
-                            input,
-                            timer,
-                            ..
-                        } = self;
+                    let Self {
+                        state,
+                        input,
+                        timer,
+                        ..
+                    } = self;
 
-                        let mut graphics = Graphics::new(r);
-                        let mut cx = Context {
-                            graphics: &mut graphics,
-                            input,
-                            timer,
-                        };
-                        for plugin in self.plugins.iter_mut() {
-                            plugin.update(state, &mut cx);
-                        }
+                    let mut graphics = Graphics::new(r);
+                    let mut cx = Context {
+                        graphics: &mut graphics,
+                        input,
+                        timer,
+                    };
+                    for plugin in self.plugins.iter_mut() {
+                        plugin.update(state, &mut cx);
                     }
 
-                    r.render_frame();
+                    let geometry = graphics.flush();
+                    r.render_frame(geometry);
                 }
 
                 self.input.end_frame();

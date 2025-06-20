@@ -17,18 +17,12 @@ use text::TextBuilder;
 use crate::{color::Color, renderer::GeometryBatch, vertex::Vertex};
 
 #[derive(Default)]
-pub struct PrimitiveBatch {
-    pub geometry: Vec<(usize, GeometryBatch)>,
+struct PrimitiveBatch {
+    geometry: Vec<(usize, GeometryBatch)>,
 }
 
 impl PrimitiveBatch {
-    pub fn new() -> Self {
-        Self {
-            geometry: Vec::new(),
-        }
-    }
-
-    pub fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
+    fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
         if let Some((_, batch)) = self.geometry.iter_mut().find(|(id, _)| *id == texture_id) {
             batch.push(verts, indices);
         } else {
@@ -38,7 +32,7 @@ impl PrimitiveBatch {
         }
     }
 
-    pub fn take(&mut self) -> Vec<(usize, GeometryBatch)> {
+    fn take(&mut self) -> Vec<(usize, GeometryBatch)> {
         std::mem::take(&mut self.geometry)
     }
 }
@@ -53,7 +47,7 @@ impl<'a> Graphics<'a> {
     pub fn new(renderer: &'a mut Renderer) -> Self {
         Self {
             renderer,
-            batch: PrimitiveBatch::new(),
+            batch: PrimitiveBatch::default(),
             camera: Camera::default(),
         }
     }
@@ -87,10 +81,14 @@ impl<'a> Graphics<'a> {
     }
 }
 
-impl<'a> Drop for Graphics<'a> {
-    fn drop(&mut self) {
+pub trait GraphicsInternal {
+    fn flush(&mut self) -> Vec<(usize, GeometryBatch)>;
+}
+
+impl GraphicsInternal for Graphics<'_> {
+    fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
         self.renderer
             .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
-        self.renderer.queue_geometry(self.batch.take());
+        self.batch.take()
     }
 }

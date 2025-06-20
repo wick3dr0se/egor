@@ -2,7 +2,7 @@ use std::error::Error;
 use std::sync::Arc;
 
 use egor::math::vec2;
-use egor::render::{Anchor, Color, Graphics, Renderer};
+use egor::render::{Anchor, Color, Graphics, GraphicsInternal, Renderer};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -68,16 +68,15 @@ impl ApplicationHandler for Application {
                 window.pre_present_notify();
                 let (width, height) = renderer.surface_size();
 
-                {
-                    let mut g = Graphics::new(renderer);
-                    g.clear(Color::BLACK);
-                    g.rect().anchor(Anchor::Center).at(vec2(
-                        mouse_position.0 - (width * 0.5),
-                        mouse_position.1 - (height * 0.5),
-                    ));
-                }
+                let mut g = Graphics::new(renderer);
+                g.clear(Color::BLACK);
+                g.rect().anchor(Anchor::Center).at(vec2(
+                    mouse_position.0 - (width * 0.5),
+                    mouse_position.1 - (height * 0.5),
+                ));
 
-                renderer.render_frame();
+                let geometry = g.flush();
+                renderer.render_frame(geometry);
             }
             WindowEvent::CursorMoved {
                 device_id: _,

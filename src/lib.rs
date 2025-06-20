@@ -11,6 +11,9 @@ pub mod input {
 #[cfg(feature = "render")]
 pub mod render {
     pub use egor_render::{Graphics, Renderer, color::Color, primitives::Anchor};
+
+    #[cfg(not(feature = "app"))]
+    pub use egor_render::GraphicsInternal;
 }
 
 #[cfg(feature = "render")]

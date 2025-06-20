@@ -8,8 +8,6 @@ use wgpu::{
     include_wgsl, util::DeviceExt,
 };
 
-use crate::PrimitiveBatch;
-
 use super::{Color, text::TextRenderer, texture::Texture, vertex::Vertex};
 
 const MAX_INDICES: usize = u16::MAX as usize * 32;
@@ -64,7 +62,6 @@ pub struct Renderer {
     textures: Vec<Texture>,
     default_texture: Texture,
     pub(crate) text: TextRenderer,
-    pub primitive_batch: PrimitiveBatch,
 }
 
 impl Renderer {
@@ -188,11 +185,10 @@ impl Renderer {
             textures: Vec::new(),
             default_texture,
             text,
-            primitive_batch: PrimitiveBatch::new(),
         }
     }
 
-    pub fn render_frame(&mut self) {
+    pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
         let frame = self.target.surface.get_current_texture().unwrap();
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
@@ -220,7 +216,7 @@ impl Renderer {
             r_pass.set_pipeline(&self.pipeline);
             r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            for (tex_id, batch) in self.primitive_batch.take() {
+            for (tex_id, batch) in geometry {
                 if batch.vertices.is_empty() || batch.indices.is_empty() {
                     continue;
                 }
@@ -287,22 +283,6 @@ impl Renderer {
         self.gpu
             .queue
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&cam_uniform));
-    }
-
-    pub fn queue_geometry(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
-        for (tex_id, mut batch) in geometry {
-            if let Some((_, target)) = self
-                .primitive_batch
-                .geometry
-                .iter_mut()
-                .find(|(id, _)| *id == tex_id)
-            {
-                target.vertices.append(&mut batch.vertices);
-                target.indices.append(&mut batch.indices);
-            } else {
-                self.primitive_batch.geometry.push((tex_id, batch));
-            }
-        }
     }
 
     pub fn add_texture(&mut self, data: &[u8]) -> usize {
