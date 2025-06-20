@@ -5,7 +5,7 @@ use egor::{
     app::{App, Context},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
-    render::{Anchor, Color},
+    render::Color,
 };
 use rand::{Rng, RngCore};
 
@@ -74,7 +74,7 @@ fn spawn_bullets(position: Vec2, target: Vec2, count: usize) -> Vec<Bullet> {
             let offset = (i as f32 - half) * spread / half.max(1.0);
             let a = angle + offset;
             Bullet {
-                rect: Rect::new(position, BULLET_SIZE),
+                rect: Rect::new(position - BULLET_SIZE / 2.0, BULLET_SIZE),
                 vel: vec2(a.cos(), a.sin()) * 500.0,
             }
         })
@@ -180,7 +180,7 @@ fn main() {
         state.fire_cd -= ctx.timer.delta;
         if ctx.input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
             state.bullets.extend(spawn_bullets(
-                state.player.rect.position,
+                state.player.rect.center(),
                 position,
                 state.spread,
             ));
@@ -200,7 +200,12 @@ fn main() {
 
         for b in &mut state.bullets {
             b.rect.translate(b.vel * ctx.timer.delta);
-            ctx.graphics.rect().with(&b.rect).color(Color::BLUE);
+            let angle = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
+            ctx.graphics
+                .rect()
+                .with(&b.rect)
+                .rotate(angle)
+                .color(Color::BLUE);
         }
 
         state.time_since_recolor += ctx.timer.delta;
@@ -229,7 +234,7 @@ fn main() {
             ctx.graphics
                 .rect()
                 .with(&e.rect)
-                .rotation(angle + std::f32::consts::FRAC_PI_2)
+                .rotate(angle + std::f32::consts::FRAC_PI_2)
                 .color(if e.flash > 0.0 {
                     Color::RED
                 } else {
@@ -245,7 +250,7 @@ fn main() {
 
         state.player.flash = (state.player.flash - ctx.timer.delta).max(0.0);
         let dir = position - state.player.rect.position;
-        let rot = dir.y.atan2(dir.x) + std::f32::consts::FRAC_PI_2;
+        let angle = dir.y.atan2(dir.x) + std::f32::consts::FRAC_PI_2;
 
         let uv = if moving {
             state.player_anim.update(ctx.timer.delta);
@@ -257,13 +262,12 @@ fn main() {
         ctx.graphics
             .rect()
             .with(&state.player.rect)
-            .rotation(rot)
+            .rotate(angle)
             .color(if state.player.flash > 0.0 {
                 Color::RED
             } else {
                 Color::WHITE
             })
-            .anchor(Anchor::Center)
             .texture(0)
             .uv(uv);
 

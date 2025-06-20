@@ -28,7 +28,7 @@ impl<'a> RectangleBuilder<'a> {
             rotation: 0.0,
             color: Color::WHITE,
             tex_coords: [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
-            tex_id: 0,
+            tex_id: usize::MAX,
         }
     }
 
@@ -58,7 +58,7 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
-    pub fn rotation(mut self, angle: f32) -> Self {
+    pub fn rotate(mut self, angle: f32) -> Self {
         self.rotation = angle;
         self
     }
