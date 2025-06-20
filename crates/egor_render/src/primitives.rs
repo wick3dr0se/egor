@@ -1,41 +1,34 @@
-use super::{camera::Camera, renderer::Renderer, vertex::Vertex};
-use crate::{Color, math::Rect};
 use glam::{Mat2, Vec2, vec2};
+
+use super::{Color, PrimitiveBatch, math::Rect, vertex::Vertex};
 
 pub enum Anchor {
     Center,
     TopLeft,
 }
 
-fn transform(renderer: &Renderer, camera: &Camera, position: Vec2) -> [f32; 2] {
-    let Vec2 { x, y } = camera.world_to_screen(position, renderer.surface_size().into());
-    renderer.to_ndc(x, y)
-}
-
 pub struct RectangleBuilder<'a> {
-    renderer: &'a mut Renderer,
-    camera: &'a Camera,
+    batch: &'a mut PrimitiveBatch,
     anchor: Anchor,
     position: Vec2,
     size: Vec2,
     rotation: f32,
     color: Color,
     tex_coords: [[f32; 2]; 4],
-    tex_idx: usize,
+    tex_id: usize,
 }
 
 impl<'a> RectangleBuilder<'a> {
-    pub fn new(renderer: &'a mut Renderer, camera: &'a Camera) -> Self {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch) -> Self {
         Self {
-            renderer,
-            camera,
+            batch,
             anchor: Anchor::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
             tex_coords: [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
-            tex_idx: usize::MAX,
+            tex_id: 0,
         }
     }
 
@@ -70,8 +63,8 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
-    pub fn texture(mut self, idx: usize) -> Self {
-        self.tex_idx = idx;
+    pub fn texture(mut self, id: usize) -> Self {
+        self.tex_id = id;
         self
     }
 
@@ -96,15 +89,10 @@ impl Drop for RectangleBuilder<'_> {
             .zip(self.tex_coords.iter())
             .map(|(&corner, &uv)| {
                 let rotated = rot * (corner - rect.center()) + rect.center();
-                Vertex::new(
-                    transform(self.renderer, self.camera, rotated),
-                    self.color.into(),
-                    uv,
-                )
+                Vertex::new(rotated.into(), self.color.into(), uv)
             })
             .collect();
 
-        self.renderer
-            .submit(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
+        self.batch.push(&verts, &[0, 1, 2, 2, 3, 0], self.tex_id);
     }
 }
