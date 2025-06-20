@@ -32,7 +32,7 @@ impl PrimitiveBatch {
         if let Some((_, batch)) = self.geometry.iter_mut().find(|(id, _)| *id == texture_id) {
             batch.push(verts, indices);
         } else {
-            let mut batch = GeometryBatch::new();
+            let mut batch = GeometryBatch::default();
             batch.push(verts, indices);
             self.geometry.push((texture_id, batch));
         }

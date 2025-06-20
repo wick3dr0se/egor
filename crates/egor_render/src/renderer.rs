@@ -26,14 +26,16 @@ pub struct GeometryBatch {
     pub indices: Vec<u16>,
 }
 
-impl GeometryBatch {
-    pub fn new() -> Self {
+impl Default for GeometryBatch {
+    fn default() -> Self {
         Self {
             vertices: Vec::with_capacity(MAX_VERTICES),
             indices: Vec::with_capacity(MAX_INDICES),
         }
     }
+}
 
+impl GeometryBatch {
     pub fn push(&mut self, verts: &[Vertex], indices: &[u16]) {
         let idx_offset = self.vertices.len() as u16;
         self.vertices.extend_from_slice(verts);
