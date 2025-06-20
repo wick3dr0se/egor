@@ -74,7 +74,7 @@ trunk serve
 ### Try Out Subsecond Hot-reloading
 Add the plugin:
 ```bash
-cargo add egor_subsecond
+cargo add egor_subsecond --git https://github.com/wick3dr0se/egor --package egor_subsecond
 ```
 
 ```rust

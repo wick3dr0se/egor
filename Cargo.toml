@@ -1,13 +1,13 @@
 [package]
 name = "egor"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
 description = "A dead simple 2D graphics engine"
 license = "MIT"
 repository = "https://github.com/wick3dr0se/egor"
 keywords = ["2d", "graphics", "wgpu", "winit"]
-categories = ["egor", "graphics", "game-development"]
+categories = ["graphics", "game-development"]
 
 [workspace]
 members = [
@@ -20,12 +20,12 @@ resolver = "2"
 
 [features]
 default = ["app", "render"]
-app = ["dep:egor_app"]
-render = ["dep:egor_render"]
+app = ["egor_app"]
+render = ["egor_render"]
 
 [dependencies]
-egor_app = { path = "crates/egor_app", optional = true }
-egor_render = { path = "crates/egor_render", optional = true }
+egor_app = { version = "0.3.0", path = "crates/egor_app", optional = true }
+egor_render = { version = "0.3.0", path = "crates/egor_render", optional = true }
 
 [profile.dev]
 opt-level = 1
