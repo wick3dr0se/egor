@@ -14,10 +14,38 @@ use camera::Camera;
 use primitives::RectangleBuilder;
 use text::TextBuilder;
 
-use crate::{color::Color, vertex::Vertex};
+use crate::{color::Color, renderer::GeometryBatch, vertex::Vertex};
+
+#[derive(Default)]
+pub struct PrimitiveBatch {
+    pub geometry: Vec<(usize, GeometryBatch)>,
+}
+
+impl PrimitiveBatch {
+    pub fn new() -> Self {
+        Self {
+            geometry: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
+        if let Some((_, batch)) = self.geometry.iter_mut().find(|(id, _)| *id == texture_id) {
+            batch.push(verts, indices);
+        } else {
+            let mut batch = GeometryBatch::new();
+            batch.push(verts, indices);
+            self.geometry.push((texture_id, batch));
+        }
+    }
+
+    pub fn take(&mut self) -> Vec<(usize, GeometryBatch)> {
+        std::mem::take(&mut self.geometry)
+    }
+}
 
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
+    batch: PrimitiveBatch,
     camera: Camera,
 }
 
@@ -25,12 +53,13 @@ impl<'a> Graphics<'a> {
     pub fn new(renderer: &'a mut Renderer) -> Self {
         Self {
             renderer,
+            batch: PrimitiveBatch::new(),
             camera: Camera::default(),
         }
     }
 
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(self)
+        RectangleBuilder::new(&mut self.batch)
     }
 
     pub fn clear(&mut self, color: Color) {
@@ -58,20 +87,10 @@ impl<'a> Graphics<'a> {
     }
 }
 
-pub(crate) trait GeometrySink {
-    fn world_to_ndc(&self, pos: Vec2) -> [f32; 2];
-    fn queue(&mut self, verts: &[Vertex], indices: &[u16], texture_index: usize);
-}
-
-impl<'a> GeometrySink for Graphics<'a> {
-    fn world_to_ndc(&self, pos: Vec2) -> [f32; 2] {
-        let screen = self
-            .camera
-            .world_to_screen(pos, self.renderer.surface_size().into());
-        self.renderer.to_ndc(screen.x, screen.y)
-    }
-
-    fn queue(&mut self, verts: &[Vertex], indices: &[u16], texture_index: usize) {
-        self.renderer.queue_geometry(verts, indices, texture_index);
+impl<'a> Drop for Graphics<'a> {
+    fn drop(&mut self) {
+        self.renderer
+            .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
+        self.renderer.queue_geometry(self.batch.take());
     }
 }

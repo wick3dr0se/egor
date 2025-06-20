@@ -1,6 +1,6 @@
 use glam::{Mat2, Vec2, vec2};
 
-use super::{Color, GeometrySink, math::Rect, vertex::Vertex};
+use super::{Color, PrimitiveBatch, math::Rect, vertex::Vertex};
 
 pub enum Anchor {
     Center,
@@ -8,27 +8,27 @@ pub enum Anchor {
 }
 
 pub struct RectangleBuilder<'a> {
-    sink: &'a mut dyn GeometrySink,
+    batch: &'a mut PrimitiveBatch,
     anchor: Anchor,
     position: Vec2,
     size: Vec2,
     rotation: f32,
     color: Color,
     tex_coords: [[f32; 2]; 4],
-    tex_idx: usize,
+    tex_id: usize,
 }
 
 impl<'a> RectangleBuilder<'a> {
-    pub(crate) fn new(sink: &'a mut dyn GeometrySink) -> Self {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch) -> Self {
         Self {
-            sink,
+            batch,
             anchor: Anchor::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
             tex_coords: [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
-            tex_idx: usize::MAX,
+            tex_id: 0,
         }
     }
 
@@ -63,8 +63,8 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
-    pub fn texture(mut self, idx: usize) -> Self {
-        self.tex_idx = idx;
+    pub fn texture(mut self, id: usize) -> Self {
+        self.tex_id = id;
         self
     }
 
@@ -89,10 +89,10 @@ impl Drop for RectangleBuilder<'_> {
             .zip(self.tex_coords.iter())
             .map(|(&corner, &uv)| {
                 let rotated = rot * (corner - rect.center()) + rect.center();
-                Vertex::new(self.sink.world_to_ndc(rotated), self.color.into(), uv)
+                Vertex::new(rotated.into(), self.color.into(), uv)
             })
             .collect();
 
-        self.sink.queue(&verts, &[0, 1, 2, 2, 3, 0], self.tex_idx);
+        self.batch.push(&verts, &[0, 1, 2, 2, 3, 0], self.tex_id);
     }
 }

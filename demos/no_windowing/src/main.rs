@@ -67,12 +67,16 @@ impl ApplicationHandler for Application {
             WindowEvent::RedrawRequested => {
                 window.pre_present_notify();
                 let (width, height) = renderer.surface_size();
-                let mut g = Graphics::new(renderer);
-                g.clear(Color::BLACK);
-                g.rect().anchor(Anchor::Center).at(vec2(
-                    mouse_position.0 - (width * 0.5),
-                    mouse_position.1 - (height * 0.5),
-                ));
+
+                {
+                    let mut g = Graphics::new(renderer);
+                    g.clear(Color::BLACK);
+                    g.rect().anchor(Anchor::Center).at(vec2(
+                        mouse_position.0 - (width * 0.5),
+                        mouse_position.1 - (height * 0.5),
+                    ));
+                }
+
                 renderer.render_frame();
             }
             WindowEvent::CursorMoved {

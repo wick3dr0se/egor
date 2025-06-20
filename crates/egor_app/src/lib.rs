@@ -73,24 +73,28 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
             WindowEvent::RedrawRequested => {
                 self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
-                    let mut graphics = Graphics::new(r);
+                    {
+                        let Self {
+                            state,
+                            input,
+                            timer,
+                            ..
+                        } = self;
 
-                    let Self {
-                        state,
-                        input,
-                        timer,
-                        ..
-                    } = self;
-                    let mut cx = Context {
-                        graphics: &mut graphics,
-                        input,
-                        timer,
-                    };
-                    for plugin in self.plugins.iter_mut() {
-                        plugin.update(state, &mut cx);
+                        let mut graphics = Graphics::new(r);
+                        let mut cx = Context {
+                            graphics: &mut graphics,
+                            input,
+                            timer,
+                        };
+                        for plugin in self.plugins.iter_mut() {
+                            plugin.update(state, &mut cx);
+                        }
                     }
+
                     r.render_frame();
                 }
+
                 self.input.end_frame();
                 self.window.as_ref().unwrap().request_redraw();
             }
@@ -198,8 +202,8 @@ impl InitContext<'_> {
     }
 }
 
-pub struct Context<'a> {
-    pub graphics: &'a mut Graphics<'a>,
+pub struct Context<'a, 'b> {
+    pub graphics: &'a mut Graphics<'b>,
     pub input: &'a mut Input,
     pub timer: &'a FrameTimer,
 }
