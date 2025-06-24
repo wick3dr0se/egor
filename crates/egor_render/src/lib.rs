@@ -3,18 +3,22 @@ pub mod color;
 pub mod math;
 pub mod primitives;
 mod renderer;
-mod text;
-mod texture;
-pub(crate) mod vertex;
+pub mod text;
+pub mod texture;
+pub mod vertex;
 
 use glam::Vec2;
+
 pub use renderer::Renderer;
 
-use camera::Camera;
-use primitives::RectangleBuilder;
-use text::TextBuilder;
-
-use crate::{color::Color, renderer::GeometryBatch, vertex::Vertex};
+use crate::{
+    camera::{Camera, CameraInternal},
+    color::Color,
+    primitives::RectangleBuilder,
+    renderer::GeometryBatch,
+    text::TextBuilder,
+    vertex::Vertex,
+};
 
 #[derive(Default)]
 struct PrimitiveBatch {

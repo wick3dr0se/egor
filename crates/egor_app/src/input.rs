@@ -83,8 +83,17 @@ impl Input {
     pub fn mouse_delta(&self) -> (f32, f32) {
         self.mouse_delta
     }
+}
 
-    pub(crate) fn keyboard(&mut self, event: KeyEvent) {
+pub trait InputInternal {
+    fn keyboard(&mut self, event: KeyEvent);
+    fn mouse(&mut self, button: MouseButton, state: ElementState);
+    fn cursor(&mut self, position: PhysicalPosition<f64>);
+    fn end_frame(&mut self);
+}
+
+impl InputInternal for Input {
+    fn keyboard(&mut self, event: KeyEvent) {
         if let PhysicalKey::Code(key_code) = event.physical_key {
             let prev = self
                 .keyboard
@@ -94,7 +103,7 @@ impl Input {
         }
     }
 
-    pub(crate) fn mouse(&mut self, button: MouseButton, state: ElementState) {
+    fn mouse(&mut self, button: MouseButton, state: ElementState) {
         let prev = self
             .mouse_buttons
             .get(&button)
@@ -102,14 +111,14 @@ impl Input {
         self.mouse_buttons.insert(button, (state, prev));
     }
 
-    pub(crate) fn cursor(&mut self, position: PhysicalPosition<f64>) {
+    fn cursor(&mut self, position: PhysicalPosition<f64>) {
         let prev_pos = self.mouse_position;
         let pos: (f32, f32) = position.into();
         self.mouse_delta = (pos.0 - prev_pos.0, pos.1 - prev_pos.1);
         self.mouse_position = pos;
     }
 
-    pub(crate) fn end_frame(&mut self) {
+    fn end_frame(&mut self) {
         for (curr, prev) in self.keyboard.values_mut() {
             *prev = *curr;
         }
@@ -121,6 +130,7 @@ impl Input {
             .retain(|_, (curr, _)| *curr != ElementState::Released);
         self.mouse_buttons
             .retain(|_, (curr, _)| *curr != ElementState::Released);
+
         self.mouse_delta = (0.0, 0.0);
     }
 }

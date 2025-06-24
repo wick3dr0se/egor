@@ -35,8 +35,12 @@ impl Default for FrameTimer {
     }
 }
 
-impl FrameTimer {
-    pub fn update(&mut self) -> u32 {
+pub trait FrameTimerInternal {
+    fn update(&mut self);
+}
+
+impl FrameTimerInternal for FrameTimer {
+    fn update(&mut self) {
         let cur_time = {
             #[cfg(not(target_arch = "wasm32"))]
             {
@@ -59,7 +63,5 @@ impl FrameTimer {
             self.frame_count = 0;
             self.accumulator = 0.0;
         }
-
-        self.fps
     }
 }

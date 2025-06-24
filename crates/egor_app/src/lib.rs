@@ -10,7 +10,10 @@ use winit::{
 
 use egor_render::{Graphics, GraphicsInternal, Renderer};
 
-use crate::{input::Input, time::FrameTimer};
+use crate::{
+    input::{Input, InputInternal},
+    time::{FrameTimer, FrameTimerInternal},
+};
 
 #[cfg(target_arch = "wasm32")]
 pub type Rc<T> = std::rc::Rc<T>;
