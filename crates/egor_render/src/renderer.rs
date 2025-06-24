@@ -8,7 +8,7 @@ use wgpu::{
     include_wgsl, util::DeviceExt,
 };
 
-use super::{Color, text::TextRenderer, texture::Texture, vertex::Vertex};
+use crate::{Color, text::TextRenderer, texture::Texture, vertex::Vertex};
 
 const MAX_INDICES: usize = u16::MAX as usize * 32;
 const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
@@ -51,6 +51,12 @@ struct Gpu {
     queue: Queue,
 }
 
+/// Low-level GPU renderer built on `wgpu`
+///
+/// Handles rendering pipelines, surface configuration, resources (textures, buffers), & drawing  
+/// Used internally by [`Graphics`](crate::Graphics) to render 2D primitives
+///
+/// Most users shouldn't interact with this directly unless doing advanced rendering or hooking into the pipeline
 pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
@@ -65,6 +71,10 @@ pub struct Renderer {
 }
 
 impl Renderer {
+    /// Creates a new `Renderer` with a configured surface, pipeline & default resources
+    ///
+    /// Initializes `wgpu`, sets up a basic alpha-blended render pipeline, default texture,
+    /// camera uniform, internal text renderer & more
     pub async fn create_graphics<'w>(
         inner_width: u32,
         inner_height: u32,
@@ -188,6 +198,10 @@ impl Renderer {
         }
     }
 
+    /// Renders a frame using the given geometry batches grouped by texture ID
+    ///
+    /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  
+    /// Text is rendered afterward automatically
     pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
         let frame = self.target.surface.get_current_texture().unwrap();
         let view = frame.texture.create_view(&Default::default());
@@ -257,6 +271,7 @@ impl Renderer {
         frame.present();
     }
 
+    /// Resizes the surface & updates internal render targets
     pub fn resize(&mut self, w: u32, h: u32) {
         (self.target.config.width, self.target.config.height) = (w, h);
         self.target
@@ -265,10 +280,12 @@ impl Renderer {
         self.text.resize(w, h);
     }
 
+    /// Sets the color used to clear the screen before drawing
     pub fn clear(&mut self, color: Color) {
         self.clear_color = color;
     }
 
+    /// Returns the current surface dimensions (in pixels)
     pub fn surface_size(&self) -> (f32, f32) {
         (
             self.target.config.width as f32,
@@ -276,6 +293,7 @@ impl Renderer {
         )
     }
 
+    /// Uploads the given view-projection matrix to the GPU for use in vertex transforms
     pub fn upload_camera_matrix(&mut self, mat: glam::Mat4) {
         let cam_uniform = CameraUniform {
             view_proj: mat.to_cols_array_2d(),
@@ -285,12 +303,16 @@ impl Renderer {
             .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&cam_uniform));
     }
 
+    /// Adds a new texture from image bytes & returns its id
+    ///
+    /// This id is used in drawing primitives (via `Graphics::rect().texture(id)`)
     pub fn add_texture(&mut self, data: &[u8]) -> usize {
         let img = image::load_from_memory(data).unwrap().to_rgba8();
         let (w, h) = img.dimensions();
         self.add_texture_raw(w, h, &img)
     }
 
+    /// Adds a texture from raw RGBA bytes & returns its id
     pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
         let tex = Texture::from_bytes(
             &self.gpu.device,
@@ -305,12 +327,14 @@ impl Renderer {
         texture_idx
     }
 
+    /// Replaces an existing texture with new image data
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
         let img = image::load_from_memory(data).unwrap().to_rgba8();
         let (w, h) = img.dimensions();
         self.update_texture_raw(index, w, h, &img)
     }
 
+    /// Replaces an existing texture with raw RGBA bytes
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         let tex = Texture::from_bytes(
             &self.gpu.device,

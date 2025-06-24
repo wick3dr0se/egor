@@ -3,41 +3,45 @@ use glyphon::cosmic_text;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {
-    internal: AlphaColor<LinearSrgb>,
+    inner: AlphaColor<LinearSrgb>,
 }
 
 impl Color {
+    /// Create a new Color from RGBA components in [0..1]
     pub const fn new(components: [f32; 4]) -> Self {
         Self {
-            internal: AlphaColor::new(components),
+            inner: AlphaColor::new(components),
         }
     }
+
+    /// Get raw RGBA components
     pub fn components(&self) -> [f32; 4] {
-        self.internal.components
+        self.inner.components
     }
 }
 
 impl Color {
     pub const BLACK: Color = Self {
-        internal: AlphaColor::BLACK,
+        inner: AlphaColor::BLACK,
     };
     pub const WHITE: Color = Self {
-        internal: AlphaColor::WHITE,
+        inner: AlphaColor::WHITE,
     };
     pub const TRANSPARENT: Color = Self {
-        internal: AlphaColor::TRANSPARENT,
+        inner: AlphaColor::TRANSPARENT,
     };
     pub const RED: Color = Self {
-        internal: AlphaColor::new([1., 0., 0., 1.]),
+        inner: AlphaColor::new([1., 0., 0., 1.]),
     };
     pub const GREEN: Color = Self {
-        internal: AlphaColor::new([0., 1., 0., 1.]),
+        inner: AlphaColor::new([0., 1., 0., 1.]),
     };
     pub const BLUE: Color = Self {
-        internal: AlphaColor::new([0., 0., 1., 1.]),
+        inner: AlphaColor::new([0., 0., 1., 1.]),
     };
 }
 
+// Convert Color to wgpu::Color (f64 RGBA)
 impl From<Color> for wgpu::Color {
     fn from(value: Color) -> Self {
         let [r, g, b, a] = value.components();
@@ -50,9 +54,10 @@ impl From<Color> for wgpu::Color {
     }
 }
 
+// Convert Color to cosmic_text::Color (u8 RGBA)
 impl From<Color> for cosmic_text::Color {
     fn from(value: Color) -> Self {
-        let rgba_8 = value.internal.to_rgba8();
-        cosmic_text::Color::rgba(rgba_8.r, rgba_8.g, rgba_8.b, rgba_8.a)
+        let [r, g, b, a] = value.inner.to_rgba8().to_u8_array();
+        cosmic_text::Color::rgba(r, g, b, a)
     }
 }

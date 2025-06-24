@@ -6,11 +6,19 @@ use wgpu::{
     TextureUsages, TextureViewDimension,
 };
 
+/// A GPU texture that can be bound in shaders for rendering
+///
+/// Wraps a `wgpu::Texture`, its view, sampler, & bind group  
 pub struct Texture {
     bind_group: BindGroup,
 }
 
 impl Texture {
+    /// Creates a new texture from raw RGBA image data,
+    /// uploads the data, & builds the bind group using the layout
+    ///
+    /// - `data`: Must be in tightly packed 8-bit RGBA format
+    /// - `width`, `height`: Dimensions of the image in pixels
     pub fn from_bytes(
         device: &Device,
         queue: &Queue,
@@ -74,10 +82,16 @@ impl Texture {
         Self { bind_group }
     }
 
+    /// Creates a 1×1 white fallback texture
+    ///
+    /// Used when no valid texture is provided for a draw call
     pub fn create_default(device: &Device, queue: &Queue, layout: &BindGroupLayout) -> Self {
         Self::from_bytes(device, queue, layout, &[255u8, 255, 255, 255], 1, 1)
     }
 
+    /// Returns a bind group layout used for textures in the fragment shader
+    ///
+    /// Passed into pipeline creation & reused across all textures in the renderer
     pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
         device.create_bind_group_layout(&BindGroupLayoutDescriptor {
             label: None,
@@ -102,7 +116,10 @@ impl Texture {
         })
     }
 
-    pub fn bind<'a>(&'a self, pass: &mut RenderPass<'a>, index: u32) {
+    /// Binds this texture at the given index in the render pass
+    ///
+    /// - `index` must match the bind group index used in the pipeline layout
+    pub fn bind<'rp>(&'rp self, pass: &mut RenderPass<'rp>, index: u32) {
         pass.set_bind_group(index, &self.bind_group, &[]);
     }
 }

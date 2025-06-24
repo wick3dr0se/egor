@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use egor_render::{Graphics, GraphicsInternal, Renderer};
+use egor_render::{Graphics, GraphicsInternal, renderer::Renderer};
 
 use crate::{
     input::{Input, InputInternal},
@@ -26,6 +26,12 @@ impl<S, F: FnOnce(&mut S, &mut InitContext) + 'static> InitFn<S> for F {}
 
 type OnQuit<S> = Box<dyn FnMut(&mut S)>;
 
+/// Entry point for `egor` apps
+///
+/// Manages windowing, input, rendering, event loop, & plugin system
+///
+/// Use `App::init(...)` to construct it, then call `.run(...)` to start the loop
+/// Add optional plugins or shutdown logic via `.plugin(...)` & `.on_quit(...)`
 pub struct App<S, I> {
     state: S,
     init: Option<I>,
@@ -38,8 +44,10 @@ pub struct App<S, I> {
     timer: FrameTimer,
 }
 
+#[doc(hidden)]
 impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        // Called when window is ready; initializes the renderer async (wasm) or sync (native)
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
                 #[cfg(target_arch = "wasm32")]
@@ -121,6 +129,7 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
     }
 
     fn user_event(&mut self, _: &ActiveEventLoop, mut renderer: Renderer) {
+        // Called once when the renderer finishes initializing
         if let Some(init) = self.init.take() {
             let Self { state, window, .. } = self;
             let mut ctx = InitContext {
@@ -138,6 +147,7 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
 }
 
 impl<S: 'static, I: InitFn<S>> App<S, I> {
+    /// Creates a new `App` with defined state & init logic
     pub fn init(state: S, init: I) -> Self {
         Self {
             state,
@@ -152,6 +162,7 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
         }
     }
 
+    /// Starts the app & runs the event loop
     pub fn run(mut self, update: impl FnMut(&mut S, &mut Context) + 'static) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -181,37 +192,44 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
         }
     }
 
+    /// Runs the provided closure before quitting
     pub fn on_quit<F: FnMut(&mut S) + 'static>(&mut self, f: F) {
         self.on_quit = Some(Box::new(f));
     }
 
+    /// Adds a plugin that receives `init()` & `update()` hooks
     pub fn plugin<P: Plugin<S> + 'static>(mut self, plugin: P) -> Self {
         self.plugins.push(Box::new(plugin));
         self
     }
 }
 
+/// Passed into `init()`
 pub struct InitContext<'a> {
     window: Rc<Window>,
     render: &'a mut Renderer,
 }
 
 impl InitContext<'_> {
+    /// Sets the window title
     pub fn set_title(&self, title: &str) {
         self.window.set_title(title);
     }
 
+    /// Loads a texture from raw image data (e.g., PNG)
     pub fn load_texture(&mut self, data: &[u8]) -> usize {
         self.render.add_texture(data)
     }
 }
 
+/// Frame-local context passed into `update()` & plugins
 pub struct Context<'a, 'b> {
     pub graphics: &'a mut Graphics<'b>,
     pub input: &'a mut Input,
     pub timer: &'a FrameTimer,
 }
 
+/// Simple plugin trait to hook into `App` lifecycle
 pub trait Plugin<S> {
     fn init(&mut self, state: &mut S, ctx: &mut InitContext);
     fn update(&mut self, state: &mut S, ctx: &mut Context);

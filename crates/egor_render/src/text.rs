@@ -1,25 +1,28 @@
-use crate::Color;
 use glyphon::{
     Attrs, Buffer, Cache, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
     TextAtlas, TextBounds, Viewport,
 };
 use wgpu::{Device, MultisampleState, Queue, TextureFormat};
 
+use crate::Color;
+
 pub struct TextEntry {
     buffer: Buffer,
     position: (f32, f32),
 }
 
+/// Handles text rendering using [`glyphon`] & [`wgpu`]
 pub struct TextRenderer {
     font_system: FontSystem,
     swash_cache: SwashCache,
     viewport: Viewport,
     atlas: TextAtlas,
-    renderer: glyphon::TextRenderer,
+    inner: glyphon::TextRenderer,
     entries: Vec<TextEntry>,
 }
 
 impl TextRenderer {
+    /// Creates a new text renderer with the default embedded Inter font
     pub fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
         let mut font_system = FontSystem::new();
         font_system
@@ -29,16 +32,16 @@ impl TextRenderer {
         let cache = Cache::new(device);
         let viewport = Viewport::new(device, &cache);
         let mut atlas = TextAtlas::new(device, queue, &cache, format);
-        let renderer =
+        let inner =
             glyphon::TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
         let dummy_buffer = Buffer::new(&mut font_system, Metrics::new(12.0, 14.0));
 
         Self {
+            inner,
             font_system,
             swash_cache,
             viewport,
             atlas,
-            renderer,
             entries: vec![TextEntry {
                 buffer: dummy_buffer,
                 position: (0.0, 0.0),
@@ -46,6 +49,7 @@ impl TextRenderer {
         }
     }
 
+    /// Resizes internal text buffers for a new viewport size
     pub fn resize(&mut self, width: u32, height: u32) {
         for entry in &mut self.entries {
             entry.buffer.set_size(
@@ -56,6 +60,10 @@ impl TextRenderer {
         }
     }
 
+    /// Prepares the text layout for this frame
+    /// Must be called before [`render()`](Self::render)
+    ///
+    /// Automatically clears all entries after preparing
     pub fn prepare(&mut self, device: &Device, queue: &Queue, w: u32, h: u32) {
         self.viewport.update(
             queue,
@@ -83,7 +91,7 @@ impl TextRenderer {
             });
         }
 
-        self.renderer
+        self.inner
             .prepare(
                 device,
                 queue,
@@ -98,13 +106,18 @@ impl TextRenderer {
         self.entries.clear();
     }
 
+    /// Renders all prepared text
     pub fn render<'rp>(&'rp self, pass: &mut wgpu::RenderPass<'rp>) {
-        self.renderer
+        self.inner
             .render(&self.atlas, &self.viewport, pass)
             .unwrap();
     }
 }
 
+/// Builder for a single line of text to be drawn on screen
+///
+/// Automatically pushed to the text renderer when dropped.  
+/// This must be constructed **before** `TextRenderer::prepare()` is called.
 pub struct TextBuilder<'a> {
     renderer: &'a mut TextRenderer,
     text: String,

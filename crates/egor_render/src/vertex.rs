@@ -3,6 +3,7 @@ use wgpu::{VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
 
 use crate::color::Color;
 
+/// A single vertex used in rendering 2D primitives
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Vertex {
@@ -12,6 +13,11 @@ pub struct Vertex {
 }
 
 impl Vertex {
+    /// Creates a new vertex with position, color, & texture coordinates
+    ///
+    /// - `position`: `[x, y]` in world space
+    /// - `color`: RGBA color
+    /// - `tex_coords`: `[u, v]` in normalized (0–1) texture space
     pub fn new(position: [f32; 2], color: Color, tex_coords: [f32; 2]) -> Self {
         Self {
             position,
@@ -20,6 +26,12 @@ impl Vertex {
         }
     }
 
+    /// Returns the vertex buffer layout
+    ///
+    /// This must match the vertex shader input layout:
+    /// - location 0: `vec2<f32>` (position)
+    /// - location 1: `vec4<f32>` (color)
+    /// - location 2: `vec2<f32>` (texture coordinates)
     pub fn desc() -> VertexBufferLayout<'static> {
         VertexBufferLayout {
             array_stride: 32,
