@@ -67,3 +67,48 @@ impl CameraInternal for Camera {
         Mat4::orthographic_lh(left, right, top, bottom, -1.0, 1.0)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::vec2;
+
+    #[test]
+    fn view_proj_matrix() {
+        // check that the camera's view-projection matrix matches expected ortho math
+        let mut cam = Camera::default();
+        cam.target(vec2(0.0, 0.0));
+        cam.set_zoom(1.0);
+
+        let mat = cam.view_proj(vec2(800.0, 600.0));
+        let expected = Mat4::orthographic_lh(-400.0, 400.0, 300.0, -300.0, -1.0, 1.0);
+        assert_eq!(mat, expected);
+    }
+
+    #[test]
+    fn viewport_rect() {
+        // check that viewport is centered on camera & scales correctly with zoom
+        let mut cam = Camera::default();
+        cam.target(vec2(50.0, 50.0));
+        cam.set_zoom(2.0);
+
+        let rect = cam.viewport(vec2(200.0, 100.0));
+        assert_eq!(rect.position, vec2(50.0, 50.0));
+        assert!((rect.size - vec2(100.0, 50.0)).length() < 0.001); // allow for float fuzz
+    }
+
+    #[test]
+    fn world_screen_round_trip() {
+        // converting world -> screen -> world should come back to where we started
+        let mut cam = Camera::default();
+        cam.target(vec2(100.0, 50.0));
+        cam.set_zoom(2.0);
+
+        let screen_size = vec2(800.0, 600.0);
+        let world = vec2(110.0, 55.0);
+        let screen = cam.world_to_screen(world, screen_size);
+        let world2 = cam.screen_to_world(screen, screen_size);
+
+        assert!((world - world2).length() < 0.001);
+    }
+}

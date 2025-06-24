@@ -156,3 +156,149 @@ impl InputInternal for Input {
         self.mouse_delta = (0.0, 0.0);
     }
 }
+
+#[cfg(test)]
+impl Input {
+    pub fn inject_key(&mut self, key: KeyCode, state: ElementState) {
+        let prev = self
+            .keyboard
+            .get(&key)
+            .map_or(ElementState::Released, |(curr, _)| *curr);
+        self.keyboard.insert(key, (state, prev));
+    }
+
+    pub fn inject_mouse_button(&mut self, button: MouseButton, state: ElementState) {
+        let prev = self
+            .mouse_buttons
+            .get(&button)
+            .map_or(ElementState::Released, |(curr, _)| *curr);
+        self.mouse_buttons.insert(button, (state, prev));
+    }
+
+    pub fn inject_cursor(&mut self, x: f32, y: f32) {
+        let prev = self.mouse_position;
+        self.mouse_position = (x, y);
+        self.mouse_delta = (x - prev.0, y - prev.1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use winit::{
+        event::ElementState::{Pressed, Released},
+        event::MouseButton,
+        keyboard::KeyCode,
+    };
+
+    #[test]
+    fn key_press_and_release_behavior() {
+        // test key press -> hold -> release flow
+        let mut input = Input::default();
+        input.inject_key(KeyCode::Space, Pressed);
+        assert!(input.key_pressed(KeyCode::Space));
+        assert!(input.key_held(KeyCode::Space));
+        assert!(!input.key_released(KeyCode::Space));
+
+        input.end_frame(); // clears pressed flag
+        assert!(!input.key_pressed(KeyCode::Space));
+        assert!(input.key_held(KeyCode::Space));
+
+        input.inject_key(KeyCode::Space, Released);
+        assert!(input.key_released(KeyCode::Space));
+        assert!(!input.key_held(KeyCode::Space));
+
+        input.end_frame(); // drops released key from map
+        assert!(!input.key_held(KeyCode::Space));
+        assert!(!input.key_released(KeyCode::Space));
+    }
+
+    #[test]
+    fn mouse_button_and_cursor() {
+        // test mouse press & cursor movement/delta
+        let mut input = Input::default();
+        input.inject_mouse_button(MouseButton::Left, Pressed);
+        assert!(input.mouse_pressed(MouseButton::Left));
+        assert!(input.mouse_held(MouseButton::Left));
+        assert!(!input.mouse_released(MouseButton::Left));
+
+        input.inject_cursor(100.0, 200.0);
+        assert_eq!(input.mouse_position(), (100.0, 200.0));
+        assert_eq!(input.mouse_delta(), (100.0, 200.0)); // moved from (0, 0)
+
+        input.inject_cursor(110.0, 190.0);
+        assert_eq!(input.mouse_position(), (110.0, 190.0));
+        assert_eq!(input.mouse_delta(), (10.0, -10.0));
+
+        input.end_frame(); // delta should reset
+        assert_eq!(input.mouse_delta(), (0.0, 0.0));
+    }
+
+    #[test]
+    fn end_frame_cleans_released_keys_and_resets_mouse_delta() {
+        // confirms end_frame clears out released input & resets delta
+        let mut input = Input::default();
+
+        input.inject_key(KeyCode::KeyA, Pressed);
+        input.inject_key(KeyCode::KeyB, Released);
+        input.inject_mouse_button(MouseButton::Right, Released);
+        input.inject_cursor(50.0, 75.0);
+
+        input.end_frame();
+
+        assert!(input.key_held(KeyCode::KeyA));
+        assert!(!input.key_held(KeyCode::KeyB));
+        assert!(!input.mouse_held(MouseButton::Right));
+        assert_eq!(input.mouse_delta(), (0.0, 0.0));
+    }
+
+    #[test]
+    fn multiple_keys_and_buttons() {
+        // tests helpers that check multiple keys/buttons at once
+        let mut input = Input::default();
+
+        input.inject_key(KeyCode::KeyA, Pressed);
+        input.inject_key(KeyCode::KeyB, Pressed);
+        input.inject_mouse_button(MouseButton::Left, Pressed);
+        input.inject_mouse_button(MouseButton::Right, Released);
+
+        assert!(input.keys_pressed(&[KeyCode::KeyA, KeyCode::KeyX]));
+        assert!(input.all_keys_pressed(&[KeyCode::KeyA, KeyCode::KeyB]));
+        assert!(!input.all_keys_pressed(&[KeyCode::KeyA, KeyCode::KeyX]));
+
+        assert!(input.mouse_pressed(MouseButton::Left));
+        assert!(!input.mouse_pressed(MouseButton::Right));
+    }
+
+    #[test]
+    fn no_false_positives_for_untracked_keys_and_buttons() {
+        // keys/buttons not touched shouldn't be considered active
+        let input = Input::default();
+
+        assert!(!input.key_pressed(KeyCode::KeyZ));
+        assert!(!input.key_held(KeyCode::KeyZ));
+        assert!(!input.key_released(KeyCode::KeyZ));
+
+        assert!(!input.mouse_pressed(MouseButton::Middle));
+        assert!(!input.mouse_held(MouseButton::Middle));
+        assert!(!input.mouse_released(MouseButton::Middle));
+    }
+
+    #[test]
+    fn rapid_press_release_press_sequence() {
+        // catch edge case where a key is released & pressed again in same frame
+        let mut input = Input::default();
+
+        input.inject_key(KeyCode::KeyX, Pressed);
+        assert!(input.key_pressed(KeyCode::KeyX));
+        input.end_frame();
+
+        input.inject_key(KeyCode::KeyX, Released);
+        assert!(input.key_released(KeyCode::KeyX));
+
+        input.inject_key(KeyCode::KeyX, Pressed); // re-press in same frame
+        assert!(input.key_pressed(KeyCode::KeyX));
+        assert!(input.key_held(KeyCode::KeyX));
+        assert!(!input.key_released(KeyCode::KeyX));
+    }
+}

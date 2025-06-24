@@ -46,3 +46,42 @@ impl Rect {
         [tl, tr, br, bl]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::vec2;
+
+    #[test]
+    fn new_and_accessors() {
+        // sanity check for Rect::new & min/max/center
+        let r = Rect::new(vec2(1.0, 2.0), vec2(3.0, 4.0));
+        assert_eq!(r.position, vec2(1.0, 2.0));
+        assert_eq!(r.size, vec2(3.0, 4.0));
+        assert_eq!(r.min(), vec2(1.0, 2.0));
+        assert_eq!(r.max(), vec2(4.0, 6.0));
+        assert_eq!(r.center(), vec2(2.5, 4.0));
+    }
+
+    #[test]
+    fn contains() {
+        // checks whether a point is inside or on the edge
+        let r = Rect::new(vec2(0.0, 0.0), vec2(2.0, 2.0));
+        assert!(r.contains(vec2(1.0, 1.0))); // inside
+        assert!(r.contains(vec2(0.0, 0.0))); // on min edge
+        assert!(r.contains(vec2(2.0, 2.0))); // on max edge
+        assert!(!r.contains(vec2(-0.1, 1.0))); // outside left
+        assert!(!r.contains(vec2(1.0, 2.1))); // outside top
+    }
+
+    #[test]
+    fn corners() {
+        // returns the 4 corners in TL, TR, BR, BL order
+        let r = Rect::new(vec2(0.0, 0.0), vec2(2.0, 2.0));
+        let corners = r.corners();
+        assert_eq!(corners[0], vec2(0.0, 0.0)); // top-left
+        assert_eq!(corners[1], vec2(2.0, 0.0)); // top-right
+        assert_eq!(corners[2], vec2(2.0, 2.0)); // bottom-right
+        assert_eq!(corners[3], vec2(0.0, 2.0)); // bottom-left
+    }
+}
