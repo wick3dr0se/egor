@@ -663,7 +663,7 @@ checksum = "d8b14ccef22fc6f5a8f4d7d768562a182c04ce9a3b3157b91390b52ddfdf1a76"
 
 [[package]]
 name = "egor"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "egor_app",
  "egor_render",
@@ -671,7 +671,7 @@ dependencies = [
 
 [[package]]
 name = "egor_app"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -686,7 +686,7 @@ dependencies = [
 
 [[package]]
 name = "egor_render"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bytemuck",
  "color",

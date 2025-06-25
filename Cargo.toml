@@ -1,6 +1,6 @@
 [package]
 name = "egor"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
 description = "A dead simple 2D graphics engine"
@@ -20,8 +20,8 @@ resolver = "2"
 
 [features]
 default = ["app", "render"]
-app = ["egor_app"]
-render = ["egor_render"]
+app = ["dep:egor_app"]
+render = ["dep:egor_render"]
 
 [dependencies]
 egor_app = { version = "0.3.0", path = "crates/egor_app", optional = true }
