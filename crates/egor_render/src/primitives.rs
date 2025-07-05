@@ -20,13 +20,6 @@ pub enum Anchor {
 ///
 /// Use method chaining to customize before `Drop`:
 /// Similar to Rust's RAII pattern (<https://rust-unofficial.github.io/patterns/patterns/behavioural/RAII.html>)
-/// ```
-/// graphics.rect()
-///     .at(vec2(100.0, 50.0))
-///     .size(vec2(200.0, 100.0))
-///     .color(Color::RED)
-///     .rotate(std::f32::consts::PI / 4.0);
-/// ```
 pub struct RectangleBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
     anchor: Anchor,
@@ -48,7 +41,7 @@ impl<'a> RectangleBuilder<'a> {
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
-            tex_coords: [[1.0, 0.0], [0.0, 0.0], [0.0, 1.0], [1.0, 1.0]],
+            tex_coords: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
             tex_id: usize::MAX,
         }
     }
