@@ -33,7 +33,11 @@ impl Camera {
     /// Returns the viewport rectangle in world coordinates, factoring in zoom  
     /// Useful for culling or visibility checks
     pub fn viewport(&self, screen_size: Vec2) -> Rect {
-        Rect::new(self.position, screen_size / self.zoom)
+        let size = screen_size / self.zoom;
+        // convert centre → top‑left
+        let top_left = self.position - size * 0.5;
+
+        Rect::new(top_left, size)
     }
 
     /// Converts a point from world space to screen space (pixels)
@@ -93,7 +97,7 @@ mod tests {
         cam.set_zoom(2.0);
 
         let rect = cam.viewport(vec2(200.0, 100.0));
-        assert_eq!(rect.position, vec2(50.0, 50.0));
+        assert_eq!(rect.position, vec2(0.0, 25.0));
         assert!((rect.size - vec2(100.0, 50.0)).length() < 0.001); // allow for float fuzz
     }
 
