@@ -99,8 +99,11 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
                         input,
                         timer,
                     };
-                    for plugin in self.plugins.iter_mut() {
-                        plugin.update(state, &mut cx);
+                    for p in &mut self.plugins {
+                        p.update(state, &mut cx);
+                    }
+                    for p in &mut self.plugins {
+                        p.render(state, &mut cx);
                     }
 
                     let geometry = graphics.flush();
@@ -233,6 +236,8 @@ pub struct Context<'a, 'b> {
 pub trait Plugin<S> {
     fn init(&mut self, state: &mut S, ctx: &mut InitContext);
     fn update(&mut self, state: &mut S, ctx: &mut Context);
+    /// Called *after* all `update()`s, but *before* the batch is flushed.  
+    fn render(&mut self, _state: &S, _ctx: &mut Context) {}
 }
 
 impl<T, S> Plugin<S> for T
@@ -240,8 +245,8 @@ where
     T: FnMut(&mut S, &mut Context),
 {
     fn init(&mut self, _state: &mut S, _ctx: &mut InitContext) {}
-
     fn update(&mut self, state: &mut S, ctx: &mut Context) {
         self(state, ctx);
     }
+    // `render` falls back to default no-op
 }
