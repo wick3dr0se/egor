@@ -79,8 +79,9 @@ impl<'a> RectangleBuilder<'a> {
     }
 
     /// Sets the rotation (in radians) around the rectangle's center
+    /// 0 radians points up (positive Y), increasing clockwise
     pub fn rotate(mut self, angle: f32) -> Self {
-        self.rotation = angle;
+        self.rotation = angle + std::f32::consts::FRAC_PI_2;
         self
     }
 

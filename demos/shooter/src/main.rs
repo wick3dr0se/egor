@@ -215,7 +215,7 @@ fn main() {
             ctx.graphics
                 .rect()
                 .with(&b.rect)
-                .rotate(angle + std::f32::consts::FRAC_PI_2)
+                .rotate(angle)
                 .color(Color::BLUE);
         }
 
@@ -245,7 +245,7 @@ fn main() {
             ctx.graphics
                 .rect()
                 .with(&e.rect)
-                .rotate(angle + std::f32::consts::FRAC_PI_2)
+                .rotate(angle)
                 .color(if e.flash > 0.0 {
                     Color::RED
                 } else {
@@ -273,7 +273,7 @@ fn main() {
         ctx.graphics
             .rect()
             .with(&state.player.rect)
-            .rotate(angle + std::f32::consts::FRAC_PI_2)
+            .rotate(angle)
             .color(if state.player.flash > 0.0 {
                 Color::RED
             } else {
