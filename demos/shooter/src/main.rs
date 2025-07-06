@@ -1,13 +1,16 @@
 mod animation;
+mod tilemap;
 
-use crate::animation::SpriteAnim;
+use rand::{Rng, RngCore};
+
 use egor::{
     app::{App, Context},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
     render::Color,
 };
-use rand::{Rng, RngCore};
+
+use crate::{animation::SpriteAnim, tilemap::EgorMap};
 
 const PLAYER_SIZE: f32 = 64.0;
 const BULLET_SIZE: Vec2 = vec2(5.0, 10.0);
@@ -31,10 +34,13 @@ struct Soldier {
 }
 
 struct GameState {
+    map: EgorMap,
     player: Soldier,
     player_anim: SpriteAnim,
+    player_tex: usize,
     enemies: Vec<Zombie>,
     enemy_anim: SpriteAnim,
+    enemy_tex: usize,
     bullets: Vec<Bullet>,
     wave: usize,
     kills: usize,
@@ -117,14 +123,17 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 
 fn main() {
     let state = GameState {
+        map: EgorMap::new("assets/map.json"),
         player: Soldier {
             rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
             hp: 100.0,
             flash: 0.0,
         },
         player_anim: SpriteAnim::new(1, 17, 17, 0.2),
+        player_tex: 0,
         enemies: spawn_wave(Vec2::ZERO, 5, (50.0, 125.0), 1.0),
         enemy_anim: SpriteAnim::new(1, 11, 11, 0.2),
+        enemy_tex: 0,
         bullets: vec![],
         wave: 1,
         kills: 0,
@@ -138,10 +147,11 @@ fn main() {
             .to_rgba8(),
         time_since_recolor: 0.0,
     };
-    let mut app = App::init(state, |_, ctx| {
+    let mut app = App::init(state, |state, ctx| {
         ctx.set_title("Egor Shooter Demo");
-        ctx.load_texture(include_bytes!("../assets/soldier.png"));
-        ctx.load_texture(include_bytes!("../assets/zombie.png"));
+        state.map.load(ctx);
+        state.player_tex = ctx.load_texture(include_bytes!("../assets/soldier.png"));
+        state.enemy_tex = ctx.load_texture(include_bytes!("../assets/zombie.png"));
     });
 
     app.on_quit(|_| {
@@ -160,8 +170,6 @@ fn main() {
             return;
         }
 
-        ctx.graphics.clear(Color::WHITE);
-
         let position = state.player.rect.position - screen_half
             + Into::<Vec2>::into(ctx.input.mouse_position());
 
@@ -175,7 +183,10 @@ fn main() {
             .player
             .rect
             .translate(vec2(dx as f32, dy as f32) * 200.0 * ctx.timer.delta);
+
         ctx.graphics.camera().target(state.player.rect.position);
+        ctx.graphics.clear(Color::WHITE);
+        state.map.render(ctx);
 
         state.fire_cd -= ctx.timer.delta;
         if ctx.input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
@@ -200,11 +211,11 @@ fn main() {
 
         for b in &mut state.bullets {
             b.rect.translate(b.vel * ctx.timer.delta);
-            let angle = b.vel.y.atan2(b.vel.x) + std::f32::consts::FRAC_PI_2;
+            let angle = b.vel.y.atan2(b.vel.x);
             ctx.graphics
                 .rect()
                 .with(&b.rect)
-                .rotate(angle)
+                .rotate(angle + std::f32::consts::FRAC_PI_2)
                 .color(Color::BLUE);
         }
 
@@ -213,7 +224,7 @@ fn main() {
             state.time_since_recolor = 0.0;
             recolor_image(&mut state.zombie_image);
             ctx.graphics.update_texture_raw(
-                1,
+                state.enemy_tex,
                 state.zombie_image.width(),
                 state.zombie_image.height(),
                 &state.zombie_image,
@@ -240,7 +251,7 @@ fn main() {
                 } else {
                     Color::WHITE
                 })
-                .texture(1)
+                .texture(state.enemy_tex)
                 .uv(state.enemy_anim.uv());
         }
 
@@ -250,7 +261,7 @@ fn main() {
 
         state.player.flash = (state.player.flash - ctx.timer.delta).max(0.0);
         let dir = position - state.player.rect.position;
-        let angle = dir.y.atan2(dir.x) + std::f32::consts::FRAC_PI_2;
+        let angle = dir.y.atan2(dir.x);
 
         let uv = if moving {
             state.player_anim.update(ctx.timer.delta);
@@ -262,13 +273,13 @@ fn main() {
         ctx.graphics
             .rect()
             .with(&state.player.rect)
-            .rotate(angle)
+            .rotate(angle + std::f32::consts::FRAC_PI_2)
             .color(if state.player.flash > 0.0 {
                 Color::RED
             } else {
                 Color::WHITE
             })
-            .texture(0)
+            .texture(state.player_tex)
             .uv(uv);
 
         if state.enemies.is_empty() {
