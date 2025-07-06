@@ -107,7 +107,7 @@ impl Renderer {
         let (w, h) = (inner_width.max(1), inner_height.max(1));
 
         let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
-        surface_cfg.present_mode = PresentMode::Fifo;
+        surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
         let camera_bind_group_layout =
@@ -280,17 +280,35 @@ impl Renderer {
         self.text.resize(w, h);
     }
 
-    /// Sets the color used to clear the screen before drawing
-    pub fn clear(&mut self, color: Color) {
-        self.clear_color = color;
-    }
-
     /// Returns the current surface dimensions (in pixels)
     pub fn surface_size(&self) -> (f32, f32) {
         (
             self.target.config.width as f32,
             self.target.config.height as f32,
         )
+    }
+
+    /// Enables/disables V‑Sync by changing the surface present mode
+    ///
+    /// `vsync = true` → [`PresentMode::Fifo`] (V‑Sync ON)  
+    /// `vsync = false` → [`PresentMode::AutoNoVsync`] (V‑Sync OFF)
+    ///
+    /// Reconfigures the surface immediately
+    pub fn set_vsync(&mut self, on: bool) {
+        self.target.config.present_mode = if on {
+            PresentMode::Fifo
+        } else {
+            PresentMode::AutoNoVsync
+        };
+
+        self.target
+            .surface
+            .configure(&self.gpu.device, &self.target.config);
+    }
+
+    /// Sets the color used to clear the screen before drawing
+    pub fn clear(&mut self, color: Color) {
+        self.clear_color = color;
     }
 
     /// Uploads the given view-projection matrix to the GPU for use in vertex transforms

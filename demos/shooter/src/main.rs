@@ -301,19 +301,22 @@ fn main() {
         }
 
         ctx.graphics
-            .text(&format!("Wave: {}", state.wave))
+            .text(&format!("FPS: {}", ctx.timer.fps))
             .at(10.0, 10.0);
         ctx.graphics
-            .text(&format!("Zombies killed: {}", state.kills))
-            .at(10.0, 30.0);
-        ctx.graphics
-            .text(&format!("HP: {:.0}", state.player.hp))
+            .text(&format!("Wave: {}", state.wave))
             .at(10.0, 50.0);
         ctx.graphics
-            .text(&format!("Fire rate: {:.1}/s", state.fire_rate))
+            .text(&format!("Zombies killed: {}", state.kills))
             .at(10.0, 70.0);
         ctx.graphics
-            .text(&format!("Bullet Spread: {}", state.spread))
+            .text(&format!("HP: {:.0}", state.player.hp))
             .at(10.0, 90.0);
+        ctx.graphics
+            .text(&format!("Fire rate: {:.1}/s", state.fire_rate))
+            .at(10.0, 110.0);
+        ctx.graphics
+            .text(&format!("Bullet Spread: {}", state.spread))
+            .at(10.0, 130.0);
     });
 }

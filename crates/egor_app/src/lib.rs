@@ -219,6 +219,11 @@ impl InitContext<'_> {
         self.window.set_title(title);
     }
 
+    /// Enables/disables V-Sync
+    pub fn set_vsync(&mut self, on: bool) {
+        self.render.set_vsync(on);
+    }
+
     /// Loads a texture from raw image data (e.g., PNG)
     pub fn load_texture(&mut self, data: &[u8]) -> usize {
         self.render.add_texture(data)
