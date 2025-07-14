@@ -8,7 +8,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use egor_render::{Graphics, GraphicsInternal, renderer::Renderer};
+use egor_render::{Graphics, GraphicsInternal, Target, renderer::Renderer};
 
 use crate::{
     input::{Input, InputInternal},
@@ -107,7 +107,15 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
                     }
 
                     let geometry = graphics.flush();
-                    r.render_frame(geometry);
+
+                    let target = graphics.active_target().clone();
+                    match target {
+                        Target::Surface => r.render_frame(geometry),
+                        Target::Offscreen(id) => {
+                            let view = r.get_render_target_view(id);
+                            r.render_frame_to_view(&view, geometry);
+                        }
+                    }
                 }
 
                 self.input.end_frame();

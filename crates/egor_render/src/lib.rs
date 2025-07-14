@@ -13,10 +13,16 @@ use crate::{
     camera::{Camera, CameraInternal},
     color::Color,
     primitives::RectangleBuilder,
-    renderer::{GeometryBatch, Renderer},
+    renderer::{GeometryBatch, RenderNodeId, RenderTargetId, Renderer},
     text::TextBuilder,
     vertex::Vertex,
 };
+
+#[derive(Clone, Copy)]
+pub enum Target {
+    Surface,
+    Offscreen(RenderTargetId),
+}
 
 #[derive(Default)]
 struct PrimitiveBatch {
@@ -45,6 +51,8 @@ pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
     batch: PrimitiveBatch,
     camera: Camera,
+    active_target: Target,
+    active_target_id: Option<RenderTargetId>,
 }
 
 impl<'a> Graphics<'a> {
@@ -54,6 +62,8 @@ impl<'a> Graphics<'a> {
             renderer,
             batch: PrimitiveBatch::default(),
             camera: Camera::default(),
+            active_target: Target::Surface,
+            active_target_id: None,
         }
     }
 
@@ -91,6 +101,48 @@ impl<'a> Graphics<'a> {
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         self.renderer.update_texture_raw(index, w, h, data);
     }
+
+    /// Begin building a post-processing chain
+    pub fn post_process(&mut self) -> PostProcessBuilder<'_> {
+        PostProcessBuilder::new(self.renderer)
+    }
+
+    pub fn create_offscreen_target(&mut self, width: u32, height: u32) -> RenderTargetId {
+        self.renderer.add_offscreen_target(width, height)
+    }
+
+    pub fn post_bind_group(&self, id: RenderTargetId) -> &wgpu::BindGroup {
+        self.renderer.get_bind_group_for_target(id).unwrap()
+    }
+
+    pub fn create_post_pipeline(
+        &self,
+        shader: &wgpu::ShaderModule,
+        entry: &str,
+        format: wgpu::TextureFormat,
+    ) -> wgpu::RenderPipeline {
+        self.renderer.create_post_pipeline(shader, entry, format)
+    }
+
+    pub fn set_post_process_order(&mut self, order: Vec<RenderNodeId>) {
+        self.renderer.set_render_order(order);
+    }
+
+    pub fn run_post_processes(&mut self) {
+        self.renderer.execute_render_dag();
+    }
+
+    pub fn set_active_target(&mut self, target: Target) {
+        self.active_target = target;
+        self.active_target_id = match target {
+            Target::Surface => None,
+            Target::Offscreen(id) => Some(id),
+        };
+    }
+
+    pub fn active_target(&self) -> &Target {
+        &self.active_target
+    }
 }
 
 /// Internal trait exposing egor’s core graphics operations  
@@ -106,5 +158,37 @@ impl GraphicsInternal for Graphics<'_> {
         self.renderer
             .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
         self.batch.take()
+    }
+}
+pub struct PostProcessBuilder<'a> {
+    renderer: &'a mut Renderer,
+    nodes: Vec<RenderNodeId>,
+}
+
+impl<'a> PostProcessBuilder<'a> {
+    pub fn new(renderer: &'a mut Renderer) -> Self {
+        Self {
+            renderer,
+            nodes: Vec::new(),
+        }
+    }
+
+    pub fn node(
+        &mut self,
+        pipeline: wgpu::RenderPipeline,
+        bind_group: wgpu::BindGroup,
+        target: RenderTargetId,
+    ) -> &mut Self {
+        let id = self.renderer.add_render_node(pipeline, bind_group, target);
+        self.nodes.push(id);
+        self
+    }
+}
+
+impl Drop for PostProcessBuilder<'_> {
+    fn drop(&mut self) {
+        self.renderer.set_render_order(self.nodes.clone());
+        self.renderer.execute_render_dag();
+        self.nodes.clear();
     }
 }
