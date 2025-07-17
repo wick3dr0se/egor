@@ -41,9 +41,11 @@ impl GeometryBatch {
     }
 }
 
-struct RenderTarget {
-    surface: Surface<'static>,
-    config: SurfaceConfiguration,
+enum RenderTarget {
+    Backbuffer {
+        surface: Surface<'static>,
+        config: SurfaceConfiguration,
+    },
 }
 
 struct Gpu {
@@ -51,15 +53,12 @@ struct Gpu {
     queue: Queue,
 }
 
-/// Low-level GPU renderer built on `wgpu`
+/// Low-level GPU renderer built on `wgpu`.
 ///
-/// Handles rendering pipelines, surface configuration, resources (textures, buffers), & drawing  
-/// Used internally by [`Graphics`](crate::Graphics) to render 2D primitives
-///
-/// Most users shouldn't interact with this directly unless doing advanced rendering or hooking into the pipeline
+/// Manages pipeline creation, surface config, render targets, passes, GPU resources & more.
 pub struct Renderer {
     gpu: Gpu,
-    target: RenderTarget,
+    targets: Vec<RenderTarget>,
     pipeline: RenderPipeline,
     clear_color: Color,
     bind_group_layout: BindGroupLayout,
@@ -79,7 +78,7 @@ impl Renderer {
         inner_width: u32,
         inner_height: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle + 'w,
-    ) -> Renderer {
+    ) -> Self {
         let instance = Instance::default();
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
@@ -178,15 +177,15 @@ impl Renderer {
         let default_texture = Texture::create_default(&device, &queue, &bind_group_layout);
         let text = TextRenderer::new(&device, &queue, surface_cfg.format);
 
-        Renderer {
+        Self {
             gpu: Gpu {
                 device: device.clone(),
                 queue,
             },
-            target: RenderTarget {
+            targets: vec![RenderTarget::Backbuffer {
                 surface,
                 config: surface_cfg,
-            },
+            }],
             pipeline,
             clear_color: Color::BLACK,
             bind_group_layout,
@@ -198,21 +197,27 @@ impl Renderer {
         }
     }
 
-    /// Renders a frame using the given geometry batches grouped by texture ID
+    /// Renders a list of textured geometry batches to a render target.
     ///
-    /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  
-    /// Text is rendered afterward automatically
-    pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
-        let frame = self.target.surface.get_current_texture().unwrap();
-        let view = frame.texture.create_view(&Default::default());
+    /// Automatically handles text rendering, backbuffer presentation, and per-batch GPU upload.
+    /// Target index `0` is always the backbuffer.
+    pub fn render_to_target(&mut self, target_idx: usize, geometry: &[(usize, GeometryBatch)]) {
+        let target = &self.targets[target_idx];
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
 
-        self.text.prepare(
-            &self.gpu.device,
-            &self.gpu.queue,
-            self.target.config.width,
-            self.target.config.height,
-        );
+        let (view, maybe_frame) = match target {
+            RenderTarget::Backbuffer { surface, config } => {
+                let frame = surface.get_current_texture().unwrap();
+                let view = frame.texture.create_view(&Default::default());
+                self.text.prepare(
+                    &self.gpu.device,
+                    &self.gpu.queue,
+                    config.width,
+                    config.height,
+                );
+                (view, Some(frame))
+            }
+        };
 
         {
             let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -235,7 +240,7 @@ impl Renderer {
                     continue;
                 }
 
-                let texture = self.textures.get(tex_id).unwrap_or(&self.default_texture);
+                let texture = self.textures.get(*tex_id).unwrap_or(&self.default_texture);
                 texture.bind(&mut r_pass, 0);
 
                 let vertex_buffer =
@@ -264,28 +269,38 @@ impl Renderer {
                 r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
             }
 
-            self.text.render(&mut r_pass);
+            if maybe_frame.is_some() {
+                self.text.render(&mut r_pass);
+            }
         }
 
         self.gpu.queue.submit(Some(encoder.finish()));
-        frame.present();
+        if let Some(frame) = maybe_frame {
+            frame.present();
+        }
+    }
+
+    pub fn render_frame(&mut self, geometry: &[(usize, GeometryBatch)]) {
+        self.render_to_target(0, geometry);
     }
 
     /// Resizes the surface & updates internal render targets
     pub fn resize(&mut self, w: u32, h: u32) {
-        (self.target.config.width, self.target.config.height) = (w, h);
-        self.target
-            .surface
-            .configure(&self.gpu.device, &self.target.config);
-        self.text.resize(w, h);
+        match &mut self.targets[0] {
+            RenderTarget::Backbuffer { surface, config } => {
+                config.width = w;
+                config.height = h;
+                surface.configure(&self.gpu.device, config);
+                self.text.resize(w, h);
+            }
+        }
     }
 
-    /// Returns the current surface dimensions (in pixels)
+    /// Returns the surface dimensions (in pixels)
     pub fn surface_size(&self) -> (f32, f32) {
-        (
-            self.target.config.width as f32,
-            self.target.config.height as f32,
-        )
+        match &self.targets[0] {
+            RenderTarget::Backbuffer { config, .. } => (config.width as f32, config.height as f32),
+        }
     }
 
     /// Enables/disables V‑Sync by changing the surface present mode
@@ -295,15 +310,16 @@ impl Renderer {
     ///
     /// Reconfigures the surface immediately
     pub fn set_vsync(&mut self, on: bool) {
-        self.target.config.present_mode = if on {
-            PresentMode::Fifo
-        } else {
-            PresentMode::AutoNoVsync
-        };
-
-        self.target
-            .surface
-            .configure(&self.gpu.device, &self.target.config);
+        match &mut self.targets[0] {
+            RenderTarget::Backbuffer { surface, config } => {
+                config.present_mode = if on {
+                    PresentMode::Fifo
+                } else {
+                    PresentMode::AutoNoVsync
+                };
+                surface.configure(&self.gpu.device, config);
+            }
+        }
     }
 
     /// Sets the color used to clear the screen before drawing

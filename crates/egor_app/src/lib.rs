@@ -107,7 +107,7 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
                     }
 
                     let geometry = graphics.flush();
-                    r.render_frame(geometry);
+                    r.render_frame(&geometry);
                 }
 
                 self.input.end_frame();
