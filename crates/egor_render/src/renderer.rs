@@ -4,8 +4,9 @@ use wgpu::{
     ColorWrites, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
     Operations, PipelineLayoutDescriptor, PresentMode, Queue, RenderPassColorAttachment,
     RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions,
-    ShaderStages, StoreOp, Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle,
-    include_wgsl, util::DeviceExt,
+    ShaderStages, StoreOp, Surface, SurfaceConfiguration, SurfaceTarget, SurfaceTexture,
+    TextureView, VertexState, WindowHandle, include_wgsl,
+    util::{BufferInitDescriptor, DeviceExt},
 };
 
 use crate::{Color, text::TextRenderer, texture::Texture, vertex::Vertex};
@@ -46,6 +47,43 @@ enum RenderTarget {
         surface: Surface<'static>,
         config: SurfaceConfiguration,
     },
+}
+
+impl RenderTarget {
+    pub fn view(&mut self) -> (TextureView, Option<SurfaceTexture>) {
+        match self {
+            RenderTarget::Backbuffer { surface, .. } => {
+                let frame = surface.get_current_texture().unwrap();
+                let view = frame.texture.create_view(&Default::default());
+                (view, Some(frame))
+            }
+        }
+    }
+
+    fn surface_size(&self) -> (f32, f32) {
+        match self {
+            RenderTarget::Backbuffer { config, .. } => (config.width as f32, config.height as f32),
+        }
+    }
+
+    fn resize(&mut self, device: &Device, w: u32, h: u32) {
+        match self {
+            RenderTarget::Backbuffer { surface, config } => {
+                config.width = w;
+                config.height = h;
+                surface.configure(device, config);
+            }
+        }
+    }
+
+    fn set_present_mode(&mut self, device: &Device, mode: PresentMode) {
+        match self {
+            Self::Backbuffer { surface, config } => {
+                config.present_mode = mode;
+                surface.configure(device, config);
+            }
+        }
+    }
 }
 
 struct Gpu {
@@ -197,27 +235,20 @@ impl Renderer {
         }
     }
 
-    /// Renders a list of textured geometry batches to a render target.
+    /// Renders geometry batches to a render target.
     ///
     /// Automatically handles text rendering, backbuffer presentation, and per-batch GPU upload.
     /// Target index `0` is always the backbuffer.
     pub fn render_to_target(&mut self, target_idx: usize, geometry: &[(usize, GeometryBatch)]) {
-        let target = &self.targets[target_idx];
+        let target = &mut self.targets[target_idx];
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        let (view, maybe_frame) = target.view();
 
-        let (view, maybe_frame) = match target {
-            RenderTarget::Backbuffer { surface, config } => {
-                let frame = surface.get_current_texture().unwrap();
-                let view = frame.texture.create_view(&Default::default());
-                self.text.prepare(
-                    &self.gpu.device,
-                    &self.gpu.queue,
-                    config.width,
-                    config.height,
-                );
-                (view, Some(frame))
-            }
-        };
+        if target_idx == 0 {
+            let (w, h) = target.surface_size();
+            self.text
+                .prepare(&self.gpu.device, &self.gpu.queue, w as u32, h as u32);
+        }
 
         {
             let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
@@ -243,26 +274,20 @@ impl Renderer {
                 let texture = self.textures.get(*tex_id).unwrap_or(&self.default_texture);
                 texture.bind(&mut r_pass, 0);
 
-                let vertex_buffer =
-                    self.gpu
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: None,
-                            contents: bytemuck::cast_slice(&batch.vertices),
-                            usage: BufferUsages::VERTEX,
-                        });
+                let vertex_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: bytemuck::cast_slice(&batch.vertices),
+                    usage: BufferUsages::VERTEX,
+                });
 
                 let mut index_data = bytemuck::cast_slice(&batch.indices).to_vec();
                 index_data.resize((index_data.len() + 3) & !3, 0);
 
-                let index_buffer =
-                    self.gpu
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: None,
-                            contents: &index_data,
-                            usage: BufferUsages::INDEX,
-                        });
+                let index_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+                    label: None,
+                    contents: &index_data,
+                    usage: BufferUsages::INDEX,
+                });
 
                 r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                 r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
@@ -286,40 +311,26 @@ impl Renderer {
 
     /// Resizes the surface & updates internal render targets
     pub fn resize(&mut self, w: u32, h: u32) {
-        match &mut self.targets[0] {
-            RenderTarget::Backbuffer { surface, config } => {
-                config.width = w;
-                config.height = h;
-                surface.configure(&self.gpu.device, config);
-                self.text.resize(w, h);
-            }
-        }
+        self.targets[0].resize(&self.gpu.device, w, h);
+        self.text.resize(w, h);
     }
 
     /// Returns the surface dimensions (in pixels)
     pub fn surface_size(&self) -> (f32, f32) {
-        match &self.targets[0] {
-            RenderTarget::Backbuffer { config, .. } => (config.width as f32, config.height as f32),
-        }
+        self.targets[0].surface_size()
     }
 
     /// Enables/disables V‑Sync by changing the surface present mode
-    ///
-    /// `vsync = true` → [`PresentMode::Fifo`] (V‑Sync ON)  
-    /// `vsync = false` → [`PresentMode::AutoNoVsync`] (V‑Sync OFF)
-    ///
     /// Reconfigures the surface immediately
     pub fn set_vsync(&mut self, on: bool) {
-        match &mut self.targets[0] {
-            RenderTarget::Backbuffer { surface, config } => {
-                config.present_mode = if on {
-                    PresentMode::Fifo
-                } else {
-                    PresentMode::AutoNoVsync
-                };
-                surface.configure(&self.gpu.device, config);
-            }
-        }
+        self.targets[0].set_present_mode(
+            &self.gpu.device,
+            if on {
+                PresentMode::Fifo
+            } else {
+                PresentMode::AutoNoVsync
+            },
+        );
     }
 
     /// Sets the color used to clear the screen before drawing
