@@ -203,72 +203,84 @@ impl Renderer {
     /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  
     /// Text is rendered afterward automatically
     pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
-        let frame = self.target.surface.get_current_texture().unwrap();
-        let view = frame.texture.create_view(&Default::default());
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
+        match self.target.surface.get_current_texture() {
+            Ok(frame) => {
+                let view = frame.texture.create_view(&Default::default());
+                let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
 
-        self.text.prepare(
-            &self.gpu.device,
-            &self.gpu.queue,
-            self.target.config.width,
-            self.target.config.height,
-        );
+                self.text.prepare(
+                    &self.gpu.device,
+                    &self.gpu.queue,
+                    self.target.config.width,
+                    self.target.config.height,
+                );
 
-        {
-            let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Clear(self.clear_color.into()),
-                        store: StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
+                {
+                    let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
+                        color_attachments: &[Some(RenderPassColorAttachment {
+                            view: &view,
+                            resolve_target: None,
+                            ops: Operations {
+                                load: LoadOp::Clear(self.clear_color.into()),
+                                store: StoreOp::Store,
+                            },
+                        })],
+                        ..Default::default()
+                    });
 
-            r_pass.set_pipeline(&self.pipeline);
-            r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+                    r_pass.set_pipeline(&self.pipeline);
+                    r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
-            for (tex_id, batch) in geometry {
-                if batch.vertices.is_empty() || batch.indices.is_empty() {
-                    continue;
+                    for (tex_id, batch) in geometry {
+                        if batch.vertices.is_empty() || batch.indices.is_empty() {
+                            continue;
+                        }
+
+                        let texture = self.textures.get(tex_id).unwrap_or(&self.default_texture);
+                        texture.bind(&mut r_pass, 0);
+
+                        let vertex_buffer =
+                            self.gpu
+                                .device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: None,
+                                    contents: bytemuck::cast_slice(&batch.vertices),
+                                    usage: BufferUsages::VERTEX,
+                                });
+
+                        let mut index_data = bytemuck::cast_slice(&batch.indices).to_vec();
+                        index_data.resize((index_data.len() + 3) & !3, 0);
+
+                        let index_buffer =
+                            self.gpu
+                                .device
+                                .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                                    label: None,
+                                    contents: &index_data,
+                                    usage: BufferUsages::INDEX,
+                                });
+
+                        r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                        r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
+                        r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
+                    }
+
+                    self.text.render(&mut r_pass);
                 }
 
-                let texture = self.textures.get(tex_id).unwrap_or(&self.default_texture);
-                texture.bind(&mut r_pass, 0);
-
-                let vertex_buffer =
-                    self.gpu
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: None,
-                            contents: bytemuck::cast_slice(&batch.vertices),
-                            usage: BufferUsages::VERTEX,
-                        });
-
-                let mut index_data = bytemuck::cast_slice(&batch.indices).to_vec();
-                index_data.resize((index_data.len() + 3) & !3, 0);
-
-                let index_buffer =
-                    self.gpu
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: None,
-                            contents: &index_data,
-                            usage: BufferUsages::INDEX,
-                        });
-
-                r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
-                r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
+                self.gpu.queue.submit(Some(encoder.finish()));
+                frame.present();
             }
-
-            self.text.render(&mut r_pass);
+            Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
+                self.target
+                    .surface
+                    .configure(&self.gpu.device, &self.target.config);
+            }
+            Err(wgpu::SurfaceError::OutOfMemory) => {
+                panic!("Out of GPU memory!");
+            }
+            Err(e) => eprintln!("Surface error: {:?}", e),
         }
-
-        self.gpu.queue.submit(Some(encoder.finish()));
-        frame.present();
     }
 
     /// Resizes the surface & updates internal render targets
