@@ -205,25 +205,10 @@ impl Renderer {
     pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
         let frame = match self.target.surface.get_current_texture() {
             Ok(frame) => frame,
-            Err(wgpu::SurfaceError::Outdated | wgpu::SurfaceError::Lost) => {
-                self.target
-                    .surface
-                    .configure(&self.gpu.device, &self.target.config);
-                match self.target.surface.get_current_texture() {
-                    Ok(frame) => frame,
-                    Err(e) => {
-                        eprintln!("Failed to get surface texture after reconfigure: {:?}", e);
-                        return;
-                    }
-                }
-            }
             Err(wgpu::SurfaceError::OutOfMemory) => {
                 panic!("Out of GPU memory!");
             }
-            Err(e) => {
-                eprintln!("Surface error: {:?}", e);
-                return;
-            }
+            Err(_) => return,
         };
 
         let view = frame.texture.create_view(&Default::default());
