@@ -21,10 +21,13 @@ pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
 
-pub trait InitFn<S>: FnOnce(&mut S, &mut InitContext) + 'static {}
-impl<S, F: FnOnce(&mut S, &mut InitContext) + 'static> InitFn<S> for F {}
+pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
+impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
 
-type OnQuit<S> = Box<dyn FnMut(&mut S)>;
+pub trait UpdateFn: FnMut(&FrameTimer, &mut Graphics, &mut Input) + 'static {}
+impl<F: FnMut(&FrameTimer, &mut Graphics, &mut Input) + 'static> UpdateFn for F {}
+
+type OnQuit = Box<dyn FnMut()>;
 
 /// Entry point for `egor` apps
 ///
@@ -32,11 +35,10 @@ type OnQuit<S> = Box<dyn FnMut(&mut S)>;
 ///
 /// Use `App::init(...)` to construct it, then call `.run(...)` to start the loop
 /// Add optional plugins or shutdown logic via `.plugin(...)` & `.on_quit(...)`
-pub struct App<S, I> {
-    state: S,
+pub struct App<I, U> {
     init: Option<I>,
-    on_quit: Option<OnQuit<S>>,
-    plugins: Vec<Box<dyn Plugin<S>>>,
+    update: Option<U>,
+    on_quit: Option<OnQuit>,
     window: Option<Rc<Window>>,
     proxy: Option<EventLoopProxy<Renderer>>,
     renderer: Option<Renderer>,
@@ -45,7 +47,7 @@ pub struct App<S, I> {
 }
 
 #[doc(hidden)]
-impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
+impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Called when window is ready; initializes the renderer async (wasm) or sync (native)
         if let Some(proxy) = self.proxy.take() {
@@ -79,33 +81,14 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(on_quit) = self.on_quit.as_mut() {
-                    on_quit(&mut self.state);
+                    on_quit();
                 }
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
                 self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
-                    let Self {
-                        state,
-                        input,
-                        timer,
-                        ..
-                    } = self;
-
                     let mut graphics = Graphics::new(r);
-                    let mut cx = Context {
-                        graphics: &mut graphics,
-                        input,
-                        timer,
-                    };
-                    for p in &mut self.plugins {
-                        p.update(state, &mut cx);
-                    }
-                    for p in &mut self.plugins {
-                        p.render(state, &mut cx);
-                    }
-
                     let geometry = graphics.flush();
                     r.render_frame(geometry);
                 }
@@ -134,29 +117,25 @@ impl<S, I: InitFn<S>> ApplicationHandler<Renderer> for App<S, I> {
     fn user_event(&mut self, _: &ActiveEventLoop, mut renderer: Renderer) {
         // Called once when the renderer finishes initializing
         if let Some(init) = self.init.take() {
-            let Self { state, window, .. } = self;
+            //let Self { window, .. } = self;
             let mut ctx = InitContext {
-                window: window.as_ref().unwrap().clone(),
+                window: self.window.as_ref().unwrap().clone(),
                 render: &mut renderer,
             };
 
-            for plugin in &mut self.plugins {
-                plugin.init(state, &mut ctx);
-            }
-            init(state, &mut ctx);
+            init(&mut ctx);
             self.renderer = Some(renderer);
         }
     }
 }
 
-impl<S: 'static, I: InitFn<S>> App<S, I> {
+impl<I: InitFn, U: UpdateFn> App<I, U> {
     /// Creates a new `App` with defined state & init logic
-    pub fn init(state: S, init: I) -> Self {
+    pub fn init(init: I) -> Self {
         Self {
-            state,
             init: Some(init),
+            update: None,
             on_quit: None,
-            plugins: Vec::new(),
             window: None,
             proxy: None,
             renderer: None,
@@ -166,12 +145,12 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
     }
 
     /// Starts the app & runs the event loop
-    pub fn run(mut self, update: impl FnMut(&mut S, &mut Context) + 'static) {
+    pub fn run(mut self, update: U) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
 
         self.proxy = Some(event_loop.create_proxy());
-        self.plugins.insert(0, Box::new(update));
+        self.update = Some(update);
 
         #[cfg(target_arch = "wasm32")]
         {
@@ -196,14 +175,8 @@ impl<S: 'static, I: InitFn<S>> App<S, I> {
     }
 
     /// Runs the provided closure before quitting
-    pub fn on_quit<F: FnMut(&mut S) + 'static>(&mut self, f: F) {
+    pub fn on_quit<F: FnMut() + 'static>(&mut self, f: F) {
         self.on_quit = Some(Box::new(f));
-    }
-
-    /// Adds a plugin that receives `init()` & `update()` hooks
-    pub fn plugin<P: Plugin<S> + 'static>(mut self, plugin: P) -> Self {
-        self.plugins.push(Box::new(plugin));
-        self
     }
 }
 
@@ -235,23 +208,4 @@ pub struct Context<'a, 'b> {
     pub graphics: &'a mut Graphics<'b>,
     pub input: &'a mut Input,
     pub timer: &'a FrameTimer,
-}
-
-/// Simple plugin trait to hook into `App` lifecycle
-pub trait Plugin<S> {
-    fn init(&mut self, state: &mut S, ctx: &mut InitContext);
-    fn update(&mut self, state: &mut S, ctx: &mut Context);
-    /// Called *after* all `update()`s, but *before* the batch is flushed.  
-    fn render(&mut self, _state: &S, _ctx: &mut Context) {}
-}
-
-impl<T, S> Plugin<S> for T
-where
-    T: FnMut(&mut S, &mut Context),
-{
-    fn init(&mut self, _state: &mut S, _ctx: &mut InitContext) {}
-    fn update(&mut self, state: &mut S, ctx: &mut Context) {
-        self(state, ctx);
-    }
-    // `render` falls back to default no-op
 }
