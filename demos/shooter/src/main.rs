@@ -4,7 +4,7 @@ mod tilemap;
 use rand::{Rng, RngCore};
 
 use egor::{
-    app::{App, Context},
+    app::App,
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
     render::Color,
@@ -122,7 +122,7 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 }
 
 fn main() {
-    let state = GameState {
+    let mut state = GameState {
         map: EgorMap::new("assets/map.json"),
         player: Soldier {
             rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
@@ -147,176 +147,164 @@ fn main() {
             .to_rgba8(),
         time_since_recolor: 0.0,
     };
-    let mut app = App::init(state, |state, ctx| {
-        ctx.set_title("Egor Shooter Demo");
-        state.map.load(ctx);
-        state.player_tex = ctx.load_texture(include_bytes!("../assets/soldier.png"));
-        state.enemy_tex = ctx.load_texture(include_bytes!("../assets/zombie.png"));
-    });
 
-    app.on_quit(|_| {
-        println!("Quitting already? Don't be a sore loser");
-    });
-
-    app.run(move |state, ctx: &mut Context| {
-        let screen_size = ctx.graphics.screen_size();
-        let screen_half = screen_size / 2.0;
-
-        if state.game_over {
-            ctx.graphics
-                .text("GAME OVER")
-                .color(Color::RED)
-                .at(screen_size.x / 2. - 40., screen_size.y / 2.);
-            return;
-        }
-
-        let position = state.player.rect.position - screen_half
-            + Into::<Vec2>::into(ctx.input.mouse_position());
-
-        let dx = ctx.input.keys_held(&[KeyCode::KeyD, KeyCode::ArrowRight]) as i8
-            - ctx.input.keys_held(&[KeyCode::KeyA, KeyCode::ArrowLeft]) as i8;
-        let dy = ctx.input.keys_held(&[KeyCode::KeyS, KeyCode::ArrowDown]) as i8
-            - ctx.input.keys_held(&[KeyCode::KeyW, KeyCode::ArrowUp]) as i8;
-        let moving = dx != 0 || dy != 0;
-
-        state
-            .player
-            .rect
-            .translate(vec2(dx as f32, dy as f32) * 200.0 * ctx.timer.delta);
-
-        ctx.graphics.camera().target(state.player.rect.position);
-        ctx.graphics.clear(Color::WHITE);
-        state.map.render(ctx);
-
-        state.fire_cd -= ctx.timer.delta;
-        if ctx.input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
-            state.bullets.extend(spawn_bullets(
-                state.player.rect.center(),
-                position,
-                state.spread,
-            ));
-            state.fire_cd = 1.0 / state.fire_rate;
-        }
-
-        for e in &mut state.enemies {
-            let dir = (state.player.rect.position - e.rect.position).normalize_or_zero();
-            e.rect.translate(dir * e.speed * ctx.timer.delta);
-        }
-
-        state.kills += handle_bullet_hits(
-            &mut state.bullets,
-            &mut state.enemies,
-            state.player.rect.position,
-        );
-
-        for b in &mut state.bullets {
-            b.rect.translate(b.vel * ctx.timer.delta);
-            let angle = b.vel.y.atan2(b.vel.x);
-            ctx.graphics
-                .rect()
-                .with(&b.rect)
-                .rotate(angle)
-                .color(Color::BLUE);
-        }
-
-        state.time_since_recolor += ctx.timer.delta;
-        if state.time_since_recolor > 1.0 {
-            state.time_since_recolor = 0.0;
-            recolor_image(&mut state.zombie_image);
-            ctx.graphics.update_texture_raw(
-                state.enemy_tex,
-                state.zombie_image.width(),
-                state.zombie_image.height(),
-                &state.zombie_image,
-            );
-        }
-
-        state.enemy_anim.update(ctx.timer.delta);
-        for e in &mut state.enemies {
-            let dir = state.player.rect.position - e.rect.position;
-            let angle = dir.y.atan2(dir.x);
-
-            if dir.length() < 15.0 {
-                state.player.hp -= 1.0;
-                state.player.flash = 0.1;
+    App::new()
+        .title("Egor Shooter Demo")
+        .vsync(false)
+        .on_quit(|| {
+            println!("Quitting already? Don't be a sore loser");
+        })
+        .run(move |gfx, input, timer| {
+            if timer.frame == 0 {
+                state.map.load(gfx);
+                state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
+                state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
+                return;
             }
 
-            e.flash = (e.flash - ctx.timer.delta).max(0.0);
-            ctx.graphics
-                .rect()
-                .with(&e.rect)
+            let screen_size = gfx.screen_size();
+            let screen_half = screen_size / 2.0;
+
+            if state.game_over {
+                gfx.text("GAME OVER")
+                    .color(Color::RED)
+                    .at(screen_size.x / 2. - 40., screen_size.y / 2.);
+                return;
+            }
+
+            let position = state.player.rect.position - screen_half
+                + Into::<Vec2>::into(input.mouse_position());
+
+            let dx = input.keys_held(&[KeyCode::KeyD, KeyCode::ArrowRight]) as i8
+                - input.keys_held(&[KeyCode::KeyA, KeyCode::ArrowLeft]) as i8;
+            let dy = input.keys_held(&[KeyCode::KeyS, KeyCode::ArrowDown]) as i8
+                - input.keys_held(&[KeyCode::KeyW, KeyCode::ArrowUp]) as i8;
+            let moving = dx != 0 || dy != 0;
+
+            state
+                .player
+                .rect
+                .translate(vec2(dx as f32, dy as f32) * 200.0 * timer.delta);
+
+            gfx.camera().target(state.player.rect.position);
+            gfx.clear(Color::WHITE);
+            state.map.render(gfx);
+
+            state.fire_cd -= timer.delta;
+            if input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
+                state.bullets.extend(spawn_bullets(
+                    state.player.rect.center(),
+                    position,
+                    state.spread,
+                ));
+                state.fire_cd = 1.0 / state.fire_rate;
+            }
+
+            for e in &mut state.enemies {
+                let dir = (state.player.rect.position - e.rect.position).normalize_or_zero();
+                e.rect.translate(dir * e.speed * timer.delta);
+            }
+
+            state.kills += handle_bullet_hits(
+                &mut state.bullets,
+                &mut state.enemies,
+                state.player.rect.position,
+            );
+
+            for b in &mut state.bullets {
+                b.rect.translate(b.vel * timer.delta);
+                let angle = b.vel.y.atan2(b.vel.x);
+                gfx.rect().with(&b.rect).rotate(angle).color(Color::BLUE);
+            }
+
+            state.time_since_recolor += timer.delta;
+            if state.time_since_recolor > 1.0 {
+                state.time_since_recolor = 0.0;
+                recolor_image(&mut state.zombie_image);
+                gfx.update_texture_raw(
+                    state.enemy_tex,
+                    state.zombie_image.width(),
+                    state.zombie_image.height(),
+                    &state.zombie_image,
+                );
+            }
+
+            state.enemy_anim.update(timer.delta);
+            for e in &mut state.enemies {
+                let dir = state.player.rect.position - e.rect.position;
+                let angle = dir.y.atan2(dir.x);
+
+                if dir.length() < 15.0 {
+                    state.player.hp -= 1.0;
+                    state.player.flash = 0.1;
+                }
+
+                e.flash = (e.flash - timer.delta).max(0.0);
+                gfx.rect()
+                    .with(&e.rect)
+                    .rotate(angle)
+                    .color(if e.flash > 0.0 {
+                        Color::RED
+                    } else {
+                        Color::WHITE
+                    })
+                    .texture(state.enemy_tex)
+                    .uv(state.enemy_anim.uv());
+            }
+
+            if state.player.hp <= 0.0 {
+                state.game_over = true;
+            }
+
+            state.player.flash = (state.player.flash - timer.delta).max(0.0);
+            let dir = position - state.player.rect.position;
+            let angle = dir.y.atan2(dir.x);
+
+            let uv = if moving {
+                state.player_anim.update(timer.delta);
+                state.player_anim.uv()
+            } else {
+                state.player_anim.frame_uv(0)
+            };
+
+            gfx.rect()
+                .with(&state.player.rect)
                 .rotate(angle)
-                .color(if e.flash > 0.0 {
+                .color(if state.player.flash > 0.0 {
                     Color::RED
                 } else {
                     Color::WHITE
                 })
-                .texture(state.enemy_tex)
-                .uv(state.enemy_anim.uv());
-        }
+                .texture(state.player_tex)
+                .uv(uv);
 
-        if state.player.hp <= 0.0 {
-            state.game_over = true;
-        }
-
-        state.player.flash = (state.player.flash - ctx.timer.delta).max(0.0);
-        let dir = position - state.player.rect.position;
-        let angle = dir.y.atan2(dir.x);
-
-        let uv = if moving {
-            state.player_anim.update(ctx.timer.delta);
-            state.player_anim.uv()
-        } else {
-            state.player_anim.frame_uv(0)
-        };
-
-        ctx.graphics
-            .rect()
-            .with(&state.player.rect)
-            .rotate(angle)
-            .color(if state.player.flash > 0.0 {
-                Color::RED
-            } else {
-                Color::WHITE
-            })
-            .texture(state.player_tex)
-            .uv(uv);
-
-        if state.enemies.is_empty() {
-            state.wave += 1;
-            if state.wave % 3 == 0 {
-                state.hp *= 1.1;
-                state.spread = (state.spread + 1).min(20);
+            if state.enemies.is_empty() {
+                state.wave += 1;
+                if state.wave % 3 == 0 {
+                    state.hp *= 1.1;
+                    state.spread = (state.spread + 1).min(20);
+                }
+                state.fire_rate += 0.1;
+                state.enemies = spawn_wave(
+                    state.player.rect.position,
+                    (state.wave + 2) * 3,
+                    (
+                        50. + state.wave as f32 * 3.0,
+                        125. + state.wave as f32 * 3.0,
+                    ),
+                    state.hp,
+                );
             }
-            state.fire_rate += 0.1;
-            state.enemies = spawn_wave(
-                state.player.rect.position,
-                (state.wave + 2) * 3,
-                (
-                    50. + state.wave as f32 * 3.0,
-                    125. + state.wave as f32 * 3.0,
-                ),
-                state.hp,
-            );
-        }
 
-        ctx.graphics
-            .text(&format!("FPS: {}", ctx.timer.fps))
-            .at(10.0, 10.0);
-        ctx.graphics
-            .text(&format!("Wave: {}", state.wave))
-            .at(10.0, 50.0);
-        ctx.graphics
-            .text(&format!("Zombies killed: {}", state.kills))
-            .at(10.0, 70.0);
-        ctx.graphics
-            .text(&format!("HP: {:.0}", state.player.hp))
-            .at(10.0, 90.0);
-        ctx.graphics
-            .text(&format!("Fire rate: {:.1}/s", state.fire_rate))
-            .at(10.0, 110.0);
-        ctx.graphics
-            .text(&format!("Bullet Spread: {}", state.spread))
-            .at(10.0, 130.0);
-    });
+            gfx.text(&format!("FPS: {}", timer.fps)).at(10.0, 10.0);
+            gfx.text(&format!("Wave: {}", state.wave)).at(10.0, 50.0);
+            gfx.text(&format!("Zombies killed: {}", state.kills))
+                .at(10.0, 70.0);
+            gfx.text(&format!("HP: {:.0}", state.player.hp))
+                .at(10.0, 90.0);
+            gfx.text(&format!("Fire rate: {:.1}/s", state.fire_rate))
+                .at(10.0, 110.0);
+            gfx.text(&format!("Bullet Spread: {}", state.spread))
+                .at(10.0, 130.0);
+        });
 }

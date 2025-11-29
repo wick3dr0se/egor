@@ -21,6 +21,8 @@ pub struct FrameTimer {
     pub delta: f32,
     /// Frames per second, updated once per second
     pub fps: u32,
+    /// Total number of frames rendered since start
+    pub frame: u64,
 }
 
 impl Default for FrameTimer {
@@ -33,6 +35,7 @@ impl Default for FrameTimer {
             frame_count: 0,
             delta: 0.0,
             fps: 0,
+            frame: 0,
         }
     }
 }
@@ -62,6 +65,7 @@ impl FrameTimerInternal for FrameTimer {
 
         self.accumulator += self.delta;
         self.frame_count += 1;
+        self.frame += 1;
 
         if self.accumulator >= 1.0 {
             self.fps = self.frame_count;

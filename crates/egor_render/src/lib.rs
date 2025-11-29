@@ -82,6 +82,14 @@ impl<'a> Graphics<'a> {
         TextBuilder::new(&mut self.renderer.text, text.to_string())
     }
 
+    /// Load a texture from raw image data (e.g., PNG bytes)
+    ///
+    /// Returns a texture ID that can be used with `.texture(id)` on primitives.
+    /// Typically called once during initialization (when `timer.frame == 0`).
+    pub fn load_texture(&mut self, data: &[u8]) -> usize {
+        self.renderer.add_texture(data)
+    }
+
     /// Update texture data by index
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
         self.renderer.update_texture(index, data);
@@ -93,7 +101,7 @@ impl<'a> Graphics<'a> {
     }
 }
 
-/// Internal trait exposing egor’s core graphics operations  
+/// Internal trait exposing egor's core graphics operations  
 /// Allows flushing batched geometry, uploading camera matrix, etc  
 /// For advanced users or `egor_render` integration; not part of public API
 pub trait GraphicsInternal {

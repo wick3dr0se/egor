@@ -1,6 +1,8 @@
 pub mod input;
 pub mod time;
 
+pub use egor_render::Graphics;
+
 use winit::{
     application::ApplicationHandler,
     event::WindowEvent,
@@ -8,7 +10,7 @@ use winit::{
     window::{Window, WindowId},
 };
 
-use egor_render::{Graphics, GraphicsInternal, renderer::Renderer};
+use egor_render::{GraphicsInternal, renderer::Renderer};
 
 use crate::{
     input::{Input, InputInternal},
@@ -21,22 +23,17 @@ pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
 
-pub trait InitFn: FnOnce(&mut InitContext) + 'static {}
-impl<F: FnOnce(&mut InitContext) + 'static> InitFn for F {}
-
-pub trait UpdateFn: FnMut(&FrameTimer, &mut Graphics, &mut Input) + 'static {}
-impl<F: FnMut(&FrameTimer, &mut Graphics, &mut Input) + 'static> UpdateFn for F {}
+pub trait UpdateFn: FnMut(&mut Graphics, &Input, &FrameTimer) + 'static {}
+impl<F: FnMut(&mut Graphics, &Input, &FrameTimer) + 'static> UpdateFn for F {}
 
 type OnQuit = Box<dyn FnMut()>;
 
 /// Entry point for `egor` apps
 ///
-/// Manages windowing, input, rendering, event loop, & plugin system
+/// Manages windowing, input, rendering, & event loop
 ///
-/// Use `App::init(...)` to construct it, then call `.run(...)` to start the loop
-/// Add optional plugins or shutdown logic via `.plugin(...)` & `.on_quit(...)`
-pub struct App<I, U> {
-    init: Option<I>,
+/// Use `App::new()` to construct it, then call `.run(...)` to start the loop
+pub struct App<U> {
     update: Option<U>,
     on_quit: Option<OnQuit>,
     window: Option<Rc<Window>>,
@@ -44,10 +41,12 @@ pub struct App<I, U> {
     renderer: Option<Renderer>,
     input: Input,
     timer: FrameTimer,
+    title: String,
+    vsync: bool,
 }
 
 #[doc(hidden)]
-impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
+impl<U: UpdateFn> ApplicationHandler<Renderer> for App<U> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Called when window is ready; initializes the renderer async (wasm) or sync (native)
         if let Some(proxy) = self.proxy.take() {
@@ -55,10 +54,12 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 #[cfg(target_arch = "wasm32")]
                 {
                     use winit::platform::web::WindowAttributesExtWebSys;
-                    Window::default_attributes().with_append(true)
+                    Window::default_attributes()
+                        .with_title(&self.title)
+                        .with_append(true)
                 }
                 #[cfg(not(target_arch = "wasm32"))]
-                Window::default_attributes()
+                Window::default_attributes().with_title(&self.title)
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
@@ -86,14 +87,18 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                self.timer.update();
                 if let Some(r) = self.renderer.as_mut() {
-                    let mut graphics = Graphics::new(r);
-                    let geometry = graphics.flush();
-                    r.render_frame(geometry);
+                    if let Some(update) = self.update.as_mut() {
+                        let mut graphics = Graphics::new(r);
+                        update(&mut graphics, &self.input, &self.timer);
+                        let geometry = graphics.flush();
+                        r.render_frame(geometry);
+                    }
+
+                    self.timer.update();
+                    self.input.end_frame();
                 }
 
-                self.input.end_frame();
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::Resized(size) => {
@@ -115,25 +120,16 @@ impl<I: InitFn, U: UpdateFn> ApplicationHandler<Renderer> for App<I, U> {
     }
 
     fn user_event(&mut self, _: &ActiveEventLoop, mut renderer: Renderer) {
-        // Called once when the renderer finishes initializing
-        if let Some(init) = self.init.take() {
-            //let Self { window, .. } = self;
-            let mut ctx = InitContext {
-                window: self.window.as_ref().unwrap().clone(),
-                render: &mut renderer,
-            };
-
-            init(&mut ctx);
-            self.renderer = Some(renderer);
-        }
+        // Renderer initialized, apply config
+        renderer.set_vsync(self.vsync);
+        self.renderer = Some(renderer);
     }
 }
 
-impl<I: InitFn, U: UpdateFn> App<I, U> {
-    /// Creates a new `App` with defined state & init logic
-    pub fn init(init: I) -> Self {
+impl<U: UpdateFn> App<U> {
+    /// Creates a new `App`
+    pub fn new() -> Self {
         Self {
-            init: Some(init),
             update: None,
             on_quit: None,
             window: None,
@@ -141,10 +137,55 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             renderer: None,
             input: Input::default(),
             timer: FrameTimer::default(),
+            title: "egor app".to_string(),
+            vsync: true,
         }
     }
 
+    /// Sets the window title
+    pub fn title(mut self, title: impl Into<String>) -> Self {
+        self.title = title.into();
+        self
+    }
+
+    /// Enables/disables V-Sync (default: true)
+    pub fn vsync(mut self, on: bool) -> Self {
+        self.vsync = on;
+        self
+    }
+
+    /// Runs the provided closure before quitting
+    pub fn on_quit(mut self, f: impl FnMut() + 'static) -> Self {
+        self.on_quit = Some(Box::new(f));
+        self
+    }
+
     /// Starts the app & runs the event loop
+    ///
+    /// The closure receives graphics, input, and timer every frame.
+    /// Use `timer.frame` to detect the first frame for initialization:
+    ///
+    /// ```rust
+    /// let mut state = GameState::new();
+    ///
+    /// App::new()
+    ///     .title("My Game")
+    ///     .vsync(false)
+    ///     .run(|graphics, input, timer| {
+    ///         // First frame - initialization
+    ///         if timer.frame == 0 {
+    ///             state.texture = graphics.load_texture(data);
+    ///         }
+    ///         
+    ///         // Every frame - update & render
+    ///         if input.key_pressed(KeyCode::Space) {
+    ///             state.player.jump();
+    ///         }
+    ///         
+    ///         graphics.clear(Color::BLACK);
+    ///         graphics.rect().at(state.player.pos);
+    ///     });
+    /// ```
     pub fn run(mut self, update: U) {
         let event_loop = EventLoop::<Renderer>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);
@@ -173,39 +214,4 @@ impl<I: InitFn, U: UpdateFn> App<I, U> {
             event_loop.run_app(&mut self).unwrap();
         }
     }
-
-    /// Runs the provided closure before quitting
-    pub fn on_quit<F: FnMut() + 'static>(&mut self, f: F) {
-        self.on_quit = Some(Box::new(f));
-    }
-}
-
-/// Passed into `init()`
-pub struct InitContext<'a> {
-    window: Rc<Window>,
-    render: &'a mut Renderer,
-}
-
-impl InitContext<'_> {
-    /// Sets the window title
-    pub fn set_title(&self, title: &str) {
-        self.window.set_title(title);
-    }
-
-    /// Enables/disables V-Sync
-    pub fn set_vsync(&mut self, on: bool) {
-        self.render.set_vsync(on);
-    }
-
-    /// Loads a texture from raw image data (e.g., PNG)
-    pub fn load_texture(&mut self, data: &[u8]) -> usize {
-        self.render.add_texture(data)
-    }
-}
-
-/// Frame-local context passed into `update()` & plugins
-pub struct Context<'a, 'b> {
-    pub graphics: &'a mut Graphics<'b>,
-    pub input: &'a mut Input,
-    pub timer: &'a FrameTimer,
 }
