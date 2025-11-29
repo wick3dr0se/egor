@@ -7,9 +7,8 @@ use serde::Deserialize;
 use serde_json::from_str;
 
 use egor::{
-    app::{Context, InitContext},
     math::{Rect, Vec2, vec2},
-    render::Color,
+    render::{Color, Graphics},
 };
 
 #[derive(Deserialize, Debug)]
@@ -120,14 +119,14 @@ impl EgorMap {
         }
     }
 
-    pub fn load(&mut self, ctx: &mut InitContext) {
+    pub fn load(&mut self, gfx: &mut Graphics) {
         for ts in &self.tiled.tilesets {
             let (Some(img), Some(tw), Some(th)) = (&ts.image, ts.tilewidth, ts.tileheight) else {
                 continue;
             };
 
             let bytes = std::fs::read(Path::new("assets").join(img)).expect("read atlas png");
-            let tex_id = ctx.load_texture(&bytes);
+            let tex_id = gfx.load_texture(&bytes);
 
             let (aw, ah) = image::load_from_memory(&bytes).unwrap().dimensions();
 
@@ -146,9 +145,9 @@ impl EgorMap {
         }
     }
 
-    pub fn render(&mut self, ctx: &mut Context) {
-        let screen = ctx.graphics.screen_size();
-        let view = ctx.graphics.camera().viewport(screen);
+    pub fn render(&mut self, gfx: &mut Graphics) {
+        let screen = gfx.screen_size();
+        let view = gfx.camera().viewport(screen);
         let (tw, th) = self.tiled.tile_size().into();
 
         for layer in &self.tiled.layers {
@@ -162,8 +161,7 @@ impl EgorMap {
                     None => continue,
                 };
 
-                ctx.graphics
-                    .rect()
+                gfx.rect()
                     .at(self.tiled.tile_to_world(x, y))
                     .size(Vec2::new(tw, th))
                     .texture(info.tex_id)

@@ -1,27 +1,24 @@
 use dioxus_devtools::{connect_subsecond, subsecond};
-use egor_app::{Context, InitContext, Plugin};
+use egor_app::{Graphics, input::Input, time::FrameTimer};
 
-pub struct HotReloadPlugin<T, S> {
-    internal: T,
-    _phantom: std::marker::PhantomData<S>,
-}
+/// Enables hot reloading for the given update function
+///
+/// Wraps your game loop so code changes reload automatically during development
+///
+/// ```rust
+/// App::new().run(with_hot_reload(|graphics, input, timer| {
+///     // will hot reload on changes
+/// }));
+/// ```
+pub fn with_hot_reload<F>(mut f: F) -> impl FnMut(&mut Graphics, &Input, &FrameTimer)
+where
+    F: FnMut(&mut Graphics, &Input, &FrameTimer) + 'static,
+{
+    // Connect to subsecond once when wrapper is created
+    connect_subsecond();
 
-impl<S, T: Plugin<S>> HotReloadPlugin<T, S> {
-    pub fn new(internal: T) -> Self {
-        Self {
-            internal,
-            _phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<S, T: Plugin<S>> Plugin<S> for HotReloadPlugin<T, S> {
-    fn init(&mut self, state: &mut S, ctx: &mut InitContext) {
-        connect_subsecond();
-        self.internal.init(state, ctx);
-    }
-
-    fn update(&mut self, state: &mut S, ctx: &mut Context) {
-        subsecond::call(|| self.internal.update(state, ctx));
+    // Return a closure that wraps the update in subsecond::call
+    move |graphics, input, timer| {
+        subsecond::call(|| f(graphics, input, timer));
     }
 }

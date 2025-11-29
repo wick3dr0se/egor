@@ -11,7 +11,7 @@
 //! - [`egor_app`] — windowing, input, & main loop
 #[cfg(feature = "app")]
 pub mod app {
-    pub use egor_app::{App, Context, InitContext, Plugin};
+    pub use egor_app::App;
 }
 
 #[cfg(feature = "app")]
@@ -19,7 +19,15 @@ pub mod input {
     pub use egor_app::input::{Input, KeyCode, MouseButton};
 
     #[cfg(not(feature = "render"))]
-    pub use egor_app::{input::InputInternal, time::FrameTimerInternal};
+    pub use egor_app::input::InputInternal;
+}
+
+#[cfg(feature = "app")]
+pub mod time {
+    pub use egor_app::time::FrameTimer;
+
+    #[cfg(not(feature = "render"))]
+    pub use egor_app::time::FrameTimerInternal;
 }
 
 #[cfg(feature = "render")]

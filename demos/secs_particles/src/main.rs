@@ -2,7 +2,7 @@ use rand::Rng;
 use secs::World;
 
 use egor::{
-    app::{App, Context},
+    app::App,
     math::{Vec2, vec2},
     render::Color,
 };
@@ -33,21 +33,19 @@ fn main() {
             },
         ));
     }
-    App::init(world, move |_world, ctx| {
-        ctx.set_title("Egor ECS Particles Demo");
-    })
-    .run(move |world, ctx: &mut Context| {
-        let screen_size = ctx.graphics.screen_size();
+    App::new()
+        .title("Egor ECS Particles Demo")
+        .run(move |gfx, _, frame| {
+            let screen_size = gfx.screen_size();
 
-        world.query(|_, pos: &mut Position, vel: &Velocity| {
-            pos.vec += vel.vec * speed * ctx.timer.delta;
-            wraparound(&mut pos.vec, screen_size);
+            world.query(|_, pos: &mut Position, vel: &Velocity| {
+                pos.vec += vel.vec * speed * frame.delta;
+                wraparound(&mut pos.vec, screen_size);
 
-            ctx.graphics
-                .rect()
-                .at(pos.vec)
-                .size(Vec2::splat(10.0))
-                .color(Color::WHITE);
+                gfx.rect()
+                    .at(pos.vec)
+                    .size(Vec2::splat(10.0))
+                    .color(Color::WHITE);
+            })
         });
-    });
 }
