@@ -203,7 +203,14 @@ impl Renderer {
     /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  
     /// Text is rendered afterward automatically
     pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
-        let frame = self.target.surface.get_current_texture().unwrap();
+        let frame = match self.target.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(wgpu::SurfaceError::OutOfMemory) => {
+                panic!("Out of GPU memory!");
+            }
+            Err(_) => return,
+        };
+
         let view = frame.texture.create_view(&Default::default());
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
 
