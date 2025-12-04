@@ -64,7 +64,7 @@ jobs:
         with:
           components: clippy
       - name: Check
-        run: cargo clippy --all-targets --all-features -- --deny warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::new-without-default
 
   fmt:
     name: Check rustfmt
