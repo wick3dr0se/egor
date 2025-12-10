@@ -1,9 +1,7 @@
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingResource, BindingType, Device, Extent3d, Origin3d, Queue,
-    RenderPass, SamplerBindingType, ShaderStages, TexelCopyBufferLayout, TexelCopyTextureInfo,
-    TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureSampleType,
-    TextureUsages, TextureViewDimension,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Device,
+    Extent3d, Origin3d, Queue, RenderPass, TexelCopyBufferLayout, TexelCopyTextureInfo,
+    TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
 };
 
 /// A GPU texture that can be bound in shaders for rendering
@@ -87,33 +85,6 @@ impl Texture {
     /// Used when no valid texture is provided for a draw call
     pub fn create_default(device: &Device, queue: &Queue, layout: &BindGroupLayout) -> Self {
         Self::from_bytes(device, queue, layout, &[255u8, 255, 255, 255], 1, 1)
-    }
-
-    /// Returns a bind group layout used for textures in the fragment shader
-    ///
-    /// Passed into pipeline creation & reused across all textures in the renderer
-    pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
-        device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Float { filterable: true },
-                        view_dimension: TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: ShaderStages::FRAGMENT,
-                    ty: BindingType::Sampler(SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        })
     }
 
     /// Binds this texture at the given index in the render pass

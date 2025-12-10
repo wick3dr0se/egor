@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod color;
 pub mod math;
+pub mod pipeline;
 pub mod primitives;
 pub mod renderer;
 pub mod text;

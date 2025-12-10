@@ -1,14 +1,11 @@
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
-    BindGroupLayoutEntry, BindingType, BlendState, Buffer, BufferUsages, ColorTargetState,
-    ColorWrites, Device, DeviceDescriptor, FragmentState, IndexFormat, Instance, Limits, LoadOp,
-    Operations, PipelineLayoutDescriptor, PresentMode, Queue, RenderPassColorAttachment,
-    RenderPassDescriptor, RenderPipeline, RenderPipelineDescriptor, RequestAdapterOptions,
-    ShaderStages, StoreOp, Surface, SurfaceConfiguration, SurfaceTarget, VertexState, WindowHandle,
-    include_wgsl, util::DeviceExt,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Device, DeviceDescriptor,
+    IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode, Queue,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
+    SurfaceConfiguration, SurfaceTarget, WindowHandle, util::DeviceExt,
 };
 
-use crate::{Color, text::TextRenderer, texture::Texture, vertex::Vertex};
+use crate::{Color, pipeline::Pipelines, text::TextRenderer, texture::Texture, vertex::Vertex};
 
 const MAX_INDICES: usize = u16::MAX as usize * 32;
 const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
@@ -60,9 +57,8 @@ struct Gpu {
 pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
-    pipeline: RenderPipeline,
+    pipelines: Pipelines,
     clear_color: Color,
-    bind_group_layout: BindGroupLayout,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
     textures: Vec<Texture>,
@@ -110,21 +106,6 @@ impl Renderer {
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX,
-                    ty: BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
         let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&[CameraUniform {
@@ -133,49 +114,17 @@ impl Renderer {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
+        let pipelines = Pipelines::new(&device, surface_cfg.format);
         let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
-            layout: &camera_bind_group_layout,
+            layout: &pipelines.camera_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
                 resource: camera_buffer.as_entire_binding(),
             }],
         });
 
-        let shader = device.create_shader_module(include_wgsl!("../shader.wgsl"));
-        let bind_group_layout = Texture::create_bind_group_layout(&device);
-        let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[&bind_group_layout, &camera_bind_group_layout],
-            push_constant_ranges: &[],
-        });
-        let pipeline = device.create_render_pipeline(&RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: VertexState {
-                module: &shader,
-                entry_point: Some("vs_main"),
-                buffers: &[Vertex::desc()],
-                compilation_options: Default::default(),
-            },
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            fragment: Some(FragmentState {
-                module: &shader,
-                entry_point: Some("fs_main"),
-                targets: &[Some(ColorTargetState {
-                    format: surface_cfg.format,
-                    blend: Some(BlendState::ALPHA_BLENDING),
-                    write_mask: ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            multiview: None,
-            cache: None,
-        });
-
-        let default_texture = Texture::create_default(&device, &queue, &bind_group_layout);
+        let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
         let text = TextRenderer::new(&device, &queue, surface_cfg.format);
 
         Renderer {
@@ -187,9 +136,8 @@ impl Renderer {
                 surface,
                 config: surface_cfg,
             },
-            pipeline,
+            pipelines,
             clear_color: Color::BLACK,
-            bind_group_layout,
             camera_bind_group,
             camera_buffer,
             textures: Vec::new(),
@@ -234,7 +182,7 @@ impl Renderer {
                 ..Default::default()
             });
 
-            r_pass.set_pipeline(&self.pipeline);
+            r_pass.set_pipeline(&self.pipelines.primitive);
             r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
             for (tex_id, batch) in geometry {
@@ -342,7 +290,7 @@ impl Renderer {
         let tex = Texture::from_bytes(
             &self.gpu.device,
             &self.gpu.queue,
-            &self.bind_group_layout,
+            &self.pipelines.texture_layout,
             data,
             w,
             h,
@@ -364,7 +312,7 @@ impl Renderer {
         let tex = Texture::from_bytes(
             &self.gpu.device,
             &self.gpu.queue,
-            &self.bind_group_layout,
+            &self.pipelines.texture_layout,
             data,
             w,
             h,
