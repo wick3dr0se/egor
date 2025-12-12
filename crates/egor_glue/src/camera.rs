@@ -1,6 +1,4 @@
-use glam::{Mat4, Vec2};
-
-use crate::math::Rect;
+use egor_render::math::{Mat4, Rect, Vec2};
 
 /// A basic camera for controlling view & projection
 ///
@@ -75,7 +73,7 @@ impl CameraInternal for Camera {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use glam::vec2;
+    use egor_render::math::vec2;
 
     #[test]
     fn view_proj_matrix() {

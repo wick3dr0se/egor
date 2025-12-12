@@ -556,15 +556,15 @@ dependencies = [
 
 [[package]]
 name = "dioxus-cli-config"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "babc8eaf90379352bc4820830749fd231feb9312433d4094b4e7b79d912b3d96"
+checksum = "c59e9d9da2e7334fdae5d77e3989207aa549062f74ff1ca2171393bbdd7fda90"
 
 [[package]]
 name = "dioxus-core"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75468d08468919f783b0f7ee826802f4e8e66c5b5a0451245d861c211ca18216"
+checksum = "7400cbd21a98e585a13f8c29574da9b8afb2fd343f712618042b6c71761f0933"
 dependencies = [
  "anyhow",
  "const_format",
@@ -580,20 +580,19 @@ dependencies = [
  "slotmap",
  "subsecond",
  "tracing",
- "warnings",
 ]
 
 [[package]]
 name = "dioxus-core-types"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36f5ecf5a51de06d78aded3b5f7516a258f53117cba718bc5706317a3c04c844"
+checksum = "0652ab5f9c2c32261d44a3155debbfd909ed03d03434d7f70f5a796bf255c519"
 
 [[package]]
 name = "dioxus-devtools"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eb2c5019b7fa72e8e6b21ba99e9263bd390c9a30bbf09793b72f4b57ed7c3d7"
+checksum = "9748128bcd102b10e58c765939807053ccab542206a939b8bab228077455c259"
 dependencies = [
  "dioxus-cli-config",
  "dioxus-core",
@@ -605,14 +604,13 @@ dependencies = [
  "thiserror 2.0.17",
  "tracing",
  "tungstenite",
- "warnings",
 ]
 
 [[package]]
 name = "dioxus-devtools-types"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b007cec5b8548281921c4e4678926a3936e9d6757e951380685cc6121a6f974"
+checksum = "48540ca8a0ab1ec81cd4db35f0c9713d43b158647fc1dcb0d79965fc3b41d96c"
 dependencies = [
  "dioxus-core",
  "serde",
@@ -621,9 +619,9 @@ dependencies = [
 
 [[package]]
 name = "dioxus-signals"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3895cc17ff5b43ada07743111be586e7a927ed7ec511457020e4235e13e63fe6"
+checksum = "27fc4df7a31a7f02e5a0b40884bb66ee165226a05d75fce03baa44029e438762"
 dependencies = [
  "dioxus-core",
  "futures-channel",
@@ -676,6 +674,7 @@ name = "egor"
 version = "0.4.0"
 dependencies = [
  "egor_app",
+ "egor_glue",
  "egor_render",
 ]
 
@@ -695,6 +694,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "egor_glue"
+version = "0.4.0"
+dependencies = [
+ "dioxus-devtools",
+ "egor_app",
+ "egor_render",
+]
+
+[[package]]
 name = "egor_render"
 version = "0.4.0"
 dependencies = [
@@ -704,14 +712,6 @@ dependencies = [
  "glyphon",
  "image",
  "wgpu",
-]
-
-[[package]]
-name = "egor_subsecond"
-version = "0.4.0"
-dependencies = [
- "dioxus-devtools",
- "egor_app",
 ]
 
 [[package]]
@@ -907,9 +907,9 @@ dependencies = [
 
 [[package]]
 name = "generational-box"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3c1ae09dfd2d455484a54b56129b9821241c4b0e412227806b6c3730cd18a29"
+checksum = "e658d10252a15200ca4a1c67c7180fc0baffa3f92869bbd903025daf6f70fd65"
 dependencies = [
  "parking_lot",
  "tracing",
@@ -2380,9 +2380,9 @@ dependencies = [
 
 [[package]]
 name = "subsecond"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "834e8caec50249083ee6972a2f7645c4baadcb39d49ea801da1dc1d5e1c2ccb9"
+checksum = "c09bc2c9ef0381b403ab8b58122961cb83266d16b1f55f9486d5857ba4a9ae26"
 dependencies = [
  "js-sys",
  "libc",
@@ -2399,9 +2399,9 @@ dependencies = [
 
 [[package]]
 name = "subsecond-types"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6beffea67e72a7a530990b270fd0277971eae564fdc10c1e0080e928b477fab"
+checksum = "d07aa455c66ddfdbb51507537402b961e027846468954ef8d974bce65dff9eb0"
 dependencies = [
  "serde",
 ]

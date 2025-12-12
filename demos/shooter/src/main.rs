@@ -168,7 +168,7 @@ fn main() {
             if state.game_over {
                 gfx.text("GAME OVER")
                     .color(Color::RED)
-                    .at(screen_size.x / 2. - 40., screen_size.y / 2.);
+                    .at(vec2(screen_size.x / 2. - 40., screen_size.y / 2.));
                 return;
             }
 
@@ -296,15 +296,15 @@ fn main() {
                 );
             }
 
-            gfx.text(&format!("FPS: {}", timer.fps)).at(10.0, 10.0);
-            gfx.text(&format!("Wave: {}", state.wave)).at(10.0, 50.0);
+            gfx.text(&format!("FPS: {}", timer.fps)).at((10.0, 10.0));
+            gfx.text(&format!("Wave: {}", state.wave)).at((10.0, 50.0));
             gfx.text(&format!("Zombies killed: {}", state.kills))
-                .at(10.0, 70.0);
+                .at((10.0, 70.0));
             gfx.text(&format!("HP: {:.0}", state.player.hp))
-                .at(10.0, 90.0);
+                .at((10.0, 90.0));
             gfx.text(&format!("Fire rate: {:.1}/s", state.fire_rate))
-                .at(10.0, 110.0);
+                .at((10.0, 110.0));
             gfx.text(&format!("Bullet Spread: {}", state.spread))
-                .at(10.0, 130.0);
+                .at((10.0, 130.0));
         });
 }

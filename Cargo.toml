@@ -22,9 +22,11 @@ resolver = "2"
 default = ["app", "render"]
 app = ["dep:egor_app"]
 render = ["dep:egor_render"]
+hot_reload = ["egor_glue/hot_reload"]
 
 [dependencies]
 egor_app = { version = "0.4.0", path = "crates/egor_app", optional = true }
+egor_glue = { version = "0.4.0", path = "crates/egor_glue" }
 egor_render = { version = "0.4.0", path = "crates/egor_render", optional = true }
 
 [profile.dev]
