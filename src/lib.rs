@@ -8,10 +8,12 @@
 //!
 //! `egor` is a meta crate that re-exports commonly used `egor_*` crates for convenience:
 //! - [`egor_render`] — WGPU-based 2D rendering
-//! - [`egor_app`] — windowing, input, & main loop
+//! - [`egor_app`] — windowing, input, & event loop
+//! - [`egor_glue`] - high-level wrappers over egor crates
+
 #[cfg(feature = "app")]
 pub mod app {
-    pub use egor_app::App;
+    pub use egor_glue::app::*;
 }
 
 #[cfg(feature = "app")]
@@ -32,10 +34,11 @@ pub mod time {
 
 #[cfg(feature = "render")]
 pub mod render {
-    pub use egor_render::{Graphics, color::Color, primitives::Anchor, renderer::Renderer};
+    pub use egor_glue::{graphics::Graphics, primitives::Anchor};
+    pub use egor_render::{Renderer, color::Color};
 
     #[cfg(not(feature = "app"))]
-    pub use egor_render::{GraphicsInternal, camera::CameraInternal};
+    pub use egor_glue::{camera::CameraInternal, graphics::GraphicsInternal};
 }
 
 #[cfg(feature = "render")]

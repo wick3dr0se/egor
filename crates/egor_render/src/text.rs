@@ -1,14 +1,16 @@
+use glam::Vec2;
+pub use glyphon::{Attrs, Buffer, Metrics, Shaping};
+
 use glyphon::{
-    Attrs, Buffer, Cache, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
-    TextAtlas, TextBounds, Viewport,
+    Cache, FontSystem, Resolution, SwashCache, TextArea, TextAtlas, TextBounds, Viewport,
 };
 use wgpu::{Device, MultisampleState, Queue, TextureFormat};
 
-use crate::Color;
+use crate::color::Color;
 
 pub struct TextEntry {
-    buffer: Buffer,
-    position: (f32, f32),
+    pub buffer: Buffer,
+    pub position: Vec2,
 }
 
 /// Handles text rendering using [`glyphon`] & [`wgpu`]
@@ -44,7 +46,7 @@ impl TextRenderer {
             atlas,
             entries: vec![TextEntry {
                 buffer: dummy_buffer,
-                position: (0.0, 0.0),
+                position: Vec2::new(0.0, 0.0),
             }],
         }
     }
@@ -77,8 +79,8 @@ impl TextRenderer {
         for entry in &self.entries {
             areas.push(TextArea {
                 buffer: &entry.buffer,
-                left: entry.position.0,
-                top: entry.position.1,
+                left: entry.position.x,
+                top: entry.position.y,
                 bounds: TextBounds {
                     left: 0,
                     top: 0,
@@ -112,60 +114,13 @@ impl TextRenderer {
             .render(&self.atlas, &self.viewport, pass)
             .unwrap();
     }
-}
 
-/// Builder for a single line of text to be drawn on screen
-///
-/// Automatically pushed to the text renderer when dropped.  
-/// This must be constructed **before** `TextRenderer::prepare()` is called.
-pub struct TextBuilder<'a> {
-    renderer: &'a mut TextRenderer,
-    text: String,
-    position: (f32, f32),
-    size: f32,
-    color: Color,
-}
-
-impl<'a> TextBuilder<'a> {
-    pub fn new(renderer: &'a mut TextRenderer, text: String) -> Self {
-        Self {
-            renderer,
-            text,
-            position: (0.0, 0.0),
-            size: 16.0,
-            color: Color::BLACK,
-        }
+    pub fn font_system_mut(&mut self) -> &mut FontSystem {
+        &mut self.font_system
     }
 
-    pub fn at(mut self, x: f32, y: f32) -> Self {
-        self.position = (x, y);
-        self
-    }
-
-    pub fn size(mut self, size: f32) -> Self {
-        self.size = size;
-        self
-    }
-
-    pub fn color(mut self, color: Color) -> Self {
-        self.color = color;
-        self
-    }
-}
-
-impl Drop for TextBuilder<'_> {
-    fn drop(&mut self) {
-        let mut buffer = Buffer::new(&mut self.renderer.font_system, Metrics::new(self.size, 1.0));
-        buffer.set_text(
-            &mut self.renderer.font_system,
-            &self.text,
-            &Attrs::new().color(self.color.into()),
-            Shaping::Advanced,
-        );
-
-        self.renderer.entries.push(TextEntry {
-            buffer,
-            position: self.position,
-        });
+    /// Add a prepared `TextEntry` to be rendered this frame
+    pub fn push_entry(&mut self, entry: TextEntry) {
+        self.entries.push(entry);
     }
 }

@@ -1,11 +1,10 @@
-use rand::Rng;
-use secs::World;
-
 use egor::{
     app::App,
     math::{Vec2, vec2},
     render::Color,
 };
+use rand::Rng;
+use secs::World;
 
 struct Position {
     vec: Vec2,
@@ -33,6 +32,7 @@ fn main() {
             },
         ));
     }
+
     App::new()
         .title("Egor ECS Particles Demo")
         .run(move |gfx, _, frame| {

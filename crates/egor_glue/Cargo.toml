@@ -1,0 +1,19 @@
+[package]
+name = "egor_glue"
+version = "0.4.0"
+edition = "2024"
+authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
+description = "High-level wrappers around low-level egor crates"
+license = "MIT"
+repository = "https://github.com/wick3dr0se/egor"
+keywords = ["egor"]
+
+[features]
+default = []
+hot_reload = ["dioxus-devtools"]
+
+[dependencies]
+egor_app = { version = "0.4.0", path = "../egor_app" }
+egor_render = { version = "0.4.0", path = "../egor_render" }
+
+dioxus-devtools = { version = "0.7.0-alpha.1", optional = true }

@@ -1,6 +1,31 @@
-use glam::{Mat2, Vec2, vec2};
+use egor_render::{
+    GeometryBatch,
+    color::Color,
+    math::{Mat2, Rect, Vec2, vec2},
+    vertex::Vertex,
+};
 
-use crate::{Color, PrimitiveBatch, math::Rect, vertex::Vertex};
+#[derive(Default)]
+pub(crate) struct PrimitiveBatch {
+    geometry: Vec<(usize, GeometryBatch)>,
+}
+
+impl PrimitiveBatch {
+    // Add verts & indices to batch with matching texture_id or create a new batch
+    pub(crate) fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
+        if let Some((_, batch)) = self.geometry.iter_mut().find(|(id, _)| *id == texture_id) {
+            batch.push(verts, indices);
+        } else {
+            let mut batch = GeometryBatch::default();
+            batch.push(verts, indices);
+            self.geometry.push((texture_id, batch));
+        }
+    }
+
+    pub(crate) fn take(&mut self) -> Vec<(usize, GeometryBatch)> {
+        std::mem::take(&mut self.geometry)
+    }
+}
 
 // Anchor point options for positioning primitives
 ///  
@@ -61,8 +86,8 @@ impl<'a> RectangleBuilder<'a> {
     }
 
     /// Sets the world-space position of the rectangle
-    pub fn at(mut self, position: Vec2) -> Self {
-        self.position = position;
+    pub fn at(mut self, position: impl Into<Vec2>) -> Self {
+        self.position = position.into();
         self
     }
 

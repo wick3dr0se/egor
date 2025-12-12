@@ -39,11 +39,7 @@ impl ApplicationHandler for Application {
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         let inner_width = window.inner_size().width;
         let inner_height = window.inner_size().height;
-        let renderer = pollster::block_on(Renderer::create_graphics(
-            inner_width,
-            inner_height,
-            window.clone(),
-        ));
+        let renderer = pollster::block_on(Renderer::new(inner_width, inner_height, window.clone()));
         self.window = Some(window);
         self.renderer = Some(renderer);
     }
