@@ -21,16 +21,16 @@ use crate::{
 pub type Rc<T> = std::rc::Rc<T>;
 #[cfg(not(target_arch = "wasm32"))]
 pub type Rc<T> = std::sync::Arc<T>;
+
 pub struct WindowHandle(Rc<Window>);
 
 impl WindowHandle {
-    /// Get inner Rc/Arc
-    pub fn inner(self) -> Rc<Window> {
-        self.0
+    /// Returns a shared, owned handle to the window
+    pub fn to_owned(&self) -> Rc<Window> {
+        self.0.clone()
     }
 }
 
-// Make it act like a &Window automatically
 impl Deref for WindowHandle {
     type Target = Window;
 
@@ -39,26 +39,39 @@ impl Deref for WindowHandle {
     }
 }
 
+pub struct AppConfig {
+    pub title: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            title: "Egor App".to_string(),
+        }
+    }
+}
+
 /// Trait defining application behavior
 ///
 /// Implement this for your app logic. Hooks are called during window creation,
-/// every frame, on resize, and before quitting
+/// every frame, on resize, & before quitting
 #[allow(async_fn_in_trait)]
 pub trait AppHandler<R> {
     /// Called once the window exists; should create & return the resource
-    async fn with_resource(&mut self, window: WindowHandle) -> R;
-    /// Called after the resource is initialized and window is ready
-    fn on_ready(&mut self, _window: &Window, _state: &mut R) {}
+    async fn with_resource(&mut self, _window: WindowHandle) -> R;
+    /// Called after the resource is initialized & window is ready
+    fn on_ready(&mut self, _window: &Window, _resource: &mut R) {}
     /// Called every frame
-    fn frame(&mut self, _state: &mut R, _input: &Input, _timer: &FrameTimer) {}
+    fn frame(&mut self, _resource: &mut R, _input: &Input, _timer: &FrameTimer) {}
     /// Called on window resize
-    fn resize(&mut self, _w: u32, _h: u32, _state: &mut R) {}
+    fn resize(&mut self, _w: u32, _h: u32, _resource: &mut R) {}
+    /// Called when the window is requested to close
     fn on_quit(&mut self) {}
 }
 
 /// Generic application entry point
 ///
-/// Manages window creation, input, event loop, and delegating hooks
+/// Manages window creation, input, event loop, & delegating hooks
 /// to your `AppHandler`
 /// Use `AppRunner::new()` to construct it, then call `.run(...)` to start the loop
 pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
@@ -68,7 +81,7 @@ pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
     proxy: Option<EventLoopProxy<(R, H)>>,
     input: Input,
     timer: FrameTimer,
-    title: String,
+    config: AppConfig,
 }
 
 #[doc(hidden)]
@@ -81,11 +94,11 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 {
                     use winit::platform::web::WindowAttributesExtWebSys;
                     Window::default_attributes()
-                        .with_title(&self.title)
+                        .with_title(&self.config.title)
                         .with_append(true)
                 }
                 #[cfg(not(target_arch = "wasm32"))]
-                Window::default_attributes().with_title(&self.title)
+                Window::default_attributes().with_title(&self.config.title)
             };
             let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
@@ -109,7 +122,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => {
-                if let Some(handler) = self.handler.as_mut() {
+                if let Some(handler) = &mut self.handler {
                     handler.on_quit();
                 }
                 event_loop.exit();
@@ -140,17 +153,15 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         self.resource = Some(resource);
         self.handler = Some(handler);
 
-        if let (Some(r), Some(h), Some(window)) =
-            (&mut self.resource, &mut self.handler, &self.window)
-        {
-            h.on_ready(window, r);
+        if let (Some(r), Some(h), Some(w)) = (&mut self.resource, &mut self.handler, &self.window) {
+            h.on_ready(w, r);
         }
     }
 }
 
 impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
-    /// Creates a new `AppRunner` with the given handler
-    pub fn new(handler: H) -> Self {
+    /// Creates a new runner with the given handler & configuration
+    pub fn new(handler: H, config: AppConfig) -> Self {
         Self {
             handler: Some(handler),
             resource: None,
@@ -158,17 +169,11 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
             proxy: None,
             input: Input::default(),
             timer: FrameTimer::default(),
-            title: "egor app".to_string(),
+            config,
         }
     }
 
-    /// Sets the window title
-    pub fn title(mut self, title: impl Into<String>) -> Self {
-        self.title = title.into();
-        self
-    }
-
-    /// Starts the app and runs the event loop
+    /// Starts the app & runs the event loop
     pub fn run(mut self) {
         let event_loop = EventLoop::<(R, H)>::with_user_event().build().unwrap();
         event_loop.set_control_flow(ControlFlow::Poll);

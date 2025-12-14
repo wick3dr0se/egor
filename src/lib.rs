@@ -13,6 +13,7 @@
 
 #[cfg(feature = "app")]
 pub mod app {
+    pub use egor_app::AppConfig;
     pub use egor_glue::app::*;
 }
 
