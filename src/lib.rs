@@ -11,38 +11,26 @@
 //! - [`egor_app`] — windowing, input, & event loop
 //! - [`egor_glue`] - high-level wrappers over egor crates
 
-#[cfg(feature = "app")]
 pub mod app {
     pub use egor_app::AppConfig;
-    pub use egor_glue::app::*;
+    pub use egor_glue::app::App;
 }
 
-#[cfg(feature = "app")]
 pub mod input {
-    pub use egor_app::input::{Input, KeyCode, MouseButton};
-
-    #[cfg(not(feature = "render"))]
-    pub use egor_app::input::InputInternal;
+    pub use egor_app::input::{Input, InputInternal, KeyCode, MouseButton};
 }
 
-#[cfg(feature = "app")]
 pub mod time {
-    pub use egor_app::time::FrameTimer;
-
-    #[cfg(not(feature = "render"))]
-    pub use egor_app::time::FrameTimerInternal;
+    pub use egor_app::time::{FrameTimer, FrameTimerInternal};
 }
 
-#[cfg(feature = "render")]
 pub mod render {
-    pub use egor_glue::{graphics::Graphics, primitives::Anchor};
+    pub use egor_glue::{
+        camera::CameraInternal, graphics::Graphics, graphics::GraphicsInternal, primitives::Anchor,
+    };
     pub use egor_render::{Renderer, color::Color};
-
-    #[cfg(not(feature = "app"))]
-    pub use egor_glue::{camera::CameraInternal, graphics::GraphicsInternal};
 }
 
-#[cfg(feature = "render")]
 pub mod math {
     pub use egor_render::math::{Rect, Vec2, vec2};
 }

@@ -40,6 +40,7 @@ impl App {
     }
 
     /// Run the app with a per-frame update closure
+    #[allow(unused_mut)]
     pub fn run(mut self, mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static) {
         #[cfg(feature = "hot_reload")]
         let update = {

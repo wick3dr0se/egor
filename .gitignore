@@ -1,4 +1,4 @@
 /target
-/demos/secs_particles/dist
-/demos/shooter/dist
+/demos/*/dist
 .cargo/
+/crates/*/demos/*/dist

@@ -10,6 +10,7 @@ wasmBuild=0
 liveReload=0
 useMold=1
 demo=
+indexPath="$PWD/index.html"
 
 usage() {
     cat <<EOF
@@ -38,7 +39,7 @@ panic() { printf '[\e[31mPANIC\e[m](L%s): %s\n' "${BASH_LINENO[0]}" "$1" >&2; us
 
 cleanup() {
     [[ -d $buildPath ]] && rm -fr "$buildPath"
-    [[ ${PWD##*/} == "$demo" ]] && (( wasmBuild )) && mv index.html ../
+    (( wasmBuild )) && [[ -f index.html ]] && mv index.html "$indexPath"
 }
 
 is_tmpfs() { [[ -d "$1" && -w "$1" ]] && mountpoint -q "$1"; }
@@ -67,7 +68,7 @@ setup_toolchain() {
 }
 
 run_native() {
-    (( useMold )) && type mold && export RUSTFLAGS="-C link-arg=-fuse-ld=mold ${RUSTFLAGS-}"
+    (( useMold )) && type mold 2>/dev/null && export RUSTFLAGS="-C link-arg=-fuse-ld=mold ${RUSTFLAGS-}"
 
     echo "Compiling native build with rustc flags: ${RUSTFLAGS-}.."
 
@@ -106,10 +107,20 @@ fi
 (( verbose )) && set -x && flags+=(--verbose)
 (( debug )) || flags+=(--release)
 
-[[ $demo && -d $demo ]] && {
-    cd "$demo"
+[[ $demo ]] && {
+    if [[ $demo == */* ]]; then
+        # demo specified as crate/demo
+        crate="${demo%%/*}" demoName="${demo##*/}"
+        demoPath="../crates/$crate/demos/$demoName"
+        [[ -d "$demoPath" ]] || panic "Demo '$demoName' not found in crate '$crate'"
+    else
+        # demo in root demos/
+        demoPath="$demo"
+        [[ -d "$demoPath" ]] || panic "Demo '$demo' not found in root demos/ (run a crate demo ex: ./run.sh egor_render/triangle)"
+    fi
 
-    (( wasmBuild )) && mv ../index.html ./
+    (( wasmBuild )) && [[ -f $indexPath ]] && mv "$indexPath" "$demoPath"
+    cd "$demoPath"
 }
 
 [[ $memPath ]] && link_in_memory "$memPath"

@@ -1452,15 +1452,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "no_windowing"
-version = "0.1.0"
-dependencies = [
- "egor",
- "pollster",
- "winit",
-]
-
-[[package]]
 name = "num-traits"
 version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2591,6 +2582,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a04e24fab5c89c6a36eb8558c9656f30d81de51dfa4d3b45f26b21d61fa0a6c"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "triangle"
+version = "0.1.0"
+dependencies = [
+ "egor_render",
+ "pollster",
+ "winit",
 ]
 
 [[package]]

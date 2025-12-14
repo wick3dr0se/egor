@@ -25,6 +25,7 @@ pub struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],
 }
 
+#[derive(Clone)]
 pub struct GeometryBatch {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u16>,

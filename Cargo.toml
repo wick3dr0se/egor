@@ -12,22 +12,21 @@ categories = ["graphics", "game-development"]
 [workspace]
 members = [
     "crates/*",
-    "demos/no_windowing",
     "demos/secs_particles",
     "demos/shooter",
+    "crates/egor_render/demos/triangle"
 ]
 resolver = "2"
 
 [features]
-default = ["app", "render"]
-app = ["dep:egor_app"]
-render = ["dep:egor_render"]
+default = []
+log = ["egor_app/log"]
 hot_reload = ["egor_glue/hot_reload"]
 
 [dependencies]
-egor_app = { version = "0.4.0", path = "crates/egor_app", optional = true }
+egor_app = { version = "0.4.0", path = "crates/egor_app" }
 egor_glue = { version = "0.4.0", path = "crates/egor_glue" }
-egor_render = { version = "0.4.0", path = "crates/egor_render", optional = true }
+egor_render = { version = "0.4.0", path = "crates/egor_render" }
 
 [profile.dev]
 opt-level = 1
