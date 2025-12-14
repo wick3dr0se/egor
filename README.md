@@ -12,18 +12,19 @@
 
 ## Why Egor?
 
-- **Stupid Simple** – You can grok the whole engine without falling into a rabbit hole
-- **Cross-Platform** – Same code runs native & on the web via WASM
-- **Zero Boilerplate** – Primitives, textures, input, text & more without writing a book
-- **Extensible & Minimal** – If it's not required, it’s probably not included (by default)
+**Egor** is **dead simple**, **lightweight** and highly **cross-platform**; the same code runs native and on the web via **WASM**. It avoids heavy abstractions and uses **RAII-style builders**; configure with method chaining, submission happens on `Drop`
+
+Built from **modular, reusable crates**, **Egor** provides engine-grade fundamentals like rendering, input, math & hot-reload while deliberately avoiding game-specific concepts such as ECS, sprites and scenes. It comes with **sane defaults** and a custom runtime with **first-class native and web targets**, sharing the same APIs and execution model
 
 ## Features
 
-- **Primitives**
-- **Textures**
-- **Input Handling**
-- **Camera System**
-- **Text/Fonts**
+- **Modular & Extensible** – pick modules, integrate easily with minimal boilerplate
+- **(Textured) Primitives** - batched rectangles & basic shapes
+- **Camera/World Transforms** - world-to-screen projection, zoom/pan
+- **Text/Fonts** - simple text rendering
+- **Input Handling** - keyboard & mouse support
+- **Math Utilities** – vectors, matrices & helpers for 2D calculations
+- **Hot-Reload (Optional)** - live updates with the `hot_reload` feature
 
 ## Platform Support
 
@@ -64,7 +65,7 @@ App::new()
     })
 ```
 
-To see more of **egor** in action, checkout [demos/](demos)
+To see more of **egor** in action, check out [demos/](demos)
 
 > [!TIP]
 > Running a demo for WASM? You’ll need to move [index.html](demos/index.html) into a demo, or just use the included [run.sh](demos/run.sh) script (see usage). It simplifies running native, WASM & hot-reload builds
@@ -87,15 +88,7 @@ trunk serve
 
 ### Try Out Subsecond Hot-reloading
 
-Add **egor_subsecond**:
-
-```bash
-cargo add egor_subsecond --git https://github.com/wick3dr0se/egor --package egor_subsecond
-```
-
-```rust
-App:new().run(with_hot_reload(|gfx, input, timer| {...}))
-```
+Compile with the `hot_reload` feature enabled. Hot reload will automatically wrap `AppHandler::update` when the feature is active
 
 Run `dioxus-cli` (defer to [Dioxus CLI docs](https://docs.rs/crate/dioxus-cli/latest) for setup):
 
