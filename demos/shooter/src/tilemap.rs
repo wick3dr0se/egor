@@ -52,7 +52,7 @@ pub struct TiledMap {
 
 impl TiledMap {
     pub fn load(path: &str) -> Self {
-        let raw = read_to_string(path).expect("read Tiled JSON");
+        let raw = crate::ASSETS_DIR.get_file(path).expect("TileMap exists").contents_utf8().expect("read Tiled JSON");
         from_str(&raw).expect("parse Tiled JSON")
     }
 
