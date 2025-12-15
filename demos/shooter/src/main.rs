@@ -10,10 +10,23 @@ use egor::{
     render::Color,
 };
 
+use include_dir::{Dir, include_dir};
+
 use crate::{animation::SpriteAnim, tilemap::EgorMap};
+
+static ASSETS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets");
 
 const PLAYER_SIZE: f32 = 64.0;
 const BULLET_SIZE: Vec2 = vec2(5.0, 10.0);
+
+extern crate web_sys;
+
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+macro_rules! web_log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 struct Bullet {
     rect: Rect,
@@ -122,8 +135,16 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 }
 
 fn main() {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        println!("Starting Egor Shooter Demo");
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_log!("Starting Egor Shooter Demo (WebAssembly)");
+    }
     let mut state = GameState {
-        map: EgorMap::new("assets/map.json"),
+        map: EgorMap::new("map.json"),
         player: Soldier {
             rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
             hp: 100.0,
@@ -142,23 +163,42 @@ fn main() {
         fire_rate: 2.0,
         spread: 1,
         game_over: false,
-        zombie_image: image::load_from_memory(include_bytes!("../assets/zombie.png"))
-            .unwrap()
-            .to_rgba8(),
+        zombie_image: image::load_from_memory(
+            ASSETS_DIR.get_file("zombie.png").unwrap().contents(),
+        )
+        .unwrap()
+        .to_rgba8(),
         time_since_recolor: 0.0,
     };
 
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        println!("Running game loop...");
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_log!("Running game loop on the web!");
+    }
     App::new()
         .title("Egor Shooter Demo")
         .vsync(false)
         .on_quit(|| {
-            println!("Quitting already? Don't be a sore loser");
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                println!("Quitting already? Don't be a sore loser");
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                web_log!("Ending Egor Shooter Demo (WebAssembly)");
+            }
         })
         .run(move |gfx, input, timer| {
             if timer.frame == 0 {
                 state.map.load(gfx);
-                state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
-                state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
+                state.player_tex =
+                    gfx.load_texture(ASSETS_DIR.get_file("soldier.png").unwrap().contents());
+                state.enemy_tex =
+                    gfx.load_texture(ASSETS_DIR.get_file("zombie.png").unwrap().contents());
                 return;
             }
 
