@@ -1,6 +1,4 @@
-#![allow(dead_code)]
-
-use std::{collections::HashMap, fs::read_to_string, path::Path};
+use std::collections::HashMap;
 
 use image::GenericImageView;
 use serde::Deserialize;
@@ -51,9 +49,8 @@ pub struct TiledMap {
 }
 
 impl TiledMap {
-    pub fn load(path: &str) -> Self {
-        let raw = read_to_string(path).expect("read Tiled JSON");
-        from_str(&raw).expect("parse Tiled JSON")
+    pub fn load(json_data: &str) -> Self {
+        from_str(json_data).expect("parse Tiled JSON")
     }
 
     pub fn tile_size(&self) -> (f32, f32) {
@@ -71,7 +68,7 @@ impl TiledMap {
         )
     }
 
-    /// iterate every non‑empty tile (x,y,gid) that overlaps `rect``
+    /// iterate every non‑empty tile (x,y,gid) that overlaps `rect`
     pub fn visible_tiles(
         &self,
         layer: &TiledLayer,
@@ -112,23 +109,27 @@ pub struct EgorMap {
 }
 
 impl EgorMap {
-    pub fn new(path: &str) -> Self {
+    pub fn new(json_data: &str) -> Self {
         Self {
-            tiled: TiledMap::load(path),
+            tiled: TiledMap::load(json_data),
             sets: HashMap::new(),
         }
     }
 
-    pub fn load(&mut self, gfx: &mut Graphics) {
+    pub fn load_tileset(&mut self, gfx: &mut Graphics, bytes: &[u8], name: &str) {
         for ts in &self.tiled.tilesets {
             let (Some(img), Some(tw), Some(th)) = (&ts.image, ts.tilewidth, ts.tileheight) else {
                 continue;
             };
 
-            let bytes = std::fs::read(Path::new("assets").join(img)).expect("read atlas png");
-            let tex_id = gfx.load_texture(&bytes);
+            // Match by filename only (ignore path)
+            let img_name = img.rsplit('/').next().unwrap_or(img);
+            if img_name != name {
+                continue;
+            }
 
-            let (aw, ah) = image::load_from_memory(&bytes).unwrap().dimensions();
+            let tex_id = gfx.load_texture(bytes);
+            let (aw, ah) = image::load_from_memory(bytes).unwrap().dimensions();
 
             self.sets.insert(
                 ts.firstgid,
