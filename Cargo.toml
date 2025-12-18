@@ -14,13 +14,19 @@ members = [
     "crates/*",
     "demos/secs_particles",
     "demos/shooter",
-    "crates/egor_render/demos/triangle"
+    "crates/egor_render/demos/triangle",
 ]
 resolver = "2"
 
 [features]
 default = []
 log = ["egor_app/log"]
+
+webgl = ["egor_render/webgl"]
+angle = ["egor_render/angle"]
+gles = ["egor_render/gles"]
+vulkan = ["egor_render/vulkan"]
+
 hot_reload = ["egor_glue/hot_reload"]
 
 [dependencies]
