@@ -6,10 +6,12 @@ pub mod texture;
 pub mod vertex;
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Device, DeviceDescriptor,
-    IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode, Queue,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
-    SurfaceConfiguration, SurfaceTarget, WindowHandle, util::DeviceExt,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, CommandEncoder, Device,
+    DeviceDescriptor, IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode, Queue,
+    RenderPass, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp,
+    Surface, SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureFormat,
+    TextureView, WindowHandle,
+    util::{BufferInitDescriptor, DeviceExt},
 };
 
 use crate::{
@@ -56,6 +58,12 @@ struct RenderTarget {
 struct Gpu {
     device: Device,
     queue: Queue,
+}
+
+pub struct Frame {
+    pub view: TextureView,
+    pub encoder: CommandEncoder,
+    surface_texture: SurfaceTexture,
 }
 
 /// Low-level GPU renderer built on `wgpu`
@@ -113,7 +121,7 @@ impl Renderer {
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
-        let camera_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&[CameraUniform {
                 view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
@@ -153,21 +161,117 @@ impl Renderer {
         }
     }
 
+    pub fn device(&self) -> &Device {
+        &self.gpu.device
+    }
+
+    pub fn queue(&self) -> &Queue {
+        &self.gpu.queue
+    }
+
+    pub fn surface_format(&self) -> TextureFormat {
+        self.target.config.format
+    }
+
+    pub fn surface_config(&self) -> &SurfaceConfiguration {
+        &self.target.config
+    }
+
+    /// Begins a new frame, returning the surface texture and command encoder
+    /// User is responsible for creating render passes and calling end_frame()
+    pub fn begin_frame(&mut self) -> Option<Frame> {
+        let surface_texture = match self.target.surface.get_current_texture() {
+            Ok(frame) => frame,
+            Err(SurfaceError::OutOfMemory) => {
+                panic!("Out of GPU memory!");
+            }
+            Err(_) => return None,
+        };
+
+        let view = surface_texture.texture.create_view(&Default::default());
+        let encoder = self.gpu.device.create_command_encoder(&Default::default());
+
+        Some(Frame {
+            view,
+            encoder,
+            surface_texture,
+        })
+    }
+
+    /// Ends the frame by submitting commands and presenting
+    pub fn end_frame(&mut self, frame: Frame) {
+        self.gpu.queue.submit(Some(frame.encoder.finish()));
+        frame.surface_texture.present();
+    }
+
+    /// Draws a geometry batch within an existing render pass
+    pub fn draw_batch(
+        &self,
+        r_pass: &mut RenderPass<'_>,
+        batch: &GeometryBatch,
+        texture_id: usize,
+    ) {
+        if batch.vertices.is_empty() || batch.indices.is_empty() {
+            return;
+        }
+
+        let texture = self
+            .textures
+            .get(texture_id)
+            .unwrap_or(&self.default_texture);
+        texture.bind(r_pass, 0);
+
+        let vertex_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&batch.vertices),
+            usage: BufferUsages::VERTEX,
+        });
+
+        let mut index_data = bytemuck::cast_slice(&batch.indices).to_vec();
+        index_data.resize((index_data.len() + 3) & !3, 0);
+
+        let index_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: &index_data,
+            usage: BufferUsages::INDEX,
+        });
+
+        r_pass.set_pipeline(&self.pipelines.primitive);
+        r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+        r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
+        r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
+    }
+
+    pub fn begin_render_pass<'a>(
+        &'a self,
+        encoder: &'a mut CommandEncoder,
+        view: &'a TextureView,
+        clear_color: Option<Color>,
+    ) -> RenderPass<'a> {
+        encoder.begin_render_pass(&RenderPassDescriptor {
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: Operations {
+                    load: clear_color
+                        .map(|c| LoadOp::Clear(c.into()))
+                        .unwrap_or(LoadOp::Load),
+                    store: StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        })
+    }
+
     /// Renders a frame using the given geometry batches grouped by texture ID
     ///
     /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  
     /// Text is rendered afterward automatically
     pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
-        let frame = match self.target.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(wgpu::SurfaceError::OutOfMemory) => {
-                panic!("Out of GPU memory!");
-            }
-            Err(_) => return,
+        let Some(mut frame) = self.begin_frame() else {
+            return;
         };
-
-        let view = frame.texture.create_view(&Default::default());
-        let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
 
         self.text.prepare(
             &self.gpu.device,
@@ -177,60 +281,17 @@ impl Renderer {
         );
 
         {
-            let mut r_pass = encoder.begin_render_pass(&RenderPassDescriptor {
-                color_attachments: &[Some(RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: Operations {
-                        load: LoadOp::Clear(self.clear_color.into()),
-                        store: StoreOp::Store,
-                    },
-                })],
-                ..Default::default()
-            });
+            let mut r_pass =
+                self.begin_render_pass(&mut frame.encoder, &frame.view, Some(self.clear_color));
 
-            r_pass.set_pipeline(&self.pipelines.primitive);
-            r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
-
-            for (tex_id, batch) in geometry {
-                if batch.vertices.is_empty() || batch.indices.is_empty() {
-                    continue;
-                }
-
-                let texture = self.textures.get(tex_id).unwrap_or(&self.default_texture);
-                texture.bind(&mut r_pass, 0);
-
-                let vertex_buffer =
-                    self.gpu
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: None,
-                            contents: bytemuck::cast_slice(&batch.vertices),
-                            usage: BufferUsages::VERTEX,
-                        });
-
-                let mut index_data = bytemuck::cast_slice(&batch.indices).to_vec();
-                index_data.resize((index_data.len() + 3) & !3, 0);
-
-                let index_buffer =
-                    self.gpu
-                        .device
-                        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                            label: None,
-                            contents: &index_data,
-                            usage: BufferUsages::INDEX,
-                        });
-
-                r_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-                r_pass.set_index_buffer(index_buffer.slice(..), IndexFormat::Uint16);
-                r_pass.draw_indexed(0..batch.indices.len() as u32, 0, 0..1);
+            for (tex_id, batch) in &geometry {
+                self.draw_batch(&mut r_pass, batch, *tex_id);
             }
 
             self.text.render(&mut r_pass);
         }
 
-        self.gpu.queue.submit(Some(encoder.finish()));
-        frame.present();
+        self.end_frame(frame);
     }
 
     /// Resizes the surface & updates internal render targets

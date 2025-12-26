@@ -90,7 +90,7 @@ impl Texture {
     /// Binds this texture at the given index in the render pass
     ///
     /// - `index` must match the bind group index used in the pipeline layout
-    pub fn bind<'rp>(&'rp self, pass: &mut RenderPass<'rp>, index: u32) {
+    pub fn bind(&self, pass: &mut RenderPass, index: u32) {
         pass.set_bind_group(index, &self.bind_group, &[]);
     }
 }
