@@ -4,7 +4,7 @@ pub use glyphon::{Attrs, Buffer, Metrics, Shaping};
 use glyphon::{
     Cache, FontSystem, Resolution, SwashCache, TextArea, TextAtlas, TextBounds, Viewport,
 };
-use wgpu::{Device, MultisampleState, Queue, TextureFormat};
+use wgpu::{Device, MultisampleState, Queue, RenderPass, TextureFormat};
 
 use crate::color::Color;
 
@@ -109,7 +109,7 @@ impl TextRenderer {
     }
 
     /// Renders all prepared text
-    pub fn render<'rp>(&'rp self, pass: &mut wgpu::RenderPass<'rp>) {
+    pub fn render(&self, pass: &mut RenderPass) {
         self.inner
             .render(&self.atlas, &self.viewport, pass)
             .unwrap();

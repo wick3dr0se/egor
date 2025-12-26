@@ -4,7 +4,7 @@ mod tilemap;
 use rand::Rng;
 
 use egor::{
-    app::App,
+    app::{App, egui::Window},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
     render::Color,
@@ -136,11 +136,10 @@ fn main() {
 
     App::new()
         .title("Egor Shooter Demo")
-        .vsync(false)
         .on_quit(|| {
             println!("Quitting already? Don't be a sore loser");
         })
-        .run(move |gfx, input, timer| {
+        .run(move |gfx, input, timer, ui| {
             if timer.frame == 0 {
                 state.map.load_tileset(
                     gfx,
@@ -279,15 +278,13 @@ fn main() {
                 );
             }
 
-            gfx.text(&format!("FPS: {}", timer.fps)).at((10.0, 10.0));
-            gfx.text(&format!("Wave: {}", state.wave)).at((10.0, 50.0));
-            gfx.text(&format!("Zombies killed: {}", state.kills))
-                .at((10.0, 70.0));
-            gfx.text(&format!("HP: {:.0}", state.player.hp))
-                .at((10.0, 90.0));
-            gfx.text(&format!("Fire rate: {:.1}/s", state.fire_rate))
-                .at((10.0, 110.0));
-            gfx.text(&format!("Bullet Spread: {}", state.spread))
-                .at((10.0, 130.0));
+            Window::new("Debug").show(ui, |ui| {
+                ui.label(format!("FPS: {}", timer.fps));
+                ui.label(format!("Wave: {}", state.wave));
+                ui.label(format!("Zombies killed: {}", state.kills));
+                ui.label(format!("HP: {:.0}", state.player.hp));
+                ui.label(format!("Fire rate: {:.1}/s", state.fire_rate));
+                ui.label(format!("Bullet Spread: {}", state.spread));
+            });
         });
 }

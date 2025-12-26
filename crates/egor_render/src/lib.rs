@@ -73,12 +73,12 @@ pub struct Renderer {
     gpu: Gpu,
     target: RenderTarget,
     pipelines: Pipelines,
-    clear_color: Color,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
     textures: Vec<Texture>,
     default_texture: Texture,
-    text: TextRenderer,
+    pub text: TextRenderer,
+    pub clear_color: Color,
 }
 
 impl Renderer {
@@ -247,16 +247,13 @@ impl Renderer {
         &'a self,
         encoder: &'a mut CommandEncoder,
         view: &'a TextureView,
-        clear_color: Option<Color>,
     ) -> RenderPass<'a> {
         encoder.begin_render_pass(&RenderPassDescriptor {
             color_attachments: &[Some(RenderPassColorAttachment {
                 view,
                 resolve_target: None,
                 ops: Operations {
-                    load: clear_color
-                        .map(|c| LoadOp::Clear(c.into()))
-                        .unwrap_or(LoadOp::Load),
+                    load: LoadOp::Clear(self.clear_color.into()),
                     store: StoreOp::Store,
                 },
             })],
@@ -281,8 +278,7 @@ impl Renderer {
         );
 
         {
-            let mut r_pass =
-                self.begin_render_pass(&mut frame.encoder, &frame.view, Some(self.clear_color));
+            let mut r_pass = self.begin_render_pass(&mut frame.encoder, &frame.view);
 
             for (tex_id, batch) in &geometry {
                 self.draw_batch(&mut r_pass, batch, *tex_id);
@@ -327,11 +323,6 @@ impl Renderer {
         self.target
             .surface
             .configure(&self.gpu.device, &self.target.config);
-    }
-
-    /// Sets the color used to clear the screen before drawing
-    pub fn clear(&mut self, color: Color) {
-        self.clear_color = color;
     }
 
     /// Uploads the given view-projection matrix to the GPU for use in vertex transforms
@@ -384,9 +375,5 @@ impl Renderer {
             h,
         );
         self.textures[index] = tex;
-    }
-
-    pub fn text_renderer_mut(&mut self) -> &mut TextRenderer {
-        &mut self.text
     }
 }
