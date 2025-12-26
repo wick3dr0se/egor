@@ -66,7 +66,7 @@ impl ApplicationHandler for MinimalApp {
         if let (Some(r), Some(g)) = (self.renderer.as_mut(), self.batch.as_ref()) {
             match event {
                 WindowEvent::RedrawRequested => {
-                    r.clear(Color::BLACK);
+                    r.clear_color = Color::BLACK;
                     r.render_frame(vec![(0, g.clone())]);
                 }
                 WindowEvent::CloseRequested => {

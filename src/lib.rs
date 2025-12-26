@@ -14,6 +14,7 @@
 pub mod app {
     pub use egor_app::AppConfig;
     pub use egor_glue::app::App;
+    pub use egor_glue::ui::egui;
 }
 
 pub mod input {

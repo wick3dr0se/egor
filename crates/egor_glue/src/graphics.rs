@@ -30,7 +30,7 @@ impl<'a> Graphics<'a> {
 
     /// Clear the screen to a color
     pub fn clear(&mut self, color: Color) {
-        self.renderer.clear(color);
+        self.renderer.clear_color = color;
     }
 
     /// Get current surface size in pixels
@@ -45,7 +45,7 @@ impl<'a> Graphics<'a> {
 
     /// Draw a line of text
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
-        TextBuilder::new(self.renderer.text_renderer_mut(), text.to_string())
+        TextBuilder::new(&mut self.renderer.text, text.to_string())
     }
 
     /// Load a texture from raw image data (e.g., PNG bytes)

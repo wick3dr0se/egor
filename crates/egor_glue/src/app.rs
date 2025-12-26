@@ -1,17 +1,22 @@
-use crate::graphics::{Graphics, GraphicsInternal};
+use crate::{
+    graphics::{Graphics, GraphicsInternal},
+    ui::EguiIntegration,
+};
 
 use egor_app::{
-    AppConfig, AppHandler, AppRunner, Window, WindowHandle, input::Input, time::FrameTimer,
+    AppConfig, AppHandler, AppRunner, Window, WindowEvent, WindowHandle, input::Input,
+    time::FrameTimer,
 };
 use egor_render::Renderer;
 
-type UpdateCallback = dyn FnMut(&mut Graphics, &Input, &FrameTimer);
+type UpdateCallback = dyn FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context);
 
 pub struct App {
     update: Option<Box<UpdateCallback>>,
     config: Option<AppConfig>,
     on_quit: Option<Box<dyn FnMut()>>,
     vsync: bool,
+    egui: Option<EguiIntegration>,
 }
 
 impl App {
@@ -22,6 +27,7 @@ impl App {
             config: Some(AppConfig::default()),
             on_quit: None,
             vsync: true,
+            egui: None,
         }
     }
 
@@ -41,12 +47,15 @@ impl App {
 
     /// Run the app with a per-frame update closure
     #[allow(unused_mut)]
-    pub fn run(mut self, mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static) {
+    pub fn run(
+        mut self,
+        mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context) + 'static,
+    ) {
         #[cfg(feature = "hot_reload")]
         let update = {
             dioxus_devtools::connect_subsecond();
-            move |g: &mut Graphics, i: &Input, t: &FrameTimer| {
-                dioxus_devtools::subsecond::call(|| update(g, i, t))
+            move |g: &mut Graphics, i: &Input, t: &FrameTimer, ui: &egui::Context| {
+                dioxus_devtools::subsecond::call(|| update(g, i, t, ui))
             }
         };
         self.update = Some(Box::new(update));
@@ -63,26 +72,75 @@ impl App {
 }
 
 impl AppHandler<Renderer> for App {
+    fn on_window_event(&mut self, window: &Window, event: &WindowEvent) {
+        if let Some(egui) = self.egui.as_mut() {
+            egui.handle_event(window, event);
+        }
+    }
+
     async fn with_resource(&mut self, window: WindowHandle) -> Renderer {
         let (w, h) = (window.inner_size().width, window.inner_size().height);
         Renderer::new(w, h, window.to_owned()).await
     }
 
-    fn on_ready(&mut self, _window: &Window, r: &mut Renderer) {
-        r.set_vsync(self.vsync)
+    fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
+        renderer.set_vsync(self.vsync);
+
+        let (device, format) = (renderer.device(), renderer.surface_format());
+        self.egui = Some(EguiIntegration::new(device, format, window));
     }
 
-    fn frame(&mut self, r: &mut Renderer, i: &Input, t: &FrameTimer) {
-        if let Some(update) = &mut self.update {
-            let mut g = Graphics::new(r);
-            update(&mut g, i, t);
-            let geometry = g.flush();
-            r.render_frame(geometry);
+    fn frame(
+        &mut self,
+        window: &Window,
+        renderer: &mut Renderer,
+        input: &Input,
+        timer: &FrameTimer,
+    ) {
+        let Some(update) = &mut self.update else {
+            return;
+        };
+
+        let (width, height) = (
+            renderer.surface_config().width,
+            renderer.surface_config().height,
+        );
+        let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
+
+        let mut frame = renderer.begin_frame().unwrap();
+        renderer.text.prepare(&device, &queue, width, height);
+
+        let egui_ctx = self.egui.as_mut().unwrap().begin_frame(window);
+        let mut graphics = Graphics::new(renderer);
+        update(&mut graphics, input, timer, egui_ctx);
+        let geometry = graphics.flush();
+
+        {
+            let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
+
+            for (tex_id, batch) in &geometry {
+                renderer.draw_batch(&mut r_pass, batch, *tex_id);
+            }
+
+            renderer.text.render(&mut r_pass);
         }
+
+        let render_data = self.egui.as_mut().unwrap().end_frame(window);
+        self.egui.as_mut().unwrap().render(
+            &device,
+            &queue,
+            &mut frame.encoder,
+            &frame.view,
+            width,
+            height,
+            render_data,
+        );
+
+        renderer.end_frame(frame);
     }
 
-    fn resize(&mut self, w: u32, h: u32, r: &mut Renderer) {
-        r.resize(w, h)
+    fn resize(&mut self, width: u32, height: u32, renderer: &mut Renderer) {
+        renderer.resize(width, height)
     }
 
     fn on_quit(&mut self) {

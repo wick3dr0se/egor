@@ -3,11 +3,10 @@ pub mod time;
 
 use std::ops::Deref;
 
-pub use winit::window::Window;
+pub use winit::{event::WindowEvent, window::Window};
 
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
@@ -57,12 +56,14 @@ impl Default for AppConfig {
 /// every frame, on resize, & before quitting
 #[allow(async_fn_in_trait)]
 pub trait AppHandler<R> {
+    /// Called for every WindowEvent before default input handling
+    fn on_window_event(&mut self, _window: &Window, _event: &WindowEvent) {}
     /// Called once the window exists; should create & return the resource
     async fn with_resource(&mut self, _window: WindowHandle) -> R;
     /// Called after the resource is initialized & window is ready
     fn on_ready(&mut self, _window: &Window, _resource: &mut R) {}
     /// Called every frame
-    fn frame(&mut self, _resource: &mut R, _input: &Input, _timer: &FrameTimer) {}
+    fn frame(&mut self, _window: &Window, _resource: &mut R, _input: &Input, _timer: &FrameTimer) {}
     /// Called on window resize
     fn resize(&mut self, _w: u32, _h: u32, _resource: &mut R) {}
     /// Called when the window is requested to close
@@ -120,6 +121,10 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _: WindowId, event: WindowEvent) {
+        if let Some(handler) = &mut self.handler {
+            handler.on_window_event(self.window.as_ref().unwrap(), &event);
+        }
+
         match event {
             WindowEvent::CloseRequested => {
                 if let Some(handler) = &mut self.handler {
@@ -128,8 +133,12 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut()) {
-                    handler.frame(r, &self.input, &self.timer);
+                if let (Some(w), Some(r), Some(handler)) = (
+                    self.window.as_ref(),
+                    self.resource.as_mut(),
+                    self.handler.as_mut(),
+                ) {
+                    handler.frame(w, r, &self.input, &self.timer);
                     self.timer.update();
                     self.input.end_frame();
                 }
