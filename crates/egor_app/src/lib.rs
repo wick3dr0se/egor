@@ -13,8 +13,6 @@ use winit::{
 
 use crate::{input::Input, time::FrameTimer};
 
-pub type SharedWindow = Arc<Window>;
-
 pub struct AppConfig {
     pub title: String,
 }
@@ -36,7 +34,7 @@ pub trait AppHandler<R> {
     /// Called for every WindowEvent before default input handling
     fn on_window_event(&mut self, _window: &Window, _event: &WindowEvent) {}
     /// Called once the window exists; should create & return the resource
-    async fn with_resource(&mut self, _window: SharedWindow) -> R;
+    async fn with_resource(&mut self, _window: Arc<Window>) -> R;
     /// Called after the resource is initialized & window is ready
     fn on_ready(&mut self, _window: &Window, _resource: &mut R) {}
     /// Called every frame
@@ -55,7 +53,7 @@ pub trait AppHandler<R> {
 pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
     handler: Option<H>,
     resource: Option<R>,
-    window: Option<SharedWindow>,
+    window: Option<Arc<Window>>,
     proxy: Option<EventLoopProxy<(R, H)>>,
     input: Input,
     timer: FrameTimer,
@@ -78,7 +76,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 #[cfg(not(target_arch = "wasm32"))]
                 Window::default_attributes().with_title(&self.config.title)
             };
-            let window = SharedWindow::new(event_loop.create_window(win_attrs).unwrap());
+            let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
             let mut handler = self.handler.take().unwrap();
 

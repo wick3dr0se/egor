@@ -1,11 +1,12 @@
+use std::sync::Arc;
+
 use crate::graphics::Graphics;
 
 #[cfg(feature = "ui")]
 use crate::ui::EguiRenderer;
 
 use egor_app::{
-    AppConfig, AppHandler, AppRunner, SharedWindow, Window, WindowEvent, input::Input,
-    time::FrameTimer,
+    AppConfig, AppHandler, AppRunner, Window, WindowEvent, input::Input, time::FrameTimer,
 };
 use egor_render::Renderer;
 
@@ -102,7 +103,7 @@ impl AppHandler<Renderer> for App {
         }
     }
 
-    async fn with_resource(&mut self, window: SharedWindow) -> Renderer {
+    async fn with_resource(&mut self, window: Arc<Window>) -> Renderer {
         let (w, h) = (window.inner_size().width, window.inner_size().height);
         Renderer::new(w, h, window).await
     }

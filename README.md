@@ -12,19 +12,16 @@
 
 ## Why Egor?
 
-**Egor** is **dead simple**, **lightweight** and highly **cross-platform**; the same code runs native and on the web via **WASM**. It avoids heavy abstractions and uses **RAII-style builders**; configure with method chaining, submission happens on `Drop`
+**Egor** is dead **simple**, **lightweight**, and **cross-platform**. The same code runs on native and web (WASM), with minimal boilerplate. **Egor** is built from small, composable crates on top of modern graphics and windowing abstractions
 
-Built from **modular, reusable crates**, **Egor** provides engine-grade fundamentals like rendering, input, math & hot-reload while deliberately avoiding game-specific concepts such as ECS, sprites and scenes. It comes with **sane defaults** and a custom runtime with **first-class native and web targets**, sharing the same APIs and execution model
+**Egor** provides essentials for 2D apps and games:
 
-## Features
-
-- **Modular & Extensible** – pick modules, integrate easily with minimal boilerplate
-- **(Textured) Primitives** - batched rectangles & basic shapes
-- **Camera/World Transforms** - world-to-screen projection, zoom/pan
-- **Text/Fonts** - simple text rendering
-- **Input Handling** - keyboard & mouse support
-- **Math Utilities** – vectors, matrices & helpers for 2D calculations
-- **Hot-Reload (Optional)** - live updates with the `hot_reload` feature
+- Draw shapes and textures efficiently
+- Handle input (keyboard & mouse)
+- Move things with camera/world transforms
+- Render text and simple fonts
+- Build interactive UIs with optional **egui** integration
+- Optionally hot-reload during development
 
 ## Platform Support
 

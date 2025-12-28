@@ -7,7 +7,7 @@ use wgpu::{
 
 use crate::vertex::Vertex;
 
-/// Contains all render pipelines and bind group layouts for [`Renderer`]
+/// Contains all render pipelines and bind group layouts for [`crate::Renderer`]
 ///
 /// Centralizes GPU pipeline configuration, including:
 /// - The main primitive rendering pipeline (textured quads, sprites, shapes)

@@ -39,7 +39,7 @@ pub enum Anchor {
 /// Builder for drawing rectangles with configurable  
 /// position, size, rotation, color, texture, anchor, etc
 ///
-/// Constructed via [`crate::Graphics::rect()`]  
+/// Constructed via [`crate::graphics::Graphics::rect()`]  
 /// The rectangle is automatically submitted when this builder is dropped  
 /// No explicit "finalize" call is needed
 ///

@@ -1,4 +1,4 @@
-pub use glam::{Mat2, Mat4, Vec2, vec2};
+pub use glam::{IVec2, Mat2, Mat4, Vec2, ivec2, vec2};
 
 /// Axis-aligned rectangle defined by position (top-left corner) & size
 pub struct Rect {
