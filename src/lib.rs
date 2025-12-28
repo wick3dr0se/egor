@@ -19,17 +19,15 @@ pub mod app {
 }
 
 pub mod input {
-    pub use egor_app::input::{Input, InputInternal, KeyCode, MouseButton};
+    pub use egor_app::input::{Input, KeyCode, MouseButton};
 }
 
 pub mod time {
-    pub use egor_app::time::{FrameTimer, FrameTimerInternal};
+    pub use egor_app::time::FrameTimer;
 }
 
 pub mod render {
-    pub use egor_glue::{
-        camera::CameraInternal, graphics::Graphics, graphics::GraphicsInternal, primitives::Anchor,
-    };
+    pub use egor_glue::{graphics::Graphics, primitives::Anchor};
     pub use egor_render::{Renderer, color::Color};
 }
 

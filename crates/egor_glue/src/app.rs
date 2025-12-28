@@ -1,4 +1,4 @@
-use crate::graphics::{Graphics, GraphicsInternal};
+use crate::graphics::Graphics;
 
 #[cfg(feature = "ui")]
 use crate::ui::EguiRenderer;

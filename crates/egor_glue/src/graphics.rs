@@ -1,7 +1,7 @@
 use egor_render::{GeometryBatch, Renderer, color::Color, math::Vec2};
 
 use crate::{
-    camera::{Camera, CameraInternal},
+    camera::Camera,
     primitives::{PrimitiveBatch, RectangleBuilder},
     text::TextBuilder,
 };
@@ -14,6 +14,13 @@ pub struct Graphics<'a> {
 }
 
 impl<'a> Graphics<'a> {
+    /// Upload camera matrix & extract batched geometry for [`Renderer::render_frame()`]
+    pub(crate) fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
+        self.renderer
+            .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
+        self.batch.take()
+    }
+
     /// Create new `Graphics` tied to [`Renderer`]
     pub fn new(renderer: &'a mut Renderer) -> Self {
         Self {
@@ -64,21 +71,5 @@ impl<'a> Graphics<'a> {
     /// Update texture data by index with raw width/height
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         self.renderer.update_texture_raw(index, w, h, data);
-    }
-}
-
-/// Internal trait exposing egor's core graphics operations  
-/// Allows flushing batched geometry, uploading camera matrix, etc  
-/// For advanced users or `egor_render` integration; not part of public API
-pub trait GraphicsInternal {
-    /// Upload camera matrix & extract batched geometry for [`Renderer::render_frame()`]
-    fn flush(&mut self) -> Vec<(usize, GeometryBatch)>;
-}
-
-impl GraphicsInternal for Graphics<'_> {
-    fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
-        self.renderer
-            .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
-        self.batch.take()
     }
 }

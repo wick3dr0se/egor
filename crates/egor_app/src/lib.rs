@@ -11,10 +11,7 @@ use winit::{
     window::WindowId,
 };
 
-use crate::{
-    input::{Input, InputInternal},
-    time::{FrameTimer, FrameTimerInternal},
-};
+use crate::{input::Input, time::FrameTimer};
 
 pub type SharedWindow = Arc<Window>;
 

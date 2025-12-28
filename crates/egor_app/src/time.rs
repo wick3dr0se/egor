@@ -40,15 +40,9 @@ impl Default for FrameTimer {
     }
 }
 
-/// Internal trait for `egor_app` integration or direct use outside `egor`
-/// Calculates delta time & updates FPS once per second  
-pub trait FrameTimerInternal {
-    fn update(&mut self);
-}
-
-impl FrameTimerInternal for FrameTimer {
+impl FrameTimer {
     /// Updates delta time & calculates FPS
-    fn update(&mut self) {
+    pub(crate) fn update(&mut self) {
         let cur_time = {
             #[cfg(not(target_arch = "wasm32"))]
             {

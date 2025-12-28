@@ -18,6 +18,19 @@ impl Default for Camera {
 }
 
 impl Camera {
+    /// Returns the orthographic view-projection matrix for the current camera state
+    pub(crate) fn view_proj(&self, screen_size: Vec2) -> Mat4 {
+        let half_width = screen_size.x / 2.0 / self.zoom;
+        let half_height = screen_size.y / 2.0 / self.zoom;
+
+        let left = self.position.x - half_width;
+        let right = self.position.x + half_width;
+        let bottom = self.position.y - half_height;
+        let top = self.position.y + half_height;
+
+        Mat4::orthographic_lh(left, right, top, bottom, -1.0, 1.0)
+    }
+
     /// Set the camera's target position (center of view)
     pub fn target(&mut self, position: Vec2) {
         self.position = position;
@@ -46,27 +59,6 @@ impl Camera {
     /// Converts a point from screen space back to world space
     pub fn screen_to_world(&self, screen: Vec2, screen_size: Vec2) -> Vec2 {
         (screen - screen_size / 2.0) / self.zoom + self.position
-    }
-}
-
-/// Provides the view-projection matrix for GPU transforms  
-/// Not needed by typical `egor` users; mainly for `egor_render` or advanced cases
-pub trait CameraInternal {
-    fn view_proj(&self, screen_size: Vec2) -> Mat4;
-}
-
-impl CameraInternal for Camera {
-    /// Returns the orthographic view-projection matrix for the current camera state
-    fn view_proj(&self, screen_size: Vec2) -> Mat4 {
-        let half_width = screen_size.x / 2.0 / self.zoom;
-        let half_height = screen_size.y / 2.0 / self.zoom;
-
-        let left = self.position.x - half_width;
-        let right = self.position.x + half_width;
-        let bottom = self.position.y - half_height;
-        let top = self.position.y + half_height;
-
-        Mat4::orthographic_lh(left, right, top, bottom, -1.0, 1.0)
     }
 }
 
