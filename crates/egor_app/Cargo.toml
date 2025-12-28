@@ -19,7 +19,7 @@ log = [
 
 [dependencies]
 log = { version = "0.4.27", optional = true }
-winit = "0.30.10"
+winit = "0.30.12"
 
 egor_render = { version = "0.5.0", path = "../egor_render" }
 

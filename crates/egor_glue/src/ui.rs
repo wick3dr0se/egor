@@ -9,18 +9,24 @@ use egui_wgpu::wgpu::{
 use egui_winit::State;
 use egui_winit::winit::{event::WindowEvent, window::Window};
 
-pub struct EguiIntegration {
+pub struct EguiFrame {
+    pub clipped_primitives: Vec<ClippedPrimitive>,
+    pub textures_delta: TexturesDelta,
+    pub pixels_per_point: f32,
+}
+
+pub struct EguiRenderer {
     pub ctx: Context,
     state: egui_winit::State,
     renderer: egui_wgpu::Renderer,
 }
 
-impl EguiIntegration {
+impl EguiRenderer {
     pub fn new(device: &Device, surface_format: TextureFormat, window: &Window) -> Self {
         let ctx = Context::default();
         let viewport_id = ctx.viewport_id();
         let state = State::new(ctx.clone(), viewport_id, window, None, None, None);
-        let renderer = egui_wgpu::Renderer::new(device, surface_format, None, 1, false);
+        let renderer = egui_wgpu::Renderer::new(device, surface_format, Default::default());
 
         Self {
             ctx,
@@ -39,17 +45,19 @@ impl EguiIntegration {
         &self.ctx
     }
 
-    pub fn end_frame(&mut self, window: &Window) -> EguiRenderData {
+    pub fn end_frame(&mut self, window: &Window) -> EguiFrame {
         let output = self.ctx.end_pass();
         self.state
             .handle_platform_output(window, output.platform_output);
 
-        EguiRenderData {
+        EguiFrame {
             clipped_primitives: self.ctx.tessellate(output.shapes, output.pixels_per_point),
             textures_delta: output.textures_delta,
             pixels_per_point: output.pixels_per_point,
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         device: &Device,
@@ -58,14 +66,14 @@ impl EguiIntegration {
         view: &TextureView,
         width: u32,
         height: u32,
-        render_data: EguiRenderData,
+        frame: EguiFrame,
     ) {
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [width, height],
-            pixels_per_point: render_data.pixels_per_point,
+            pixels_per_point: frame.pixels_per_point,
         };
 
-        for (id, image_delta) in &render_data.textures_delta.set {
+        for (id, image_delta) in &frame.textures_delta.set {
             self.renderer
                 .update_texture(device, queue, *id, image_delta);
         }
@@ -74,7 +82,7 @@ impl EguiIntegration {
             device,
             queue,
             encoder,
-            &render_data.clipped_primitives,
+            &frame.clipped_primitives,
             &screen_descriptor,
         );
 
@@ -87,6 +95,7 @@ impl EguiIntegration {
                     load: LoadOp::Load,
                     store: StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
@@ -95,18 +104,12 @@ impl EguiIntegration {
 
         self.renderer.render(
             &mut render_pass.forget_lifetime(),
-            &render_data.clipped_primitives,
+            &frame.clipped_primitives,
             &screen_descriptor,
         );
 
-        for id in &render_data.textures_delta.free {
+        for id in &frame.textures_delta.free {
             self.renderer.free_texture(id);
         }
     }
-}
-
-pub struct EguiRenderData {
-    pub clipped_primitives: Vec<ClippedPrimitive>,
-    pub textures_delta: TexturesDelta,
-    pub pixels_per_point: f32,
 }

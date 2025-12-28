@@ -86,10 +86,10 @@ impl Renderer {
     ///
     /// Initializes `wgpu`, sets up a basic alpha-blended render pipeline, default texture,
     /// camera uniform, internal text renderer & more
-    pub async fn new<'w>(
+    pub async fn new(
         inner_width: u32,
         inner_height: u32,
-        window: impl Into<SurfaceTarget<'static>> + WindowHandle + 'w,
+        window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
         let instance = Instance::default();
         let surface = instance.create_surface(window).unwrap();
@@ -178,7 +178,6 @@ impl Renderer {
     }
 
     /// Begins a new frame, returning the surface texture and command encoder
-    /// User is responsible for creating render passes and calling end_frame()
     pub fn begin_frame(&mut self) -> Option<Frame> {
         let surface_texture = match self.target.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -256,11 +255,13 @@ impl Renderer {
                     load: LoadOp::Clear(self.clear_color.into()),
                     store: StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             ..Default::default()
         })
     }
 
+    /// Convenience wrapper around begin/end
     /// Renders a frame using the given geometry batches grouped by texture ID
     ///
     /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  

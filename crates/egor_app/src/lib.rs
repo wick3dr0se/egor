@@ -1,7 +1,7 @@
 pub mod input;
 pub mod time;
 
-use std::ops::Deref;
+use std::sync::Arc;
 
 pub use winit::{event::WindowEvent, window::Window};
 
@@ -16,27 +16,7 @@ use crate::{
     time::{FrameTimer, FrameTimerInternal},
 };
 
-#[cfg(target_arch = "wasm32")]
-pub type Rc<T> = std::rc::Rc<T>;
-#[cfg(not(target_arch = "wasm32"))]
-pub type Rc<T> = std::sync::Arc<T>;
-
-pub struct WindowHandle(Rc<Window>);
-
-impl WindowHandle {
-    /// Returns a shared, owned handle to the window
-    pub fn to_owned(&self) -> Rc<Window> {
-        self.0.clone()
-    }
-}
-
-impl Deref for WindowHandle {
-    type Target = Window;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+pub type SharedWindow = Arc<Window>;
 
 pub struct AppConfig {
     pub title: String,
@@ -59,7 +39,7 @@ pub trait AppHandler<R> {
     /// Called for every WindowEvent before default input handling
     fn on_window_event(&mut self, _window: &Window, _event: &WindowEvent) {}
     /// Called once the window exists; should create & return the resource
-    async fn with_resource(&mut self, _window: WindowHandle) -> R;
+    async fn with_resource(&mut self, _window: SharedWindow) -> R;
     /// Called after the resource is initialized & window is ready
     fn on_ready(&mut self, _window: &Window, _resource: &mut R) {}
     /// Called every frame
@@ -78,7 +58,7 @@ pub trait AppHandler<R> {
 pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
     handler: Option<H>,
     resource: Option<R>,
-    window: Option<Rc<Window>>,
+    window: Option<SharedWindow>,
     proxy: Option<EventLoopProxy<(R, H)>>,
     input: Input,
     timer: FrameTimer,
@@ -101,20 +81,20 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 #[cfg(not(target_arch = "wasm32"))]
                 Window::default_attributes().with_title(&self.config.title)
             };
-            let window = Rc::new(event_loop.create_window(win_attrs).unwrap());
+            let window = SharedWindow::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
             let mut handler = self.handler.take().unwrap();
 
             #[cfg(target_arch = "wasm32")]
             {
                 wasm_bindgen_futures::spawn_local(async move {
-                    let resource = handler.with_resource(WindowHandle(window)).await;
+                    let resource = handler.with_resource(window).await;
                     _ = proxy.send_event((resource, handler));
                 });
             }
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let resource = pollster::block_on(handler.with_resource(WindowHandle(window)));
+                let resource = pollster::block_on(handler.with_resource(window));
                 _ = proxy.send_event((resource, handler));
             }
         }
