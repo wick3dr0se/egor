@@ -86,10 +86,10 @@ impl Renderer {
     ///
     /// Initializes `wgpu`, sets up a basic alpha-blended render pipeline, default texture,
     /// camera uniform, internal text renderer & more
-    pub async fn new<'w>(
+    pub async fn new(
         inner_width: u32,
         inner_height: u32,
-        window: impl Into<SurfaceTarget<'static>> + WindowHandle + 'w,
+        window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
         let instance = Instance::default();
         let surface = instance.create_surface(window).unwrap();
@@ -256,6 +256,7 @@ impl Renderer {
                     load: LoadOp::Clear(self.clear_color.into()),
                     store: StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             ..Default::default()
         })

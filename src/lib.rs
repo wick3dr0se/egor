@@ -9,11 +9,12 @@
 //! `egor` is a meta crate that re-exports commonly used `egor_*` crates for convenience:
 //! - [`egor_render`] — WGPU-based 2D rendering
 //! - [`egor_app`] — windowing, input, & event loop
-//! - [`egor_glue`] - high-level wrappers over egor crates
+//! - [`egor_glue`] - opinionated layer over egor crates
 
 pub mod app {
     pub use egor_app::AppConfig;
     pub use egor_glue::app::App;
+    #[cfg(feature = "ui")]
     pub use egor_glue::ui::egui;
 }
 

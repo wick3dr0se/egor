@@ -17,19 +17,19 @@ vulkan = ["wgpu/vulkan"]
 
 [dependencies]
 bytemuck = "1.23.0"
-glyphon = "0.9.0"
+glyphon = { git = "https://github.com/grovesNL/glyphon", rev = "9dd9376" }
 image = { version = "0.25.6", default-features = false, features = ["png"] }
 color = "0.3.1"
 glam = "0.30.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["vulkan"] }
+wgpu = { version = "27.0.1", default-features = false, features = ["vulkan"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["dx12"] }
+wgpu = { version = "27.0.1", default-features = false, features = ["dx12"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["metal"] }
+wgpu = { version = "27.0.1", default-features = false, features = ["metal"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["webgpu"] }
+wgpu = { version = "27.0.1", default-features = false, features = ["webgpu"] }
