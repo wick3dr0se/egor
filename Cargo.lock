@@ -699,7 +699,7 @@ dependencies = [
 
 [[package]]
 name = "egor"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "egor_app",
  "egor_glue",
@@ -708,7 +708,7 @@ dependencies = [
 
 [[package]]
 name = "egor_app"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -723,7 +723,7 @@ dependencies = [
 
 [[package]]
 name = "egor_glue"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "dioxus-devtools",
  "egor_app",
@@ -735,7 +735,7 @@ dependencies = [
 
 [[package]]
 name = "egor_render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bytemuck",
  "color",

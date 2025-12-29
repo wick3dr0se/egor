@@ -1,6 +1,6 @@
 [package]
 name = "egor_app"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
 description = "App/plugin layer for egor"
@@ -21,7 +21,7 @@ log = [
 log = { version = "0.4.27", optional = true }
 winit = "0.30.12"
 
-egor_render = { version = "0.5.0", path = "../egor_render" }
+egor_render = { version = "0.6.0", path = "../egor_render" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 console_error_panic_hook = { version = "0.1.7", optional = true }

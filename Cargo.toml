@@ -1,6 +1,6 @@
 [package]
 name = "egor"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
 description = "A dead simple 2D graphics engine"
@@ -31,9 +31,9 @@ hot_reload = ["egor_glue/hot_reload"]
 ui = ["egor_glue/ui"]
 
 [dependencies]
-egor_app = { version = "0.5.0", path = "crates/egor_app" }
-egor_glue = { version = "0.5.0", path = "crates/egor_glue" }
-egor_render = { version = "0.5.0", path = "crates/egor_render" }
+egor_app = { version = "0.6.0", path = "crates/egor_app" }
+egor_glue = { version = "0.6.0", path = "crates/egor_glue" }
+egor_render = { version = "0.6.0", path = "crates/egor_render" }
 
 [profile.dev]
 opt-level = 1
