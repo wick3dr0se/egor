@@ -26,7 +26,8 @@ impl EguiRenderer {
         let ctx = Context::default();
         let viewport_id = ctx.viewport_id();
         let state = State::new(ctx.clone(), viewport_id, window, None, None, None);
-        let renderer = egui_wgpu::Renderer::new(device, surface_format, Default::default());
+        let renderer =
+            egui_wgpu::Renderer::new(device, surface_format, Default::default(), 1, false);
 
         Self {
             ctx,
@@ -95,7 +96,6 @@ impl EguiRenderer {
                     load: LoadOp::Load,
                     store: StoreOp::Store,
                 },
-                depth_slice: None,
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,

@@ -255,7 +255,6 @@ impl Renderer {
                     load: LoadOp::Clear(self.clear_color.into()),
                     store: StoreOp::Store,
                 },
-                depth_slice: None,
             })],
             ..Default::default()
         })
