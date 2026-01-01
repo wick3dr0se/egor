@@ -11,19 +11,12 @@ use egor_app::{
 use egor_render::Renderer;
 
 #[cfg(not(feature = "ui"))]
-pub trait UpdateCallback: FnMut(&mut Graphics, &Input, &FrameTimer) + 'static {}
-#[cfg(not(feature = "ui"))]
-impl<F: FnMut(&mut Graphics, &Input, &FrameTimer) + 'static> UpdateCallback for F {}
+type UpdateFn = dyn FnMut(&mut Graphics, &Input, &FrameTimer);
 #[cfg(feature = "ui")]
-pub trait UpdateCallback:
-    FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context) + 'static
-{
-}
-#[cfg(feature = "ui")]
-impl<F: FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context) + 'static> UpdateCallback for F {}
+type UpdateFn = dyn FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context);
 
 pub struct App {
-    update: Option<Box<dyn UpdateCallback>>,
+    update: Option<Box<UpdateFn>>,
     config: Option<AppConfig>,
     on_quit: Option<Box<dyn FnMut()>>,
     vsync: bool,
@@ -59,30 +52,35 @@ impl App {
     }
 
     /// Run the app with a per-frame update closure
-    pub fn run(mut self, update: impl UpdateCallback) {
-        #[allow(unused_mut)]
-        let mut update: Box<dyn UpdateCallback> = Box::new(update);
-        #[cfg(all(not(target_arch = "wasm32"), feature = "hot_reload"))]
-        {
+    #[cfg(not(feature = "ui"))]
+    pub fn run(mut self, mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static) {
+        #[cfg(feature = "hot_reload")]
+        let update = {
             dioxus_devtools::connect_subsecond();
 
-            update = Box::new({
-                #[cfg(not(feature = "ui"))]
-                {
-                    move |g: &mut Graphics, i: &Input, t: &FrameTimer| {
-                        dioxus_devtools::subsecond::call(|| update(g, i, t))
-                    }
-                }
+            move |g: &mut Graphics, i: &Input, t: &FrameTimer| {
+                dioxus_devtools::subsecond::call(|| update(g, i, t))
+            }
+        };
+        self.update = Some(Box::new(update));
 
-                #[cfg(feature = "ui")]
-                {
-                    move |g: &mut Graphics, i: &Input, t: &FrameTimer, ui: &egui::Context| {
-                        dioxus_devtools::subsecond::call(|| update(g, i, t, ui))
-                    }
-                }
-            });
-        }
-        self.update = Some(update);
+        let config = self.config.take().unwrap();
+        AppRunner::new(self, config).run();
+    }
+    #[cfg(feature = "ui")]
+    pub fn run(
+        mut self,
+        mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context) + 'static,
+    ) {
+        #[cfg(feature = "hot_reload")]
+        let update = {
+            dioxus_devtools::connect_subsecond();
+
+            move |g: &mut Graphics, i: &Input, t: &FrameTimer, ui: &egui::Context| {
+                dioxus_devtools::subsecond::call(|| update(g, i, t, ui))
+            }
+        };
+        self.update = Some(Box::new(update));
 
         let config = self.config.take().unwrap();
         AppRunner::new(self, config).run();
