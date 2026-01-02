@@ -1,19 +1,32 @@
 mod animation;
 mod tilemap;
 
-use rand::Rng;
+use rand::{Rng, RngCore};
 
 use egor::{
-    app::{App, egui::Window},
+    app::App,
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
     render::Color,
 };
 
+use include_dir::{Dir, include_dir};
+
 use crate::{animation::SpriteAnim, tilemap::EgorMap};
+
+static ASSETS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/assets");
 
 const PLAYER_SIZE: f32 = 64.0;
 const BULLET_SIZE: Vec2 = vec2(5.0, 10.0);
+
+extern crate web_sys;
+
+// A macro to provide `println!(..)`-style syntax for `console.log` logging.
+macro_rules! web_log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 struct Bullet {
     rect: Rect,
@@ -49,6 +62,8 @@ struct GameState {
     fire_rate: f32,
     spread: usize,
     game_over: bool,
+    zombie_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>>,
+    time_since_recolor: f32,
 }
 
 fn spawn_wave(position: Vec2, count: usize, speed: (f32, f32), hp: f32) -> Vec<Zombie> {
@@ -85,6 +100,14 @@ fn spawn_bullets(position: Vec2, target: Vec2, count: usize) -> Vec<Bullet> {
         .collect()
 }
 
+fn recolor_image(im: &mut image::ImageBuffer<image::Rgba<u8>, Vec<u8>>) {
+    let mut rgb = [0u8; 3];
+    rand::thread_rng().fill_bytes(&mut rgb);
+    for p in im.pixels_mut() {
+        p.0[..3].copy_from_slice(&rgb);
+    }
+}
+
 fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, player: Vec2) -> usize {
     let mut kills = 0;
     bullets.retain(|b| {
@@ -112,17 +135,25 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 }
 
 fn main() {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        println!("Starting Egor Shooter Demo");
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_log!("Starting Egor Shooter Demo (WebAssembly)");
+    }
     let mut state = GameState {
-        map: EgorMap::new(include_str!("../assets/map.json")),
+        map: EgorMap::new("map.json"),
         player: Soldier {
             rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
             hp: 100.0,
             flash: 0.0,
         },
-        player_anim: SpriteAnim::new(3, 6, 17, 0.2),
+        player_anim: SpriteAnim::new(1, 17, 17, 0.2),
         player_tex: 0,
         enemies: spawn_wave(Vec2::ZERO, 5, (50.0, 125.0), 1.0),
-        enemy_anim: SpriteAnim::new(2, 6, 11, 0.2),
+        enemy_anim: SpriteAnim::new(1, 11, 11, 0.2),
         enemy_tex: 0,
         bullets: vec![],
         wave: 1,
@@ -132,27 +163,42 @@ fn main() {
         fire_rate: 2.0,
         spread: 1,
         game_over: false,
+        zombie_image: image::load_from_memory(
+            ASSETS_DIR.get_file("zombie.png").unwrap().contents(),
+        )
+        .unwrap()
+        .to_rgba8(),
+        time_since_recolor: 0.0,
     };
 
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        println!("Running game loop...");
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        web_log!("Running game loop on the web!");
+    }
     App::new()
         .title("Egor Shooter Demo")
+        .vsync(false)
         .on_quit(|| {
-            println!("Quitting already? Don't be a sore loser");
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                println!("Quitting already? Don't be a sore loser");
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                web_log!("Ending Egor Shooter Demo (WebAssembly)");
+            }
         })
-        .run(move |gfx, input, timer, ui| {
+        .run(move |gfx, input, timer| {
             if timer.frame == 0 {
-                state.map.load_tileset(
-                    gfx,
-                    include_bytes!("../assets/otsp_tiles_01.png"),
-                    "otsp_tiles_01.png",
-                );
-                state.map.load_tileset(
-                    gfx,
-                    include_bytes!("../assets/otsp_walls_01.png"),
-                    "otsp_walls_01.png",
-                );
-                state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
-                state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
+                state.map.load(gfx);
+                state.player_tex =
+                    gfx.load_texture(ASSETS_DIR.get_file("soldier.png").unwrap().contents());
+                state.enemy_tex =
+                    gfx.load_texture(ASSETS_DIR.get_file("zombie.png").unwrap().contents());
                 return;
             }
 
@@ -209,6 +255,18 @@ fn main() {
                 b.rect.translate(b.vel * timer.delta);
                 let angle = b.vel.y.atan2(b.vel.x);
                 gfx.rect().with(&b.rect).rotate(angle).color(Color::BLUE);
+            }
+
+            state.time_since_recolor += timer.delta;
+            if state.time_since_recolor > 1.0 {
+                state.time_since_recolor = 0.0;
+                recolor_image(&mut state.zombie_image);
+                gfx.update_texture_raw(
+                    state.enemy_tex,
+                    state.zombie_image.width(),
+                    state.zombie_image.height(),
+                    &state.zombie_image,
+                );
             }
 
             state.enemy_anim.update(timer.delta);
@@ -278,13 +336,15 @@ fn main() {
                 );
             }
 
-            Window::new("Debug").show(ui, |ui| {
-                ui.label(format!("FPS: {}", timer.fps));
-                ui.label(format!("Wave: {}", state.wave));
-                ui.label(format!("Zombies killed: {}", state.kills));
-                ui.label(format!("HP: {:.0}", state.player.hp));
-                ui.label(format!("Fire rate: {:.1}/s", state.fire_rate));
-                ui.label(format!("Bullet Spread: {}", state.spread));
-            });
+            gfx.text(&format!("FPS: {}", timer.fps)).at((10.0, 10.0));
+            gfx.text(&format!("Wave: {}", state.wave)).at((10.0, 50.0));
+            gfx.text(&format!("Zombies killed: {}", state.kills))
+                .at((10.0, 70.0));
+            gfx.text(&format!("HP: {:.0}", state.player.hp))
+                .at((10.0, 90.0));
+            gfx.text(&format!("Fire rate: {:.1}/s", state.fire_rate))
+                .at((10.0, 110.0));
+            gfx.text(&format!("Bullet Spread: {}", state.spread))
+                .at((10.0, 130.0));
         });
 }
