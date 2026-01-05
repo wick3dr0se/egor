@@ -55,7 +55,10 @@ impl App {
 
     /// Run the app with a per-frame update closure
     #[cfg(not(feature = "ui"))]
-    pub fn run(mut self, mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static) {
+    pub fn run(
+        mut self,
+        #[allow(unused_mut)] mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static,
+    ) {
         #[cfg(feature = "hot_reload")]
         let update = {
             dioxus_devtools::connect_subsecond();
@@ -72,7 +75,8 @@ impl App {
     #[cfg(feature = "ui")]
     pub fn run(
         mut self,
-        mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context) + 'static,
+        #[allow(unused_mut)] mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context)
+        + 'static,
     ) {
         #[cfg(feature = "hot_reload")]
         let update = {
