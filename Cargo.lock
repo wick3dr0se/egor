@@ -706,12 +706,14 @@ dependencies = [
 name = "egor_glue"
 version = "0.6.0"
 dependencies = [
+ "color",
  "dioxus-devtools",
  "egor_app",
  "egor_render",
  "egui",
  "egui-wgpu",
  "egui-winit",
+ "glyphon",
 ]
 
 [[package]]
@@ -719,9 +721,7 @@ name = "egor_render"
 version = "0.6.0"
 dependencies = [
  "bytemuck",
- "color",
  "glam",
- "glyphon",
  "image",
  "wgpu",
 ]
@@ -2296,9 +2296,9 @@ dependencies = [
 
 [[package]]
 name = "self_cell"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16c2f82143577edb4921b71ede051dac62ca3c16084e918bf7b40c96ae10eb33"
+checksum = "b12e76d157a900eb52e81bc6e9f3069344290341720e9178cde2407113ac8d89"
 
 [[package]]
 name = "serde"

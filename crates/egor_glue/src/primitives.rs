@@ -1,9 +1,10 @@
 use egor_render::{
     GeometryBatch,
-    color::Color,
     math::{Mat2, Rect, Vec2, vec2},
     vertex::Vertex,
 };
+
+use crate::color::Color;
 
 #[derive(Default)]
 pub(crate) struct PrimitiveBatch {
@@ -139,7 +140,7 @@ impl Drop for RectangleBuilder<'_> {
             .zip(self.tex_coords.iter())
             .map(|(&corner, &uv)| {
                 let rotated = rot * (corner - rect.center()) + rect.center();
-                Vertex::new(rotated.into(), self.color, uv)
+                Vertex::new(rotated.into(), self.color.components(), uv)
             })
             .collect();
 

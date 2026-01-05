@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use egor_render::{GeometryBatch, Renderer, color::Color, vertex::Vertex};
+use egor_render::{GeometryBatch, Renderer, vertex::Vertex};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -31,7 +31,6 @@ impl MinimalApp {
 
 impl ApplicationHandler for MinimalApp {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Create window
         let window = Arc::new(
             event_loop
                 .create_window(WindowAttributes::default())
@@ -39,15 +38,13 @@ impl ApplicationHandler for MinimalApp {
         );
         let size = window.inner_size();
 
-        // Init renderer
         let renderer = pollster::block_on(Renderer::new(size.width, size.height, window.clone()));
 
-        // Minimal triangle
         let mut batch = GeometryBatch::default();
         let vertices = [
-            Vertex::new([0.0, 0.5], Color::RED, [0.0, 0.0]),
-            Vertex::new([-0.5, -0.5], Color::GREEN, [0.0, 0.0]),
-            Vertex::new([0.5, -0.5], Color::BLUE, [0.0, 0.0]),
+            Vertex::new([0.0, 0.5], [1.0, 0.0, 0.0, 1.0], [0.0, 0.0]),
+            Vertex::new([-0.5, -0.5], [0.0, 1.0, 0.0, 1.0], [0.0, 0.0]),
+            Vertex::new([0.5, -0.5], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0]),
         ];
         let indices = [0, 1, 2];
         batch.push(&vertices, &indices);
@@ -63,11 +60,15 @@ impl ApplicationHandler for MinimalApp {
         _window_id: winit::window::WindowId,
         event: WindowEvent,
     ) {
-        if let (Some(r), Some(g)) = (self.renderer.as_mut(), self.batch.as_ref()) {
+        if let Some(r) = self.renderer.as_mut() {
             match event {
                 WindowEvent::RedrawRequested => {
-                    r.clear_color = Color::BLACK;
-                    r.render_frame(vec![(0, g.clone())]);
+                    let mut frame = r.begin_frame().unwrap();
+                    {
+                        let mut r_pass = r.begin_render_pass(&mut frame.encoder, &frame.view);
+                        r.draw_batch(&mut r_pass, self.batch.as_ref().unwrap(), 0);
+                    }
+                    r.end_frame(frame);
                 }
                 WindowEvent::CloseRequested => {
                     event_loop.exit();

@@ -1,22 +1,19 @@
-pub mod color;
 pub mod math;
 pub mod pipeline;
-pub mod text;
 pub mod texture;
 pub mod vertex;
 
+pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
+
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, CommandEncoder, Device,
-    DeviceDescriptor, IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode, Queue,
-    RenderPass, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp,
-    Surface, SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureFormat,
-    TextureView, WindowHandle,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color, CommandEncoder,
+    DeviceDescriptor, IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
+    SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt},
 };
 
-use crate::{
-    color::Color, pipeline::Pipelines, text::TextRenderer, texture::Texture, vertex::Vertex,
-};
+use crate::{pipeline::Pipelines, texture::Texture, vertex::Vertex};
 
 const MAX_INDICES: usize = u16::MAX as usize * 32;
 const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
@@ -77,8 +74,7 @@ pub struct Renderer {
     camera_buffer: Buffer,
     textures: Vec<Texture>,
     default_texture: Texture,
-    pub text: TextRenderer,
-    pub clear_color: Color,
+    clear_color: Color,
 }
 
 impl Renderer {
@@ -140,7 +136,6 @@ impl Renderer {
         });
 
         let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
-        let text = TextRenderer::new(&device, &queue, surface_cfg.format);
 
         Renderer {
             gpu: Gpu {
@@ -152,12 +147,11 @@ impl Renderer {
                 config: surface_cfg,
             },
             pipelines,
-            clear_color: Color::BLACK,
             camera_bind_group,
             camera_buffer,
             textures: Vec::new(),
             default_texture,
-            text,
+            clear_color: Color::BLACK,
         }
     }
 
@@ -252,42 +246,12 @@ impl Renderer {
                 view,
                 resolve_target: None,
                 ops: Operations {
-                    load: LoadOp::Clear(self.clear_color.into()),
+                    load: LoadOp::Clear(self.clear_color),
                     store: StoreOp::Store,
                 },
             })],
             ..Default::default()
         })
-    }
-
-    /// Convenience wrapper around begin/end
-    /// Renders a frame using the given geometry batches grouped by texture ID
-    ///
-    /// Each `(usize, GeometryBatch)` tuple represents a texture index & associated geometry  
-    /// Text is rendered afterward automatically
-    pub fn render_frame(&mut self, geometry: Vec<(usize, GeometryBatch)>) {
-        let Some(mut frame) = self.begin_frame() else {
-            return;
-        };
-
-        self.text.prepare(
-            &self.gpu.device,
-            &self.gpu.queue,
-            self.target.config.width,
-            self.target.config.height,
-        );
-
-        {
-            let mut r_pass = self.begin_render_pass(&mut frame.encoder, &frame.view);
-
-            for (tex_id, batch) in &geometry {
-                self.draw_batch(&mut r_pass, batch, *tex_id);
-            }
-
-            self.text.render(&mut r_pass);
-        }
-
-        self.end_frame(frame);
     }
 
     /// Resizes the surface & updates internal render targets
@@ -296,7 +260,6 @@ impl Renderer {
         self.target
             .surface
             .configure(&self.gpu.device, &self.target.config);
-        self.text.resize(w, h);
     }
 
     /// Returns the current surface dimensions (in pixels)
@@ -323,6 +286,15 @@ impl Renderer {
         self.target
             .surface
             .configure(&self.gpu.device, &self.target.config);
+    }
+
+    pub fn set_clear_color(&mut self, color: [f64; 4]) {
+        self.clear_color = Color {
+            r: color[0],
+            g: color[1],
+            b: color[2],
+            a: color[3],
+        };
     }
 
     /// Uploads the given view-projection matrix to the GPU for use in vertex transforms
