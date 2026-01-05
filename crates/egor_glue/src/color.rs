@@ -41,16 +41,11 @@ impl Color {
     };
 }
 
-// Convert Color to wgpu::Color (f64 RGBA)
-impl From<Color> for wgpu::Color {
+// Convert Color to an array of f64s
+impl From<Color> for [f64; 4] {
     fn from(value: Color) -> Self {
         let [r, g, b, a] = value.components();
-        wgpu::Color {
-            r: r as f64,
-            g: g as f64,
-            b: b as f64,
-            a: a as f64,
-        }
+        [r as f64, g as f64, b as f64, a as f64]
     }
 }
 

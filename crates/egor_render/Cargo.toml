@@ -16,20 +16,30 @@ gles = ["wgpu/gles"]
 vulkan = ["wgpu/vulkan"]
 
 [dependencies]
-glyphon = "0.9.0"
 bytemuck = "1.23.0"
 image = { version = "0.25.6", default-features = false, features = ["png"] }
-color = "0.3.1"
 glam = "0.30.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["vulkan"] }
+wgpu = { version = "25.0.0", default-features = false, features = [
+    "wgsl",
+    "vulkan",
+] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["dx12"] }
+wgpu = { version = "25.0.0", default-features = false, features = [
+    "wgsl",
+    "dx12",
+] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["metal"] }
+wgpu = { version = "25.0.0", default-features = false, features = [
+    "wgsl",
+    "metal",
+] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = ["webgpu"] }
+wgpu = { version = "25.0.0", default-features = false, features = [
+    "wgsl",
+    "webgpu",
+] }

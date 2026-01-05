@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::graphics::Graphics;
+use crate::{graphics::Graphics, text::TextRenderer};
 
 #[cfg(feature = "ui")]
 use crate::ui::EguiRenderer;
@@ -20,6 +20,7 @@ pub struct App {
     config: Option<AppConfig>,
     on_quit: Option<Box<dyn FnMut()>>,
     vsync: bool,
+    text_renderer: Option<TextRenderer>,
     #[cfg(feature = "ui")]
     egui: Option<EguiRenderer>,
 }
@@ -32,6 +33,7 @@ impl App {
             config: Some(AppConfig::default()),
             on_quit: None,
             vsync: true,
+            text_renderer: None,
             #[cfg(feature = "ui")]
             egui: None,
         }
@@ -53,7 +55,10 @@ impl App {
 
     /// Run the app with a per-frame update closure
     #[cfg(not(feature = "ui"))]
-    pub fn run(mut self, mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static) {
+    pub fn run(
+        mut self,
+        #[allow(unused_mut)] mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static,
+    ) {
         #[cfg(feature = "hot_reload")]
         let update = {
             dioxus_devtools::connect_subsecond();
@@ -70,7 +75,8 @@ impl App {
     #[cfg(feature = "ui")]
     pub fn run(
         mut self,
-        mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context) + 'static,
+        #[allow(unused_mut)] mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context)
+        + 'static,
     ) {
         #[cfg(feature = "hot_reload")]
         let update = {
@@ -109,6 +115,12 @@ impl AppHandler<Renderer> for App {
     fn on_ready(&mut self, _window: &Window, renderer: &mut Renderer) {
         renderer.set_vsync(self.vsync);
 
+        self.text_renderer = Some(TextRenderer::new(
+            renderer.device(),
+            renderer.queue(),
+            renderer.surface_format(),
+        ));
+
         #[cfg(feature = "ui")]
         {
             let (device, format) = (renderer.device(), renderer.surface_format());
@@ -126,17 +138,15 @@ impl AppHandler<Renderer> for App {
         let Some(update) = &mut self.update else {
             return;
         };
+        let text_renderer = self.text_renderer.as_mut().unwrap();
 
         let (width, height) = (
             renderer.surface_config().width,
             renderer.surface_config().height,
         );
         let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
-
         let mut frame = renderer.begin_frame().unwrap();
-        renderer.text.prepare(&device, &queue, width, height);
-
-        let mut graphics = Graphics::new(renderer);
+        let mut graphics = Graphics::new(renderer, text_renderer);
 
         #[cfg(not(feature = "ui"))]
         update(&mut graphics, input, timer);
@@ -147,6 +157,7 @@ impl AppHandler<Renderer> for App {
         }
 
         let geometry = graphics.flush();
+        text_renderer.prepare(&device, &queue, width, height);
 
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
@@ -155,7 +166,7 @@ impl AppHandler<Renderer> for App {
                 renderer.draw_batch(&mut r_pass, batch, *tex_id);
             }
 
-            renderer.text.render(&mut r_pass);
+            text_renderer.render(&mut r_pass);
         }
 
         #[cfg(feature = "ui")]

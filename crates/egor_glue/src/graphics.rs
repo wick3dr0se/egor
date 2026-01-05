@@ -1,9 +1,10 @@
-use egor_render::{GeometryBatch, Renderer, color::Color, math::Vec2};
+use egor_render::{GeometryBatch, Renderer, math::Vec2};
 
 use crate::{
     camera::Camera,
+    color::Color,
     primitives::{PrimitiveBatch, RectangleBuilder},
-    text::TextBuilder,
+    text::{TextBuilder, TextRenderer},
 };
 
 /// High-level 2D drawing interface that simplifies the [`Renderer`]
@@ -11,22 +12,24 @@ pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
     batch: PrimitiveBatch,
     camera: Camera,
+    text_renderer: &'a mut TextRenderer,
 }
 
 impl<'a> Graphics<'a> {
-    /// Upload camera matrix & extract batched geometry for [`Renderer::render_frame()`]
+    /// Upload camera matrix & extract batched geometry
     pub(crate) fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
         self.renderer
             .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
         self.batch.take()
     }
 
-    /// Create new `Graphics` tied to [`Renderer`]
-    pub fn new(renderer: &'a mut Renderer) -> Self {
+    /// Create `Graphics` with a [`Renderer`] & [`TextRenderer`]
+    pub fn new(renderer: &'a mut Renderer, text_renderer: &'a mut TextRenderer) -> Self {
         Self {
             renderer,
             batch: PrimitiveBatch::default(),
             camera: Camera::default(),
+            text_renderer,
         }
     }
 
@@ -37,7 +40,7 @@ impl<'a> Graphics<'a> {
 
     /// Clear the screen to a color
     pub fn clear(&mut self, color: Color) {
-        self.renderer.clear_color = color;
+        self.renderer.set_clear_color(color.into());
     }
 
     /// Get current surface size in pixels
@@ -52,7 +55,7 @@ impl<'a> Graphics<'a> {
 
     /// Draw a line of text
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
-        TextBuilder::new(&mut self.renderer.text, text.to_string())
+        TextBuilder::new(self.text_renderer, text.to_string())
     }
 
     /// Load a texture from raw image data (e.g., PNG bytes)

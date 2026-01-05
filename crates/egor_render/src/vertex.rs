@@ -1,8 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use wgpu::{VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
 
-use crate::color::Color;
-
 /// A single vertex used in rendering 2D primitives
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
@@ -18,10 +16,10 @@ impl Vertex {
     /// - `position`: `[x, y]` in world space
     /// - `color`: RGBA color
     /// - `tex_coords`: `[u, v]` in normalized (0–1) texture space
-    pub fn new(position: [f32; 2], color: Color, tex_coords: [f32; 2]) -> Self {
+    pub fn new(position: [f32; 2], color: [f32; 4], tex_coords: [f32; 2]) -> Self {
         Self {
             position,
-            color: color.components(),
+            color,
             tex_coords,
         }
     }

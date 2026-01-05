@@ -27,8 +27,8 @@ pub mod time {
 }
 
 pub mod render {
-    pub use egor_glue::{graphics::Graphics, primitives::Anchor};
-    pub use egor_render::{Renderer, color::Color};
+    pub use egor_glue::{color::Color, graphics::Graphics, primitives::Anchor};
+    pub use egor_render::Renderer;
 }
 
 pub mod math {
