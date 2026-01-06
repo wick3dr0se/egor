@@ -12,16 +12,15 @@
 
 ## Why Egor?
 
-**Egor** is dead **simple**, **lightweight**, and **cross-platform**. The same code runs on native and web (WASM), with minimal boilerplate. **Egor** is built from small, composable crates on top of modern graphics and windowing abstractions
+**Egor** is dead **simple**, **lightweight** and **cross-platform**. The same code runs on native and web (WASM) with minimal boilerplate. It's is built from small, composable crates on top of modern graphics and windowing abstractions
 
-**Egor** provides essentials for 2D apps and games:
+**Egor** gives you the essentials for 2D apps and games:
 
-- Draw shapes and textures efficiently
-- Handle input (keyboard & mouse)
-- Move things with camera/world transforms
-- Render text and simple fonts
-- Build interactive UIs with optional **egui** integration
-- Optionally hot-reload during development
+- Efficient 2D rendering (shapes, textures, text)
+- Keyboard & mouse input
+- Camera & world-space transforms
+- Interactive UIs with optional **egui** integration
+- Optional hot-reload during development
 
 ## Platform Support
 
@@ -66,6 +65,8 @@ To see more of **egor** in action, check out [demos/](demos)
 
 > [!TIP]
 > Running a demo for WASM? You’ll need to move [index.html](demos/index.html) into a demo, or just use the included [run.sh](demos/run.sh) script (see usage). It simplifies running native, WASM & hot-reload builds
+
+For full documentation see the [official docs](https://docs.rs/egor/latest)
 
 ### Running a Native Build
 
