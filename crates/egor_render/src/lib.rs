@@ -110,10 +110,9 @@ impl Renderer {
             .await
             .unwrap();
 
-        // WebGPU throws error 'size is zero' if not set
-        let (w, h) = (inner_width.max(1), inner_height.max(1));
-
-        let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
+        let mut surface_cfg = surface
+            .get_default_config(&adapter, inner_width, inner_height)
+            .unwrap();
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
