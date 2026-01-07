@@ -73,6 +73,8 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
                 use winit::dpi::PhysicalSize;
+
+                #[allow(unused_mut)]
                 let mut attrs = Window::default_attributes()
                     .with_title(&self.config.title)
                     .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
