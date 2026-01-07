@@ -15,12 +15,18 @@ use crate::{input::Input, time::FrameTimer};
 
 pub struct AppConfig {
     pub title: String,
+    pub width: u32,
+    pub height: u32,
+    pub resizable: bool,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             title: "Egor App".to_string(),
+            width: 800,
+            height: 600,
+            resizable: true,
         }
     }
 }
@@ -66,15 +72,21 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         // Called when window is ready; initializes the resource async (wasm) or sync (native)
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
+                use winit::dpi::PhysicalSize;
+
+                #[allow(unused_mut)]
+                let mut attrs = Window::default_attributes()
+                    .with_title(&self.config.title)
+                    .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
+                    .with_resizable(self.config.resizable);
+
                 #[cfg(target_arch = "wasm32")]
                 {
                     use winit::platform::web::WindowAttributesExtWebSys;
-                    Window::default_attributes()
-                        .with_title(&self.config.title)
-                        .with_append(true)
+                    attrs = attrs.with_append(true);
                 }
-                #[cfg(not(target_arch = "wasm32"))]
-                Window::default_attributes().with_title(&self.config.title)
+
+                attrs
             };
             let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
             self.window = Some(window.clone());
