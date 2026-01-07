@@ -47,6 +47,23 @@ impl App {
         self
     }
 
+    /// Set window size (width, height in pixels)
+    pub fn screen_size(mut self, width: u32, height: u32) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.width = Some(width);
+            c.height = Some(height);
+        }
+        self
+    }
+
+    /// Enable or disable window resizing (defaults to true)
+    pub fn resizable(mut self, resizable: bool) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.resizable = resizable;
+        }
+        self
+    }
+
     /// Enable or disable vsync
     pub fn vsync(mut self, enabled: bool) -> Self {
         self.vsync = enabled;
