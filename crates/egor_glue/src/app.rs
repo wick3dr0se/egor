@@ -50,8 +50,8 @@ impl App {
     /// Set window size (width, height in pixels)
     pub fn screen_size(mut self, width: u32, height: u32) -> Self {
         if let Some(c) = self.config.as_mut() {
-            c.width = Some(width);
-            c.height = Some(height);
+            c.width = width;
+            c.height = height;
         }
         self
     }
