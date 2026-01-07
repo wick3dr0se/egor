@@ -5,28 +5,35 @@ use std::sync::Arc;
 
 pub use winit::{event::WindowEvent, window::Window};
 
+use crate::{input::Input, time::FrameTimer};
 use winit::{
     application::ApplicationHandler,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
-    window::WindowId,
+    window::{Fullscreen, WindowId},
 };
 
-use crate::{input::Input, time::FrameTimer};
+pub type PositionFn = Box<dyn FnOnce(u32, u32) -> (i32, i32)>;
 
 pub struct AppConfig {
     pub title: String,
-    pub width: u32,
-    pub height: u32,
-    pub resizable: bool,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub resizable: Option<bool>,
+    pub fullscreen: Option<bool>,
+    pub maximized: Option<bool>,
+    pub position: Option<PositionFn>,
 }
 
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
             title: "Egor App".to_string(),
-            width: 800,
-            height: 600,
-            resizable: true,
+            width: None,
+            height: None,
+            resizable: None,
+            fullscreen: None,
+            maximized: None,
+            position: None,
         }
     }
 }
@@ -72,13 +79,47 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         // Called when window is ready; initializes the resource async (wasm) or sync (native)
         if let Some(proxy) = self.proxy.take() {
             let win_attrs = {
-                use winit::dpi::PhysicalSize;
+                use winit::dpi::{PhysicalPosition, PhysicalSize};
 
                 #[allow(unused_mut)]
-                let mut attrs = Window::default_attributes()
-                    .with_title(&self.config.title)
-                    .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
-                    .with_resizable(self.config.resizable);
+                let mut attrs = Window::default_attributes().with_title(&self.config.title);
+
+                if let (Some(width), Some(height)) = (self.config.width, self.config.height) {
+                    attrs = attrs.with_inner_size(PhysicalSize::new(width, height));
+                }
+
+                if let Some(resizable) = self.config.resizable {
+                    attrs = attrs.with_resizable(resizable);
+                }
+
+                // Translate fullscreen boolean to winit Fullscreen (exclusive/bordered mode)
+                if let Some(true) = self.config.fullscreen {
+                    // Bordered fullscreen uses exclusive mode - get the first available video mode
+                    if let Some(monitor) = event_loop.primary_monitor()
+                        && let Some(vm) = monitor.video_modes().next()
+                    {
+                        attrs = attrs.with_fullscreen(Some(Fullscreen::Exclusive(vm)));
+                    }
+                }
+
+                if let Some(maximized) = self.config.maximized {
+                    attrs = attrs.with_maximized(maximized);
+                }
+
+                // Set window position using closure
+                if let Some(position_fn) = self.config.position.take()
+                    && let Some(monitor) = event_loop.primary_monitor()
+                {
+                    let monitor_size = monitor.size();
+                    let monitor_position = monitor.position();
+                    // Position function receives monitor size, but we need to add monitor offset
+                    // since PhysicalPosition is relative to the desktop, not the monitor
+                    let (relative_x, relative_y) =
+                        position_fn(monitor_size.width, monitor_size.height);
+                    let x = monitor_position.x + relative_x;
+                    let y = monitor_position.y + relative_y;
+                    attrs = attrs.with_position(PhysicalPosition::new(x, y));
+                }
 
                 #[cfg(target_arch = "wasm32")]
                 {
