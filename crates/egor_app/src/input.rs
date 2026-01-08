@@ -14,6 +14,7 @@ pub struct Input {
     mouse_buttons: HashMap<MouseButton, (ElementState, ElementState)>,
     mouse_position: (f32, f32),
     mouse_delta: (f32, f32),
+    focused: bool,
 }
 
 impl Input {
@@ -143,6 +144,14 @@ impl Input {
     /// Delta mouse movement since last frame
     pub fn mouse_delta(&self) -> (f32, f32) {
         self.mouse_delta
+    }
+
+    pub(crate) fn set_focused(&mut self, focused: bool) {
+        self.focused = focused;
+    }
+
+    pub fn has_focus(&self) -> bool {
+        self.focused
     }
 }
 

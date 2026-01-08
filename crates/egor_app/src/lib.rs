@@ -179,6 +179,9 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                     handler.resize(size.width, size.height, r);
                 }
             }
+            WindowEvent::Focused(focused) => {
+                self.input.set_focused(focused);
+            }
             WindowEvent::KeyboardInput { event, .. } => self.input.keyboard(event),
             WindowEvent::MouseInput { button, state, .. } => self.input.mouse(button, state),
             WindowEvent::CursorMoved { position, .. } => self.input.cursor(position),
