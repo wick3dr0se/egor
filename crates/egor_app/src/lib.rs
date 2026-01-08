@@ -171,30 +171,69 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
 
     /// Starts the app & runs the event loop
     pub fn run(mut self) {
-        let event_loop = EventLoop::<(R, H)>::with_user_event().build().unwrap();
-        event_loop.set_control_flow(ControlFlow::Poll);
-
-        self.proxy = Some(event_loop.create_proxy());
-
-        #[cfg(target_arch = "wasm32")]
+        #[cfg(target_os = "android")]
         {
-            #[cfg(feature = "log")]
-            {
-                std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-                console_log::init_with_level(log::Level::Error).unwrap();
-            }
+            use android_app::ANDROID_APP;
+            use winit::platform::android::EventLoopBuilderExtAndroid;
 
-            use winit::platform::web::EventLoopExtWebSys;
-            wasm_bindgen_futures::spawn_local(async move {
-                event_loop.spawn_app(self);
-            });
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        {
             #[cfg(feature = "log")]
-            env_logger::init_from_env(env_logger::Env::default().default_filter_or("error"));
+            android_logger::init_once(
+                android_logger::Config::default().with_max_level(log::LevelFilter::Info),
+            );
+
+            let android_app = ANDROID_APP
+                .get()
+                .expect("Android app not initialized; did android_main() run?");
+
+            let event_loop = EventLoop::<(R, H)>::with_user_event()
+                .with_android_app(android_app.clone()) // clone for ownership
+                .build()
+                .unwrap();
 
             event_loop.run_app(&mut self).unwrap();
         }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            let event_loop = EventLoop::<(R, H)>::with_user_event().build().unwrap();
+            event_loop.set_control_flow(ControlFlow::Poll);
+
+            self.proxy = Some(event_loop.create_proxy());
+
+            #[cfg(target_arch = "wasm32")]
+            {
+                #[cfg(feature = "log")]
+                {
+                    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+                    console_log::init_with_level(log::Level::Error).unwrap();
+                }
+
+                use winit::platform::web::EventLoopExtWebSys;
+                wasm_bindgen_futures::spawn_local(async move {
+                    event_loop.spawn_app(self);
+                });
+            }
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                #[cfg(feature = "log")]
+                env_logger::init_from_env(env_logger::Env::default().default_filter_or("error"));
+                event_loop.run_app(&mut self).unwrap();
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "android")]
+mod android_app {
+    use android_activity::AndroidApp;
+    use std::sync::OnceLock;
+
+    // static storage for Android app
+    pub static ANDROID_APP: OnceLock<AndroidApp> = OnceLock::new();
+
+    // called by Android loader
+    #[unsafe(no_mangle)]
+    pub extern "C" fn android_main(app: AndroidApp) {
+        ANDROID_APP.set(app).expect("AndroidApp already set");
     }
 }

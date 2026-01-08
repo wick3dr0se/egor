@@ -8,6 +8,15 @@ license = "MIT"
 repository = "https://github.com/wick3dr0se/egor"
 keywords = ["egor"]
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[package.metadata.android]
+package = "com.egor.app"
+target_sdk_version = 36
+min_sdk_version = 26
+label = "Egor App"
+
 [features]
 default = []
 log = [
@@ -30,3 +39,7 @@ wasm-bindgen-futures = "0.4.50"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = { version = "0.11.8", optional = true }
 pollster = "0.4.0"
+
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity = { version = "0.6.0", features = ["native-activity"] }
+android_logger = "0.15.1"

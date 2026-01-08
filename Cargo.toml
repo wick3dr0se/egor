@@ -9,12 +9,16 @@ repository = "https://github.com/wick3dr0se/egor"
 keywords = ["2d", "graphics", "wgpu", "winit"]
 categories = ["graphics", "game-development"]
 
+[lib]
+crate-type = ["cdylib"]
+
 [workspace]
 members = [
     "crates/*",
     "demos/secs_particles",
     "demos/shooter",
-    "crates/egor_render/demos/triangle", "demos/hot-reload-test",
+    "crates/egor_render/demos/triangle",
+    "demos/hot-reload-test",
 ]
 resolver = "2"
 
