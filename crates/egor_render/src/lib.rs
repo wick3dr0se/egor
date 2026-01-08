@@ -87,6 +87,18 @@ impl Renderer {
         inner_height: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
+        // THE FIX: Ensure we never pass 0 to the config
+        let mut width = inner_width;
+        let mut height = inner_height;
+
+        // If the window/canvas is reported as 0, overwrite with 1 to prevent wgpu panic
+        if width == 0 {
+            width = 1;
+        }
+        if height == 0 {
+            height = 1;
+        }
+
         let instance = Instance::default();
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
@@ -111,11 +123,10 @@ impl Renderer {
             .unwrap();
 
         let mut surface_cfg = surface
-            .get_default_config(&adapter, inner_width, inner_height)
+            .get_default_config(&adapter, width, height) // Use 'width' and 'height' here!
             .unwrap();
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
-
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&[CameraUniform {
@@ -176,6 +187,11 @@ impl Renderer {
             Ok(frame) => frame,
             Err(SurfaceError::OutOfMemory) => {
                 panic!("Out of GPU memory!");
+            }
+            Err(SurfaceError::Outdated) => {
+                // Surface configuration is outdated, reconfigure and skip this frame
+                // The resize handler should update the config on the next resize event
+                return None;
             }
             Err(_) => return None,
         };

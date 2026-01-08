@@ -175,8 +175,12 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 }
             }
             WindowEvent::Resized(size) => {
-                if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut()) {
-                    handler.resize(size.width, size.height, r);
+                if size.width > 0 && size.height > 0 {
+                    if let (Some(r), Some(handler)) =
+                        (self.resource.as_mut(), self.handler.as_mut())
+                    {
+                        handler.resize(size.width, size.height, r);
+                    }
                 }
             }
             WindowEvent::Focused(focused) => {
@@ -194,6 +198,12 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         self.handler = Some(handler);
 
         if let (Some(r), Some(h), Some(w)) = (&mut self.resource, &mut self.handler, &self.window) {
+            // SAFETY CHECK: Ensure we aren't starting with a zero-size surface
+            let size = w.inner_size();
+            if size.width > 0 && size.height > 0 {
+                h.resize(size.width, size.height, r);
+            }
+
             h.on_ready(w, r);
         }
     }
