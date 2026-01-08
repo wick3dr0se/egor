@@ -436,8 +436,11 @@ impl AppHandler<Renderer> for App {
         Renderer::new(w, h, window).await
     }
 
-    fn on_ready(&mut self, _window: &Window, renderer: &mut Renderer) {
+    fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
         renderer.set_vsync(self.vsync);
+
+        #[cfg(target_arch = "wasm32")]
+        renderer.resize(window.inner_size().width, window.inner_size().height);
 
         self.text_renderer = Some(TextRenderer::new(
             renderer.device(),
@@ -448,7 +451,7 @@ impl AppHandler<Renderer> for App {
         #[cfg(feature = "ui")]
         {
             let (device, format) = (renderer.device(), renderer.surface_format());
-            self.egui = Some(EguiRenderer::new(device, format, _window));
+            self.egui = Some(EguiRenderer::new(device, format, window));
         }
     }
 
