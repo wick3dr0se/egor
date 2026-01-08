@@ -122,9 +122,7 @@ impl Renderer {
             .await
             .unwrap();
 
-        let mut surface_cfg = surface
-            .get_default_config(&adapter, width, height) // Use 'width' and 'height' here!
-            .unwrap();
+        let mut surface_cfg = surface.get_default_config(&adapter, width, height).unwrap();
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
