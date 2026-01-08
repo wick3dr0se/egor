@@ -87,7 +87,6 @@ impl Renderer {
         inner_height: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
-        // THE FIX: Ensure we never pass 0 to the config
         let mut width = inner_width;
         let mut height = inner_height;
 
