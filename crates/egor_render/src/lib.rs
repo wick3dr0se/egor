@@ -193,7 +193,16 @@ impl Renderer {
                 // The resize handler should update the config on the next resize event
                 return None;
             }
-            Err(_) => return None,
+            Err(e) => {
+                // If the surface is lost, we must reconfigure it
+                if let SurfaceError::Lost = e {
+                    self.target
+                        .surface
+                        .configure(&self.gpu.device, &self.target.config);
+                }
+
+                return None;
+            }
         };
 
         let view = surface_texture.texture.create_view(&Default::default());
