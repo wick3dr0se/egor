@@ -175,12 +175,11 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 }
             }
             WindowEvent::Resized(size) => {
-                if size.width > 0 && size.height > 0 {
-                    if let (Some(r), Some(handler)) =
-                        (self.resource.as_mut(), self.handler.as_mut())
-                    {
-                        handler.resize(size.width, size.height, r);
-                    }
+                if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut())
+                    && size.width > 0
+                    && size.height > 0
+                {
+                    handler.resize(size.width, size.height, r);
                 }
             }
             WindowEvent::Focused(focused) => {
