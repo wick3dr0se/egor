@@ -17,6 +17,8 @@ pub struct Input {
     focused: bool,
     touches: HashMap<u64, (f32, f32)>, // Track active touches by id -> (x, y)
     touch_start_positions: HashMap<u64, (f32, f32)>, // Track where each touch started
+    swipe_left: bool,  // Swipe left detected this frame
+    swipe_right: bool, // Swipe right detected this frame
 }
 
 impl Input {
@@ -64,6 +66,10 @@ impl Input {
             .retain(|_, (curr, _)| *curr != ElementState::Released);
 
         self.mouse_delta = (0.0, 0.0);
+        
+        // Reset swipe flags each frame
+        self.swipe_left = false;
+        self.swipe_right = false;
     }
 
     /// True if the key went from not pressed last frame to pressed this frame
@@ -204,9 +210,26 @@ impl Input {
                     let dy = y - start_pos.1;
                     let distance = (dx * dx + dy * dy).sqrt();
                     
-                    // If moved more than threshold, it's a swipe
-                    // You can add swipe detection logic here if needed
-                    // For now, we just convert to mouse release
+                    // Swipe detection constants
+                    const SWIPE_THRESHOLD: f32 = 50.0; // Minimum distance in pixels
+                    const SWIPE_HORIZONTAL_RATIO: f32 = 0.6; // Horizontal movement must be at least 60% of total
+                    
+                    // Check if this qualifies as a swipe
+                    if distance >= SWIPE_THRESHOLD {
+                        let abs_dx = dx.abs();
+                        
+                        // Check if horizontal movement is dominant (prevents diagonal swipes)
+                        if abs_dx >= distance * SWIPE_HORIZONTAL_RATIO {
+                            // Determine swipe direction
+                            if dx < 0.0 {
+                                // Swipe left (negative x movement)
+                                self.swipe_left = true;
+                            } else {
+                                // Swipe right (positive x movement)
+                                self.swipe_right = true;
+                            }
+                        }
+                    }
                 }
                 
                 self.touches.remove(&touch.id);
@@ -231,6 +254,16 @@ impl Input {
         self.touches.values().next()
             .copied()
             .unwrap_or(self.mouse_position)
+    }
+
+    /// True if a swipe left gesture was detected this frame
+    pub fn swipe_left(&self) -> bool {
+        self.swipe_left
+    }
+
+    /// True if a swipe right gesture was detected this frame
+    pub fn swipe_right(&self) -> bool {
+        self.swipe_right
     }
 }
 
