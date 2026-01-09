@@ -208,26 +208,39 @@ impl Input {
                 if let Some(start_pos) = self.touch_start_positions.remove(&touch.id) {
                     let dx = x - start_pos.0;
                     let dy = y - start_pos.1;
-                    let distance = (dx * dx + dy * dy).sqrt();
+                    let distance_sq = dx * dx + dy * dy;
+                    let distance = distance_sq.sqrt();
                     
-                    // Swipe detection constants
-                    const SWIPE_THRESHOLD: f32 = 50.0; // Minimum distance in pixels
-                    const SWIPE_HORIZONTAL_RATIO: f32 = 0.6; // Horizontal movement must be at least 60% of total
+                    // Improved swipe detection constants (based on mobile gesture best practices)
+                    const SWIPE_MIN_DISTANCE: f32 = 30.0; // Minimum distance in pixels (reduced for better sensitivity)
+                    const SWIPE_MIN_DISTANCE_SQ: f32 = SWIPE_MIN_DISTANCE * SWIPE_MIN_DISTANCE;
+                    const SWIPE_HORIZONTAL_RATIO: f32 = 0.707; // Horizontal movement must be at least 70.7% (45-degree angle threshold)
+                    const SWIPE_MAX_DISTANCE: f32 = 1000.0; // Maximum distance to prevent accidental long swipes
                     
                     // Check if this qualifies as a swipe
-                    if distance >= SWIPE_THRESHOLD {
+                    // Use squared distance for faster comparison (avoids sqrt until needed)
+                    if distance_sq >= SWIPE_MIN_DISTANCE_SQ && distance <= SWIPE_MAX_DISTANCE {
                         let abs_dx = dx.abs();
+                        let abs_dy = dy.abs();
                         
-                        // Check if horizontal movement is dominant (prevents diagonal swipes)
-                        if abs_dx >= distance * SWIPE_HORIZONTAL_RATIO {
-                            // Determine swipe direction
+                        // Improved directional check: use ratio of horizontal to total movement
+                        // This ensures the swipe is primarily horizontal (not diagonal)
+                        // Formula: abs_dx / distance >= SWIPE_HORIZONTAL_RATIO
+                        // Equivalently: abs_dx >= distance * SWIPE_HORIZONTAL_RATIO
+                        // Or even better: abs_dx^2 >= distance^2 * ratio^2 (avoid sqrt)
+                        let min_horizontal_sq = distance_sq * SWIPE_HORIZONTAL_RATIO * SWIPE_HORIZONTAL_RATIO;
+                        let dx_sq = abs_dx * abs_dx;
+                        
+                        if dx_sq >= min_horizontal_sq {
+                            // Determine swipe direction based on sign of horizontal movement
                             if dx < 0.0 {
                                 // Swipe left (negative x movement)
                                 self.swipe_left = true;
-                            } else {
+                            } else if dx > 0.0 {
                                 // Swipe right (positive x movement)
                                 self.swipe_right = true;
                             }
+                            // dx == 0.0 case is handled by the distance check above
                         }
                     }
                 }
