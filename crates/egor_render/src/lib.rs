@@ -92,10 +92,10 @@ impl Renderer {
 
         // If the window/canvas is reported as 0, overwrite with 1 to prevent wgpu panic
         if width == 0 {
-            width = 1;
+            width = 800;
         }
         if height == 0 {
-            height = 1;
+            height = 600;
         }
 
         let instance = Instance::default();
