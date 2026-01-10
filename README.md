@@ -99,8 +99,9 @@ dx serve --hot-patch
 
 ## Contributing
 
-**egor** is moving fast.. Got an idea, bugfix, or question?
-Check out some [issues](https://github.com/wick3dr0se/egor/issues), open a new one, drop a PR, or come hang in [Discord](https://opensourceforce.net/discord)
+**egor** is moving fast. Before opening a PR or submitting a change, please read [CONTRIBUTING.md](CONTRIBUTING.md)
+
+Check out some [issues](https://github.com/wick3dr0se/egor/issues), open a new one, drop a PR or come hang in [Discord](https://opensourceforce.net/discord)
 
 ---
 
