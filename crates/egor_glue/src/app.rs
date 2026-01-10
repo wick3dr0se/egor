@@ -131,8 +131,6 @@ impl AppHandler<Renderer> for App {
 
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
         renderer.set_vsync(self.vsync);
-
-        #[cfg(target_arch = "wasm32")]
         renderer.resize(window.inner_size().width, window.inner_size().height);
 
         self.text_renderer = Some(TextRenderer::new(
@@ -158,14 +156,17 @@ impl AppHandler<Renderer> for App {
         let Some(update) = &mut self.update else {
             return;
         };
-        let text_renderer = self.text_renderer.as_mut().unwrap();
+        let Some(mut frame) = renderer.begin_frame() else {
+            return;
+        };
 
         let (width, height) = (
             renderer.surface_config().width,
             renderer.surface_config().height,
         );
         let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
-        let mut frame = renderer.begin_frame().unwrap();
+
+        let text_renderer = self.text_renderer.as_mut().unwrap();
         let mut graphics = Graphics::new(renderer, text_renderer);
 
         #[cfg(not(feature = "ui"))]
