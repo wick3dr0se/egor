@@ -3,7 +3,7 @@ use egor_render::{GeometryBatch, Renderer, math::Vec2};
 use crate::{
     camera::Camera,
     color::Color,
-    primitives::{PrimitiveBatch, RectangleBuilder},
+    primitives::{PolygonBuilder, PrimitiveBatch, RectangleBuilder},
     text::{TextBuilder, TextRenderer},
 };
 
@@ -36,6 +36,11 @@ impl<'a> Graphics<'a> {
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
         RectangleBuilder::new(&mut self.batch)
+    }
+
+    /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
+    pub fn polygon(&mut self) -> PolygonBuilder<'_> {
+        PolygonBuilder::new(&mut self.batch)
     }
 
     /// Clear the screen to a color

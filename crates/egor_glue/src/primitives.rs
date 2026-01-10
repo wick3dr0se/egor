@@ -28,24 +28,104 @@ impl PrimitiveBatch {
     }
 }
 
-// Anchor point options for positioning primitives
-///  
-/// - `TopLeft`: Position is at the rectangle’s top-left corner (default)
-/// - `Center`: Position is at the rectangle’s center
+/// Builder for polygons, triangles, circles, n-gons. Drawn on `Drop`
+pub struct PolygonBuilder<'a> {
+    batch: &'a mut PrimitiveBatch,
+    position: Vec2,
+    rotation: f32,
+    points: Vec<Vec2>,
+    radius: f32,
+    segments: usize,
+    color: Color,
+}
+
+impl<'a> PolygonBuilder<'a> {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch) -> Self {
+        Self {
+            batch,
+            position: Vec2::ZERO,
+            rotation: 0.0,
+            points: Vec::new(),
+            radius: 10.0,
+            segments: 3,
+            color: Color::WHITE,
+        }
+    }
+    /// Sets the world-space position of the polygon
+    pub fn at(mut self, pos: Vec2) -> Self {
+        self.position = pos;
+        self
+    }
+    /// Sets rotation in radians around the polygon's origin (default center)
+    pub fn rotate(mut self, angle: f32) -> Self {
+        self.rotation = angle;
+        self
+    }
+    /// Set explicit points for the polygon
+    pub fn points(mut self, pts: &[Vec2]) -> Self {
+        self.points.clear();
+        self.points.extend_from_slice(pts);
+        self
+    }
+    /// Set radius for a circle or regular n-gon
+    pub fn radius(mut self, r: f32) -> Self {
+        self.radius = r;
+        self
+    }
+    /// Set number of segments for circles/n-gons
+    pub fn segments(mut self, segments: usize) -> Self {
+        self.segments = segments.max(3);
+        self
+    }
+    /// Sets the color of the polygon
+    pub fn color(mut self, color: Color) -> Self {
+        self.color = color;
+        self
+    }
+}
+
+impl Drop for PolygonBuilder<'_> {
+    fn drop(&mut self) {
+        let points: Vec<Vec2> = if !self.points.is_empty() {
+            self.points.clone()
+        } else {
+            let r = self.radius;
+            (0..self.segments)
+                .map(|i| {
+                    let t = i as f32 / self.segments as f32 * std::f32::consts::TAU;
+                    Vec2::new(t.cos(), t.sin()) * r
+                })
+                .collect()
+        };
+
+        let rot = Mat2::from_angle(self.rotation);
+        let verts: Vec<Vertex> = points
+            .iter()
+            .map(|p| {
+                let world = rot * p + self.position;
+                Vertex::new(world.into(), self.color.components(), [0.0, 0.0])
+            })
+            .collect();
+
+        // Convex fan triangulation
+        let mut indices = Vec::new();
+        for i in 1..points.len() - 1 {
+            indices.push(0);
+            indices.push(i as u16);
+            indices.push((i + 1) as u16);
+        }
+
+        self.batch.push(&verts, &indices, 0);
+    }
+}
+
+/// Common anchor options
 pub enum Anchor {
     Center,
     TopLeft,
 }
 
-/// Builder for drawing rectangles with configurable  
-/// position, size, rotation, color, texture, anchor, etc
-///
-/// Constructed via [`crate::graphics::Graphics::rect()`]  
-/// The rectangle is automatically submitted when this builder is dropped  
-/// No explicit "finalize" call is needed
-///
-/// Use method chaining to customize before `Drop`:
-/// Similar to Rust's RAII pattern (<https://rust-unofficial.github.io/patterns/patterns/behavioural/RAII.html>)
+/// Builder for (textured) rectangles, drawn on `Drop`
 pub struct RectangleBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
     anchor: Anchor,
@@ -53,7 +133,7 @@ pub struct RectangleBuilder<'a> {
     size: Vec2,
     rotation: f32,
     color: Color,
-    tex_coords: [[f32; 2]; 4],
+    uvs: [[f32; 2]; 4],
     tex_id: usize,
 }
 
@@ -67,60 +147,52 @@ impl<'a> RectangleBuilder<'a> {
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
-            tex_coords: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            uvs: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
             tex_id: usize::MAX,
         }
     }
-
     /// Sets the position & size from a [`Rect`].
     pub fn with(mut self, rect: &Rect) -> Self {
         self.position = rect.position;
         self.size = rect.size;
         self
     }
-
     /// Sets the anchor point of the rectangle  
     /// Defaults to [`Anchor::TopLeft`].
     pub fn anchor(mut self, anchor: Anchor) -> Self {
         self.anchor = anchor;
         self
     }
-
     /// Sets the world-space position of the rectangle
     pub fn at(mut self, position: impl Into<Vec2>) -> Self {
         self.position = position.into();
         self
     }
-
     /// Sets the size of the rectangle
     pub fn size(mut self, size: Vec2) -> Self {
         self.size = size;
         self
     }
-
     /// Sets the color of the rectangle
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
     }
-
-    /// Sets the rotation (in radians) around the rectangle's center
+    /// Sets rotation (in radians) around the rectangle's center
     /// 0 radians points up (positive Y), increasing clockwise
     pub fn rotate(mut self, angle: f32) -> Self {
         self.rotation = angle + std::f32::consts::FRAC_PI_2;
         self
     }
-
     /// Sets the texture ID for the rectangle
     pub fn texture(mut self, id: usize) -> Self {
         self.tex_id = id;
         self
     }
-
-    /// Sets custom UV coordinates
+    /// Custom UV coordinates
     /// Defaults to covering the full texture ((0,0) - (1,1))
     pub fn uv(mut self, coords: [[f32; 2]; 4]) -> Self {
-        self.tex_coords = coords;
+        self.uvs = coords;
         self
     }
 }
@@ -137,10 +209,10 @@ impl Drop for RectangleBuilder<'_> {
         let verts: Vec<_> = rect
             .corners()
             .iter()
-            .zip(self.tex_coords.iter())
+            .zip(self.uvs.iter())
             .map(|(&corner, &uv)| {
-                let rotated = rot * (corner - rect.center()) + rect.center();
-                Vertex::new(rotated.into(), self.color.components(), uv)
+                let world = rot * (corner - rect.center()) + rect.center();
+                Vertex::new(world.into(), self.color.components(), uv)
             })
             .collect();
 
