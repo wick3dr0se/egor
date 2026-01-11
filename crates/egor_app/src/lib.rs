@@ -1,17 +1,17 @@
 pub mod input;
 pub mod time;
 
+use crate::{input::Input, time::FrameTimer};
 use std::sync::Arc;
 
 pub use winit::{event::WindowEvent, window::Window};
 
+use winit::dpi::PhysicalSize;
 use winit::{
     application::ApplicationHandler,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
-
-use crate::{input::Input, time::FrameTimer};
 
 pub struct AppConfig {
     pub title: String,
@@ -51,6 +51,15 @@ pub trait AppHandler<R> {
     fn on_quit(&mut self) {}
 }
 
+/// Application initialization state
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AppState {
+    /// Initializing resources
+    InitializingResources,
+    /// Running normally
+    Running,
+}
+
 /// Generic application entry point
 ///
 /// Manages window creation, input, event loop, & delegating hooks
@@ -64,45 +73,45 @@ pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
     input: Input,
     timer: FrameTimer,
     config: AppConfig,
+    state: AppState,
 }
 
 #[doc(hidden)]
 impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, H> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        // Called when window is ready; initializes the resource async (wasm) or sync (native)
-        if let Some(proxy) = self.proxy.take() {
-            let win_attrs = {
-                use winit::dpi::PhysicalSize;
-
-                #[allow(unused_mut)]
-                let mut attrs = Window::default_attributes()
-                    .with_title(&self.config.title)
-                    .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
-                    .with_resizable(self.config.resizable);
-
-                #[cfg(target_arch = "wasm32")]
-                {
+        #[cfg(target_arch = "wasm32")]
+        {
+            if let Some(proxy) = self.proxy.take() {
+                let win_attrs = {
                     use winit::platform::web::WindowAttributesExtWebSys;
-                    attrs = attrs.with_append(true);
-                }
+                    Window::default_attributes()
+                        .with_title(&self.config.title)
+                        .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
+                        .with_resizable(self.config.resizable)
+                        .with_append(true)
+                };
+                let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
+                self.window = Some(window.clone());
+                let mut handler = self.handler.take().unwrap();
 
-                attrs
-            };
-            let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
-            self.window = Some(window.clone());
-            let mut handler = self.handler.take().unwrap();
-
-            #[cfg(target_arch = "wasm32")]
-            {
                 wasm_bindgen_futures::spawn_local(async move {
                     let resource = handler.with_resource(window).await;
                     _ = proxy.send_event((resource, handler));
                 });
             }
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                let resource = pollster::block_on(handler.with_resource(window));
-                _ = proxy.send_event((resource, handler));
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if self.window.is_none() {
+                let win_attrs = {
+                    Window::default_attributes()
+                        .with_title(&self.config.title)
+                        .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
+                        .with_resizable(self.config.resizable)
+                };
+                let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
+                self.window = Some(window.clone());
             }
         }
     }
@@ -120,17 +129,17 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                if let (Some(w), Some(r), Some(handler)) = (
-                    self.window.as_ref(),
-                    self.resource.as_mut(),
-                    self.handler.as_mut(),
-                ) {
-                    handler.frame(w, r, &self.input, &self.timer);
-                    self.timer.update();
-                    self.input.end_frame();
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    match self.state {
+                        AppState::InitializingResources => self.handle_resource_initialization(),
+                        AppState::Running => self.handle_frame_rendering(),
+                    }
                 }
-                if let Some(w) = self.window.as_ref() {
-                    w.request_redraw();
+
+                #[cfg(target_arch = "wasm32")]
+                {
+                    self.handle_frame_rendering();
                 }
             }
             WindowEvent::Resized(size) => {
@@ -150,6 +159,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         self.handler = Some(handler);
 
         if let (Some(r), Some(h), Some(w)) = (&mut self.resource, &mut self.handler, &self.window) {
+            w.set_visible(true);
             h.on_ready(w, r);
         }
     }
@@ -166,6 +176,36 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
             input: Input::default(),
             timer: FrameTimer::default(),
             config,
+            state: AppState::InitializingResources,
+        }
+    }
+
+    /// Initialize resources asynchronously (native only)
+    #[cfg(not(target_arch = "wasm32"))]
+    fn handle_resource_initialization(&mut self) {
+        let mut handler = self.handler.take().unwrap();
+        let window = self.window.clone().unwrap();
+        window.set_visible(false);
+        let resource = pollster::block_on(handler.with_resource(window));
+        let proxy = self.proxy.clone().unwrap();
+        _ = proxy.send_event((resource, handler));
+        self.state = AppState::Running;
+        self.window.as_ref().unwrap().request_redraw();
+    }
+
+    /// Run the main frame loop
+    fn handle_frame_rendering(&mut self) {
+        if let (Some(w), Some(r), Some(handler)) = (
+            self.window.as_ref(),
+            self.resource.as_mut(),
+            self.handler.as_mut(),
+        ) {
+            handler.frame(w, r, &self.input, &self.timer);
+            self.timer.update();
+            self.input.end_frame();
+        }
+        if let Some(w) = self.window.as_ref() {
+            w.request_redraw();
         }
     }
 
