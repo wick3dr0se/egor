@@ -10,10 +10,15 @@ use egor_app::{
 };
 use egor_render::Renderer;
 
-#[cfg(not(feature = "ui"))]
-type UpdateFn = dyn FnMut(&mut Graphics, &Input, &FrameTimer);
-#[cfg(feature = "ui")]
-type UpdateFn = dyn FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context);
+type UpdateFn = dyn FnMut(&mut FrameContext);
+
+pub struct FrameContext<'a> {
+    pub gfx: Graphics<'a>,
+    pub input: &'a Input,
+    pub timer: &'a FrameTimer,
+    #[cfg(feature = "ui")]
+    pub egui_ctx: &'a egui::Context,
+}
 
 pub struct App {
     update: Option<Box<UpdateFn>>,
@@ -71,36 +76,13 @@ impl App {
     }
 
     /// Run the app with a per-frame update closure
-    #[cfg(not(feature = "ui"))]
-    pub fn run(
-        mut self,
-        #[allow(unused_mut)] mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer) + 'static,
-    ) {
+    pub fn run(mut self, #[allow(unused_mut)] mut update: impl FnMut(&mut FrameContext) + 'static) {
         #[cfg(feature = "hot_reload")]
         let update = {
             dioxus_devtools::connect_subsecond();
 
-            move |g: &mut Graphics, i: &Input, t: &FrameTimer| {
-                dioxus_devtools::subsecond::call(|| update(g, i, t))
-            }
-        };
-        self.update = Some(Box::new(update));
-
-        let config = self.config.take().unwrap();
-        AppRunner::new(self, config).run();
-    }
-    #[cfg(feature = "ui")]
-    pub fn run(
-        mut self,
-        #[allow(unused_mut)] mut update: impl FnMut(&mut Graphics, &Input, &FrameTimer, &egui::Context)
-        + 'static,
-    ) {
-        #[cfg(feature = "hot_reload")]
-        let update = {
-            dioxus_devtools::connect_subsecond();
-
-            move |g: &mut Graphics, i: &Input, t: &FrameTimer, ui: &egui::Context| {
-                dioxus_devtools::subsecond::call(|| update(g, i, t, ui))
+            move |ctx: &mut FrameContext| {
+                dioxus_devtools::subsecond::call(|| update(ctx));
             }
         };
         self.update = Some(Box::new(update));
@@ -167,17 +149,20 @@ impl AppHandler<Renderer> for App {
         let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
 
         let text_renderer = self.text_renderer.as_mut().unwrap();
-        let mut graphics = Graphics::new(renderer, text_renderer);
 
-        #[cfg(not(feature = "ui"))]
-        update(&mut graphics, input, timer);
         #[cfg(feature = "ui")]
-        {
-            let egui_ctx = self.egui.as_mut().unwrap().begin_frame(_window);
-            update(&mut graphics, input, timer, egui_ctx);
-        }
+        let egui_ctx = self.egui.as_mut().unwrap().begin_frame(_window);
+        let mut ctx = FrameContext {
+            gfx: Graphics::new(renderer, text_renderer),
+            input,
+            timer,
+            #[cfg(feature = "ui")]
+            egui_ctx,
+        };
+        update(&mut ctx);
 
-        let geometry = graphics.flush();
+        let geometry = ctx.gfx.flush();
+
         text_renderer.prepare(&device, &queue, width, height);
 
         {

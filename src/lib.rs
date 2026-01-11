@@ -53,7 +53,7 @@
 //! - Optional backends can be enabled to override defaults or for cross-platform targeting
 
 pub mod app {
-    pub use egor_glue::app::App;
+    pub use egor_glue::app::{App, FrameContext};
     #[cfg(feature = "ui")]
     pub use egor_glue::ui::egui;
 }
