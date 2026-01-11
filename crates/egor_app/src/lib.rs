@@ -1,8 +1,8 @@
 pub mod input;
 pub mod time;
 
+use crate::{input::Input, time::FrameTimer};
 use std::sync::Arc;
-
 pub use winit::{event::WindowEvent, window::Window};
 
 use winit::{
@@ -10,8 +10,6 @@ use winit::{
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
-
-use crate::{input::Input, time::FrameTimer};
 
 pub struct AppConfig {
     pub title: String,
@@ -86,6 +84,11 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                     attrs = attrs.with_append(true);
                 }
 
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    attrs = attrs.with_visible(false);
+                }
+
                 attrs
             };
             let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
@@ -151,6 +154,12 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
 
         if let (Some(r), Some(h), Some(w)) = (&mut self.resource, &mut self.handler, &self.window) {
             h.on_ready(w, r);
+
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                h.frame(w, r, &self.input, &self.timer);
+                w.set_visible(true);
+            }
         }
     }
 }
