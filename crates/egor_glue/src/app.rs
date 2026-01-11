@@ -13,6 +13,7 @@ use egor_render::Renderer;
 type UpdateFn = dyn FnMut(&mut FrameContext);
 
 pub struct FrameContext<'a> {
+    pub events: Vec<WindowEvent>,
     pub gfx: Graphics<'a>,
     pub input: &'a Input,
     pub timer: &'a FrameTimer,
@@ -21,9 +22,9 @@ pub struct FrameContext<'a> {
 }
 
 pub struct App {
+    events: Vec<WindowEvent>,
     update: Option<Box<UpdateFn>>,
     config: Option<AppConfig>,
-    on_quit: Option<Box<dyn FnMut()>>,
     vsync: bool,
     text_renderer: Option<TextRenderer>,
     #[cfg(feature = "ui")]
@@ -34,9 +35,9 @@ impl App {
     /// Create a new [`App`]
     pub fn new() -> Self {
         Self {
+            events: Vec::new(),
             update: None,
             config: Some(AppConfig::default()),
-            on_quit: None,
             vsync: true,
             text_renderer: None,
             #[cfg(feature = "ui")]
@@ -53,7 +54,7 @@ impl App {
     }
 
     /// Set window size (width, height in pixels)
-    pub fn screen_size(mut self, width: u32, height: u32) -> Self {
+    pub fn window_size(mut self, width: u32, height: u32) -> Self {
         if let Some(c) = self.config.as_mut() {
             c.width = width;
             c.height = height;
@@ -90,20 +91,16 @@ impl App {
         let config = self.config.take().unwrap();
         AppRunner::new(self, config).run();
     }
-
-    /// Sets a closure to call when the app is quitting
-    pub fn on_quit(mut self, f: impl FnMut() + 'static) -> Self {
-        self.on_quit = Some(Box::new(f));
-        self
-    }
 }
 
 impl AppHandler<Renderer> for App {
-    fn on_window_event(&mut self, _window: &Window, _event: &WindowEvent) {
+    fn on_window_event(&mut self, _window: &Window, event: &WindowEvent) {
         #[cfg(feature = "ui")]
         if let Some(egui) = self.egui.as_mut() {
-            egui.handle_event(_window, _event);
+            egui.handle_event(_window, event);
         }
+
+        self.events.push(event.clone());
     }
 
     async fn with_resource(&mut self, window: Arc<Window>) -> Renderer {
@@ -158,6 +155,7 @@ impl AppHandler<Renderer> for App {
             timer,
             #[cfg(feature = "ui")]
             egui_ctx,
+            events: std::mem::take(&mut self.events),
         };
         update(&mut ctx);
 
@@ -194,11 +192,5 @@ impl AppHandler<Renderer> for App {
 
     fn resize(&mut self, width: u32, height: u32, renderer: &mut Renderer) {
         renderer.resize(width, height)
-    }
-
-    fn on_quit(&mut self) {
-        if let Some(f) = &mut self.on_quit {
-            f();
-        }
     }
 }
