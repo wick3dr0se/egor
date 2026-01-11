@@ -1,6 +1,6 @@
 [package]
 name = "egor_glue"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
 description = "High-level wrappers around low-level egor crates"
@@ -14,8 +14,8 @@ hot_reload = ["dep:dioxus-devtools"]
 ui = ["dep:egui", "dep:egui-wgpu", "dep:egui-winit"]
 
 [dependencies]
-egor_app = { version = "0.6.1", path = "../egor_app" }
-egor_render = { version = "0.6.1", path = "../egor_render" }
+egor_app = { version = "0.7.0", path = "../egor_app" }
+egor_render = { version = "0.7.0", path = "../egor_render" }
 
 color = "0.3.1"
 glyphon = "0.9.0"
