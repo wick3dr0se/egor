@@ -4,7 +4,7 @@ mod tilemap;
 use rand::Rng;
 
 use egor::{
-    app::{App, egui::Window},
+    app::{App, FrameContext, WindowEvent, egui::Window},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
     render::Color,
@@ -134,12 +134,27 @@ fn main() {
         game_over: false,
     };
 
-    App::new()
-        .title("Egor Shooter Demo")
-        .on_quit(|| {
-            println!("Quitting already? Don't be a sore loser");
-        })
-        .run(move |gfx, input, timer, ui| {
+    App::new().title("Egor Shooter Demo").run(
+        move |FrameContext {
+                  gfx,
+                  input,
+                  timer,
+                  egui_ctx,
+                  events,
+              }| {
+            for event in events {
+                match event {
+                    WindowEvent::CloseRequested => {
+                        println!("Quitting already? Don't be a sore loser");
+                        println!("Final Wave: {}", state.wave);
+                        println!("Killed {} zombies", state.kills);
+
+                        state.game_over = true;
+                    }
+                    _ => {}
+                }
+            }
+
             if timer.frame == 0 {
                 state.map.load_tileset(
                     gfx,
@@ -157,7 +172,6 @@ fn main() {
             }
 
             let screen_size = gfx.screen_size();
-            let screen_half = screen_size / 2.0;
 
             if state.game_over {
                 gfx.text("GAME OVER")
@@ -166,6 +180,7 @@ fn main() {
                 return;
             }
 
+            let screen_half = screen_size / 2.0;
             let position = state.player.rect.position - screen_half
                 + Into::<Vec2>::into(input.mouse_position());
 
@@ -278,7 +293,7 @@ fn main() {
                 );
             }
 
-            Window::new("Debug").show(ui, |ui| {
+            Window::new("Debug").show(egui_ctx, |ui| {
                 ui.label(format!("FPS: {}", timer.fps));
                 ui.label(format!("Wave: {}", state.wave));
                 ui.label(format!("Zombies killed: {}", state.kills));
@@ -286,5 +301,6 @@ fn main() {
                 ui.label(format!("Fire rate: {:.1}/s", state.fire_rate));
                 ui.label(format!("Bullet Spread: {}", state.spread));
             });
-        });
+        },
+    );
 }

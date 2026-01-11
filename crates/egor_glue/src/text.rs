@@ -110,14 +110,6 @@ impl TextRenderer {
 /// and let it drop to submit the text for the current frame
 ///
 /// Text is queued immediately and rendered on the next frame
-///
-/// # Example
-/// ```no_run
-/// graphics.text("Hello world")
-///     .at((20.0, 40.0))
-///     .size(18.0)
-///     .color(Color::WHITE);
-/// ```
 pub struct TextBuilder<'a> {
     renderer: &'a mut TextRenderer,
     text: String,

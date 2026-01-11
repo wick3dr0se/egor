@@ -49,7 +49,7 @@ let mut position = Vec2::ZERO;
 
 App::new()
     .title("Egor Stateful Rectangle")
-    .run(move |gfx, input, timer| {
+    .run(move |FrameContext { gfx, input, timer, .. } | {
         let dx = input.key_held(KeyCode::ArrowRight) as i8
             - input.key_held(KeyCode::ArrowLeft) as i8;
         let dy =

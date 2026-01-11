@@ -1,5 +1,5 @@
 use egor::{
-    app::App,
+    app::{App, FrameContext},
     math::{Vec2, vec2},
     render::Color,
 };
@@ -35,11 +35,11 @@ fn main() {
 
     App::new()
         .title("Egor ECS Particles Demo")
-        .run(move |gfx, _, frame| {
+        .run(move |FrameContext { gfx, timer, .. }| {
             let screen_size = gfx.screen_size();
 
             world.query(|_, pos: &mut Position, vel: &Velocity| {
-                pos.vec += vel.vec * speed * frame.delta;
+                pos.vec += vel.vec * speed * timer.delta;
                 wraparound(&mut pos.vec, screen_size);
 
                 gfx.rect()
