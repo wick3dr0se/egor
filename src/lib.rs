@@ -23,8 +23,8 @@
 //!
 //! ## Minimal Example: Draw a Rectangle
 //! ```no_run
-//! use egor::{app::App, render::Graphics};
-//! App::new().run(|gfx: &mut Graphics, _input, _timer| {
+//! use egor::{app::{App, FrameContext}, render::Graphics};
+//! App::new().run(|FrameContext { gfx, .. }| {
 //!     // start building a rectangle with some defaults
 //!     // draws automatically on `Drop` without an explicit `build()`
 //!     gfx.rect();
