@@ -13,8 +13,8 @@ use winit::{
 
 pub struct AppConfig {
     pub title: String,
-    pub width: u32,
-    pub height: u32,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
     pub resizable: bool,
 }
 
@@ -22,8 +22,8 @@ impl Default for AppConfig {
     fn default() -> Self {
         Self {
             title: "Egor App".to_string(),
-            width: 800,
-            height: 600,
+            width: None,
+            height: None,
             resizable: true,
         }
     }
@@ -75,8 +75,11 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 #[allow(unused_mut)]
                 let mut attrs = Window::default_attributes()
                     .with_title(&self.config.title)
-                    .with_inner_size(PhysicalSize::new(self.config.width, self.config.height))
                     .with_resizable(self.config.resizable);
+
+                if let (Some(width), Some(height)) = (self.config.width, self.config.height) {
+                    attrs = attrs.with_inner_size(PhysicalSize::new(width, height));
+                }
 
                 #[cfg(target_arch = "wasm32")]
                 {
