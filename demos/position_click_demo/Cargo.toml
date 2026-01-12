@@ -1,0 +1,8 @@
+[package]
+name = "position_click_demo"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egor = { path = "../../", features = ["ui", "webgl"] }
+console_error_panic_hook = "0.1.7"

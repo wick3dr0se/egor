@@ -1,15 +1,17 @@
+mod coordinate_converter;
 pub mod input;
 pub mod time;
 
+#[allow(unused)]
+use crate::coordinate_converter::{CoordinateConverter, create_desktop_converter};
 use crate::{input::Input, time::FrameTimer};
 use std::sync::Arc;
-pub use winit::{event::WindowEvent, window::Window};
-
 use winit::{
     application::ApplicationHandler,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
+pub use winit::{event::WindowEvent, window::Window};
 
 pub struct AppConfig {
     pub title: String,
@@ -62,6 +64,7 @@ pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
     input: Input,
     timer: FrameTimer,
     config: AppConfig,
+    coordinate_converter: Option<CoordinateConverter>,
 }
 
 #[doc(hidden)]
@@ -100,6 +103,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
 
             #[cfg(target_arch = "wasm32")]
             {
+                // Wait for DOM and canvas to be ready before initializing
                 wasm_bindgen_futures::spawn_local(async move {
                     let resource = handler.with_resource(window).await;
                     _ = proxy.send_event((resource, handler));
@@ -140,6 +144,29 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 }
             }
             WindowEvent::Resized(size) => {
+                // Recalculate coordinate converter on resize (for WASM and desktop touch support)
+                #[cfg(target_arch = "wasm32")]
+                {
+                    if let Some(web_window) = web_sys::window() {
+                        self.coordinate_converter =
+                            Some(wasm_helpers::create_coordinate_converter(&web_window));
+                    }
+                }
+
+                // no way to test this so I'm guessing it works.
+                // worse case scenario touch is off and we get a bug
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    if let Some(window) = self.window.as_ref() {
+                        let physical_size = (size.width as f32, size.height as f32);
+                        let scale_factor = window.scale_factor() as f32;
+                        self.coordinate_converter =
+                            Some(create_desktop_converter(physical_size, scale_factor));
+                    } else {
+                        self.coordinate_converter = Some(CoordinateConverter::default());
+                    }
+                }
+
                 if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut()) {
                     handler.resize(size.width, size.height, r);
                 }
@@ -147,6 +174,28 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             WindowEvent::KeyboardInput { event, .. } => self.input.keyboard(event),
             WindowEvent::MouseInput { button, state, .. } => self.input.mouse(button, state),
             WindowEvent::CursorMoved { position, .. } => self.input.cursor(position),
+            WindowEvent::Touch(touch) => {
+                if let Some(converter) = self.coordinate_converter {
+                    self.input.touch(touch, converter);
+                }
+            }
+            WindowEvent::ScaleFactorChanged {
+                #[allow(unused)]
+                scale_factor,
+                ..
+            } => {
+                // Recalculate coordinate converter when DPI changes (e.g., window moved to different monitor)
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    if let Some(window) = self.window.as_ref() {
+                        let size = window.inner_size();
+                        let physical_size = (size.width as f32, size.height as f32);
+                        let scale_factor_f32 = scale_factor as f32;
+                        self.coordinate_converter =
+                            Some(create_desktop_converter(physical_size, scale_factor_f32));
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -178,6 +227,7 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
             input: Input::default(),
             timer: FrameTimer::default(),
             config,
+            coordinate_converter: None,
         }
     }
 
@@ -207,6 +257,48 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
             env_logger::init_from_env(env_logger::Env::default().default_filter_or("error"));
 
             event_loop.run_app(&mut self).unwrap();
+        }
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+mod wasm_helpers {
+    use super::coordinate_converter::{CoordinateConverter, DisplayInfo};
+    use wasm_bindgen::JsCast;
+    use web_sys::{HtmlCanvasElement, Window};
+
+    /// Extract canvas information from the DOM
+    pub fn get_canvas_info(window: &Window) -> Option<DisplayInfo> {
+        let document = window.document()?;
+        let canvas = document.query_selector("canvas").ok()??;
+        let canvas: HtmlCanvasElement = canvas.dyn_into().ok()?;
+
+        // Get logical dimensions (CSS/client dimensions as rendered on screen)
+        let logical_width = canvas.client_width() as f32;
+        let logical_height = canvas.client_height() as f32;
+
+        // Get buffer dimensions (actual pixel buffer)
+        let buffer_width = canvas.width() as f32;
+        let buffer_height = canvas.height() as f32;
+
+        Some(DisplayInfo {
+            logical_width,
+            logical_height,
+            buffer_width,
+            buffer_height,
+        })
+    }
+
+    /// Create a CoordinateConverter by inspecting the DOM
+    pub fn create_coordinate_converter(window: &Window) -> CoordinateConverter {
+        let display_info = get_canvas_info(window);
+        let scale_factor = window.device_pixel_ratio() as f32;
+
+        if let Some(info) = display_info {
+            CoordinateConverter::new(info, scale_factor)
+        } else {
+            // Fallback to default if canvas not found
+            CoordinateConverter::default()
         }
     }
 }
