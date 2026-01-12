@@ -1,0 +1,20 @@
+# Build outputs
+/target/
+/mobile/android/libs/
+/mobile/ios/libs/
+/include/egor_mobile.h
+
+# Android demo build artifacts
+/demos/android/.gradle/
+/demos/android/.idea/
+/demos/android/build/
+/demos/android/app/build/
+/demos/android/app/.cxx/
+/demos/android/app/src/main/jniLibs/
+/demos/android/local.properties
+
+# iOS demo build artifacts
+/demos/ios/build/
+/demos/ios/libs/
+/demos/ios/*.xcworkspace/xcuserdata/
+/demos/ios/*.xcodeproj/xcuserdata/

@@ -1,0 +1,44 @@
+[package]
+name = "egor_mobile"
+version = "0.1.0"
+edition = "2024"
+authors = ["Planet Nine"]
+description = "Mobile FFI bindings for egor - Android and iOS support"
+license = "MIT"
+repository = "https://github.com/wick3dr0se/egor"
+keywords = ["egor", "mobile", "android", "ios", "ffi"]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[features]
+default = []
+
+[dependencies]
+egor_render = { path = "../egor_render" }
+glam = "0.30.4"
+bytemuck = { version = "1.23.0", features = ["derive"] }
+log = "0.4"
+pollster = "0.4"
+
+# For creating Surface from raw handles
+raw-window-handle = "0.6"
+
+[target.'cfg(target_os = "android")'.dependencies]
+wgpu = { version = "25.0.0", default-features = false, features = ["wgsl", "vulkan", "gles"] }
+android_logger = "0.14"
+
+[target.'cfg(target_os = "ios")'.dependencies]
+wgpu = { version = "25.0.0", default-features = false, features = ["wgsl", "metal"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+wgpu = { version = "25.0.0", default-features = false, features = ["wgsl", "metal"] }
+env_logger = "0.11"
+
+# For Linux/Windows desktop testing
+[target.'cfg(all(not(target_os = "android"), not(target_os = "ios"), not(target_os = "macos")))'.dependencies]
+wgpu = { version = "25.0.0", default-features = false, features = ["wgsl", "vulkan"] }
+env_logger = "0.11"
+
+[build-dependencies]
+cbindgen = "0.28"

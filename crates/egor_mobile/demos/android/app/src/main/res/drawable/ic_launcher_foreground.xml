@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple "E" for Egor -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,30h40v8h-32v16h28v8h-28v16h32v8h-40z"/>
+</vector>

@@ -6,11 +6,11 @@ pub mod vertex;
 pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color, CommandEncoder,
-    DeviceDescriptor, IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
-    SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
-    util::{BufferInitDescriptor, DeviceExt},
+    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
+    CommandEncoder, DeviceDescriptor, IndexFormat, Instance, Limits, LoadOp, Operations,
+    PresentMode, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp,
+    Surface, SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureView,
+    WindowHandle, util::{BufferInitDescriptor, DeviceExt},
 };
 
 use crate::{pipeline::Pipelines, texture::Texture, vertex::Vertex};
@@ -110,9 +110,10 @@ impl Renderer {
             .await
             .unwrap();
 
-        let mut surface_cfg = surface
-            .get_default_config(&adapter, inner_width, inner_height)
-            .unwrap();
+        // WebGPU throws error 'size is zero' if not set
+        let (w, h) = (inner_width.max(1), inner_height.max(1));
+
+        let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
@@ -135,6 +136,98 @@ impl Renderer {
         });
 
         let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
+
+        Renderer {
+            gpu: Gpu {
+                device: device.clone(),
+                queue,
+            },
+            target: RenderTarget {
+                surface,
+                config: surface_cfg,
+            },
+            pipelines,
+            camera_bind_group,
+            camera_buffer,
+            textures: Vec::new(),
+            default_texture,
+            clear_color: Color::BLACK,
+        }
+    }
+
+    /// Creates a new `Renderer` from a pre-created wgpu surface.
+    ///
+    /// This is useful for mobile platforms (Android/iOS) where the surface
+    /// must be created from raw platform handles using `create_surface_unsafe`.
+    ///
+    /// # Arguments
+    /// * `surface` - A wgpu Surface created externally
+    /// * `adapter` - A wgpu Adapter compatible with the surface
+    /// * `width` - Initial surface width in pixels
+    /// * `height` - Initial surface height in pixels
+    pub async fn new_from_surface(
+        surface: Surface<'static>,
+        adapter: Adapter,
+        width: u32,
+        height: u32,
+    ) -> Renderer {
+        log::info!("new_from_surface: requesting device...");
+
+        // Query adapter limits to know what the hardware actually supports
+        let adapter_limits = adapter.limits();
+        log::info!("new_from_surface: adapter max_texture_dimension_2d: {}", adapter_limits.max_texture_dimension_2d);
+
+        let (device, queue) = adapter
+            .request_device(&DeviceDescriptor {
+                // Request what the adapter actually supports
+                required_limits: adapter_limits.clone(),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        // Set up error handling to log instead of panic
+        device.on_uncaptured_error(Box::new(|error| {
+            log::error!("wgpu uncaptured error: {:?}", error);
+        }));
+
+        log::info!("new_from_surface: device acquired, configuring surface...");
+
+        // Clamp dimensions to device's max texture size
+        let max_dim = adapter_limits.max_texture_dimension_2d;
+        let (w, h) = (width.max(1).min(max_dim), height.max(1).min(max_dim));
+        log::info!("new_from_surface: clamped size from {}x{} to {}x{}", width, height, w, h);
+
+        let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
+        surface_cfg.present_mode = PresentMode::Fifo; // VSync for mobile
+        log::info!("new_from_surface: surface config: {:?}", surface_cfg);
+        surface.configure(&device, &surface_cfg);
+        log::info!("new_from_surface: surface configured");
+
+        log::info!("new_from_surface: creating camera buffer...");
+        let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&[CameraUniform {
+                view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+            }]),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        log::info!("new_from_surface: creating pipelines (shader compilation)...");
+        let pipelines = Pipelines::new(&device, surface_cfg.format);
+        log::info!("new_from_surface: pipelines created, creating camera bind group...");
+        let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout: &pipelines.camera_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: camera_buffer.as_entire_binding(),
+            }],
+        });
+
+        log::info!("new_from_surface: creating default texture...");
+        let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
+        log::info!("new_from_surface: initialization complete!");
 
         Renderer {
             gpu: Gpu {
