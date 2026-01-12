@@ -87,6 +87,12 @@ impl Renderer {
         inner_height: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
+        let mut width = inner_width;
+        let mut height = inner_height;
+        if width < 1 || height < 1 {
+            width = 800;
+            height = 600;
+        }
         let instance = Instance::default();
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
@@ -110,9 +116,7 @@ impl Renderer {
             .await
             .unwrap();
 
-        let mut surface_cfg = surface
-            .get_default_config(&adapter, inner_width, inner_height)
-            .unwrap();
+        let mut surface_cfg = surface.get_default_config(&adapter, width, height).unwrap();
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
