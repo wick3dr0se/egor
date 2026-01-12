@@ -695,8 +695,10 @@ dependencies = [
  "console_error_panic_hook",
  "console_log",
  "env_logger",
+ "js-sys",
  "log",
  "pollster",
+ "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "winit",
@@ -1962,6 +1964,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d8a2f0d8d040d7848a709caf78912debcc3f33ee4b3cac47d73d1e1069e83507"
 dependencies = [
  "portable-atomic",
+]
+
+[[package]]
+name = "position_click_demo"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "egor",
 ]
 
 [[package]]
