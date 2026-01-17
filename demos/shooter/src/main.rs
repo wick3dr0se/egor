@@ -195,7 +195,7 @@ fn main() {
                 .rect
                 .translate(vec2(dx as f32, dy as f32) * 200.0 * timer.delta);
 
-            gfx.camera().target(state.player.rect.position);
+            gfx.camera().center(state.player.rect.position, screen_size);
             gfx.clear(Color::WHITE);
             state.map.render(gfx);
 

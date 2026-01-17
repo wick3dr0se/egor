@@ -37,6 +37,7 @@ fn main() {
         .title("Egor ECS Particles Demo")
         .run(move |FrameContext { gfx, timer, .. }| {
             let screen_size = gfx.screen_size();
+            gfx.camera().center(Vec2::ZERO, screen_size);
 
             world.query(|_, pos: &mut Position, vel: &Velocity| {
                 pos.vec += vel.vec * speed * timer.delta;

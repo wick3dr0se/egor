@@ -20,20 +20,25 @@ impl Default for Camera {
 impl Camera {
     /// Returns the orthographic view-projection matrix for the current camera state
     pub(crate) fn view_proj(&self, screen_size: Vec2) -> Mat4 {
-        let half_width = screen_size.x / 2.0 / self.zoom;
-        let half_height = screen_size.y / 2.0 / self.zoom;
+        let width = screen_size.x / self.zoom;
+        let height = screen_size.y / self.zoom;
 
-        let left = self.position.x - half_width;
-        let right = self.position.x + half_width;
-        let bottom = self.position.y - half_height;
-        let top = self.position.y + half_height;
+        let left = self.position.x;
+        let right = self.position.x + width;
+        let top = self.position.y;
+        let bottom = self.position.y + height;
 
-        Mat4::orthographic_lh(left, right, top, bottom, -1.0, 1.0)
+        Mat4::orthographic_lh(left, right, bottom, top, -1.0, 1.0)
     }
 
-    /// Set the camera's target position (center of view)
+    /// Set the camera's position (top-left corner of view)
     pub fn target(&mut self, position: Vec2) {
         self.position = position;
+    }
+
+    /// Center the camera on a position
+    pub fn center(&mut self, position: Vec2, screen_size: Vec2) {
+        self.position = position - screen_size / (2.0 * self.zoom);
     }
 
     /// Set zoom level, clamped between 0.1 & 10.0 to avoid insanity
@@ -45,20 +50,16 @@ impl Camera {
     /// Useful for culling or visibility checks
     pub fn viewport(&self, screen_size: Vec2) -> Rect {
         let size = screen_size / self.zoom;
-        // convert centre → top‑left
-        let top_left = self.position - size * 0.5;
-
-        Rect::new(top_left, size)
+        Rect::new(self.position, size)
     }
-
     /// Converts a point from world space to screen space (pixels)
-    pub fn world_to_screen(&self, world: Vec2, screen_size: Vec2) -> Vec2 {
-        (world - self.position) * self.zoom + (screen_size / 2.0)
+    pub fn world_to_screen(&self, world: Vec2) -> Vec2 {
+        (world - self.position) * self.zoom
     }
 
     /// Converts a point from screen space back to world space
-    pub fn screen_to_world(&self, screen: Vec2, screen_size: Vec2) -> Vec2 {
-        (screen - screen_size / 2.0) / self.zoom + self.position
+    pub fn screen_to_world(&self, screen: Vec2) -> Vec2 {
+        screen / self.zoom + self.position
     }
 }
 
@@ -75,7 +76,7 @@ mod tests {
         cam.set_zoom(1.0);
 
         let mat = cam.view_proj(vec2(800.0, 600.0));
-        let expected = Mat4::orthographic_lh(-400.0, 400.0, 300.0, -300.0, -1.0, 1.0);
+        let expected = Mat4::orthographic_lh(0.0, 800.0, 600.0, 0.0, -1.0, 1.0);
         assert_eq!(mat, expected);
     }
 
@@ -87,7 +88,8 @@ mod tests {
         cam.set_zoom(2.0);
 
         let rect = cam.viewport(vec2(200.0, 100.0));
-        assert_eq!(rect.position, vec2(0.0, 25.0));
+        // Position is top-left corner, size is screen_size / zoom
+        assert_eq!(rect.position, vec2(50.0, 50.0));
         assert!((rect.size - vec2(100.0, 50.0)).length() < 0.001); // allow for float fuzz
     }
 
@@ -98,10 +100,9 @@ mod tests {
         cam.target(vec2(100.0, 50.0));
         cam.set_zoom(2.0);
 
-        let screen_size = vec2(800.0, 600.0);
         let world = vec2(110.0, 55.0);
-        let screen = cam.world_to_screen(world, screen_size);
-        let world2 = cam.screen_to_world(screen, screen_size);
+        let screen = cam.world_to_screen(world);
+        let world2 = cam.screen_to_world(screen);
 
         assert!((world - world2).length() < 0.001);
     }
