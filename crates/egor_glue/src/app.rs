@@ -104,7 +104,12 @@ impl AppHandler<Renderer> for App {
     }
 
     async fn with_resource(&mut self, window: Arc<Window>) -> Renderer {
-        let (w, h) = (window.inner_size().width, window.inner_size().height);
+        // WebGPU throws error 'size is zero' if not set
+        let size = window.inner_size();
+        let (w, h) = (
+            if size.width == 0 { 800 } else { size.width },
+            if size.height == 0 { 600 } else { size.height },
+        );
         Renderer::new(w, h, window).await
     }
 
