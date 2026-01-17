@@ -7,10 +7,10 @@ pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
 
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color, CommandEncoder,
-    DeviceDescriptor, IndexFormat, Instance, Limits, LoadOp, Operations, PresentMode,
+    DeviceDescriptor, IndexFormat, InstanceDescriptor, Limits, LoadOp, Operations, PresentMode,
     RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
     SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
-    util::{BufferInitDescriptor, DeviceExt},
+    util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
 use crate::{pipeline::Pipelines, texture::Texture, vertex::Vertex};
@@ -87,7 +87,7 @@ impl Renderer {
         inner_height: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
-        let instance = Instance::default();
+        let instance = new_instance_with_webgpu_detection(&InstanceDescriptor::default()).await;
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {

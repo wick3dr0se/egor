@@ -140,7 +140,10 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 }
             }
             WindowEvent::Resized(size) => {
-                if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut()) {
+                if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut())
+                    && size.width > 0
+                    && size.height > 0
+                {
                     handler.resize(size.width, size.height, r);
                 }
             }
