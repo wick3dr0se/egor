@@ -7,6 +7,7 @@ pub use winit::{event::WindowEvent, window::Window};
 
 use winit::{
     application::ApplicationHandler,
+    event::MouseScrollDelta,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
 };
@@ -147,9 +148,18 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                     handler.resize(size.width, size.height, r);
                 }
             }
-            WindowEvent::KeyboardInput { event, .. } => self.input.keyboard(event),
-            WindowEvent::MouseInput { button, state, .. } => self.input.mouse(button, state),
-            WindowEvent::CursorMoved { position, .. } => self.input.cursor(position),
+            WindowEvent::KeyboardInput { event, .. } => self.input.update_key(event),
+            WindowEvent::MouseInput { button, state, .. } => {
+                self.input.update_mouse_button(button, state)
+            }
+            WindowEvent::CursorMoved { position, .. } => self.input.update_cursor(position),
+            WindowEvent::MouseWheel { delta, .. } => {
+                let wheel_delta = match delta {
+                    MouseScrollDelta::LineDelta(_, y) => y,
+                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
+                };
+                self.input.update_scroll(wheel_delta);
+            }
             _ => {}
         }
     }

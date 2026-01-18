@@ -14,11 +14,12 @@ pub struct Input {
     mouse_buttons: HashMap<MouseButton, (ElementState, ElementState)>,
     mouse_position: (f32, f32),
     mouse_delta: (f32, f32),
+    mouse_wheel_delta: f32,
 }
 
 impl Input {
     /// Update keyboard state from a `winit` KeyEvent
-    pub(crate) fn keyboard(&mut self, event: KeyEvent) {
+    pub(crate) fn update_key(&mut self, event: KeyEvent) {
         if let PhysicalKey::Code(key_code) = event.physical_key {
             let prev = self
                 .keyboard
@@ -29,7 +30,7 @@ impl Input {
     }
 
     /// Update mouse button state
-    pub(crate) fn mouse(&mut self, button: MouseButton, state: ElementState) {
+    pub(crate) fn update_mouse_button(&mut self, button: MouseButton, state: ElementState) {
         let prev = self
             .mouse_buttons
             .get(&button)
@@ -38,11 +39,16 @@ impl Input {
     }
 
     /// Update cursor position & compute delta
-    pub(crate) fn cursor(&mut self, position: PhysicalPosition<f64>) {
+    pub(crate) fn update_cursor(&mut self, position: PhysicalPosition<f64>) {
         let prev_pos = self.mouse_position;
         let pos: (f32, f32) = position.into();
         self.mouse_delta = (pos.0 - prev_pos.0, pos.1 - prev_pos.1);
         self.mouse_position = pos;
+    }
+
+    /// Update mouse wheel delta
+    pub(crate) fn update_scroll(&mut self, delta: f32) {
+        self.mouse_wheel_delta += delta;
     }
 
     /// Update previous states & clean up released keys/buttons
@@ -61,6 +67,7 @@ impl Input {
             .retain(|_, (curr, _)| *curr != ElementState::Released);
 
         self.mouse_delta = (0.0, 0.0);
+        self.mouse_wheel_delta = 0.0;
     }
 
     /// True if the key went from not pressed last frame to pressed this frame
@@ -143,6 +150,11 @@ impl Input {
     /// Delta mouse movement since last frame
     pub fn mouse_delta(&self) -> (f32, f32) {
         self.mouse_delta
+    }
+
+    /// Mouse wheel delta this frame (positive = scroll up, negative = scroll down)
+    pub fn mouse_scroll(&self) -> f32 {
+        self.mouse_wheel_delta
     }
 }
 
