@@ -713,6 +713,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui-winit",
+ "glam",
  "glyphon",
 ]
 
@@ -721,7 +722,6 @@ name = "egor_render"
 version = "0.7.0"
 dependencies = [
  "bytemuck",
- "glam",
  "image",
  "wgpu",
 ]

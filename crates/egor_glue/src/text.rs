@@ -1,4 +1,5 @@
-use egor_render::{Device, Queue, RenderPass, TextureFormat, math::Vec2};
+use egor_render::{Device, Queue, RenderPass, TextureFormat};
+use glam::Vec2;
 use glyphon::{
     Attrs, Buffer, Cache, Color as GlyphonColor, FontSystem, Metrics, Resolution, Shaping,
     SwashCache, TextArea, TextAtlas, TextBounds, TextRenderer as GlyphonRenderer, Viewport,

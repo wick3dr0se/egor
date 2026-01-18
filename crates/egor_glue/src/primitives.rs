@@ -1,10 +1,7 @@
-use egor_render::{
-    GeometryBatch,
-    math::{Mat2, Rect, Vec2, vec2},
-    vertex::Vertex,
-};
+use egor_render::{GeometryBatch, vertex::Vertex};
+use glam::{Mat2, Vec2, vec2};
 
-use crate::color::Color;
+use crate::{color::Color, math::Rect};
 
 #[derive(Default)]
 pub(crate) struct PrimitiveBatch {
@@ -14,11 +11,11 @@ pub(crate) struct PrimitiveBatch {
 impl PrimitiveBatch {
     // Add verts & indices to batch, preserving submission order & batching consecutive geometry per texture
     pub(crate) fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
-        if let Some((last_texture, last_batch)) = self.geometry.last_mut() {
-            if *last_texture == texture_id {
-                last_batch.push(verts, indices);
-                return;
-            }
+        if let Some((last_texture, last_batch)) = self.geometry.last_mut()
+            && *last_texture == texture_id
+        {
+            last_batch.push(verts, indices);
+            return;
         }
 
         let mut batch = GeometryBatch::default();

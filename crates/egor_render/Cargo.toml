@@ -18,7 +18,6 @@ vulkan = ["wgpu/vulkan"]
 [dependencies]
 bytemuck = "1.23.0"
 image = { version = "0.25.6", default-features = false, features = ["png"] }
-glam = "0.30.4"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 wgpu = { version = "25.0.0", default-features = false, features = [

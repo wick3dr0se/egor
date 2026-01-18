@@ -1,4 +1,3 @@
-pub mod math;
 pub mod pipeline;
 pub mod texture;
 pub mod vertex;
@@ -119,7 +118,12 @@ impl Renderer {
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::cast_slice(&[CameraUniform {
-                view_proj: glam::Mat4::IDENTITY.to_cols_array_2d(),
+                view_proj: [
+                    [1.0, 0.0, 0.0, 0.0],
+                    [0.0, 1.0, 0.0, 0.0],
+                    [0.0, 0.0, 1.0, 0.0],
+                    [0.0, 0.0, 0.0, 1.0],
+                ],
             }]),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
@@ -297,13 +301,12 @@ impl Renderer {
     }
 
     /// Uploads the given view-projection matrix to the GPU for use in vertex transforms
-    pub fn upload_camera_matrix(&mut self, mat: glam::Mat4) {
-        let cam_uniform = CameraUniform {
-            view_proj: mat.to_cols_array_2d(),
-        };
-        self.gpu
-            .queue
-            .write_buffer(&self.camera_buffer, 0, bytemuck::bytes_of(&cam_uniform));
+    pub fn upload_camera_matrix(&mut self, view_proj: [[f32; 4]; 4]) {
+        self.gpu.queue.write_buffer(
+            &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&CameraUniform { view_proj }),
+        );
     }
 
     /// Adds a new texture from image bytes & returns its id

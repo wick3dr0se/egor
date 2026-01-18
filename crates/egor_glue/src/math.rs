@@ -1,6 +1,7 @@
 pub use glam::{IVec2, Mat2, Mat4, Vec2, ivec2, vec2};
 
 /// Axis-aligned rectangle defined by position (top-left corner) & size
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub struct Rect {
     pub position: Vec2,
     pub size: Vec2,

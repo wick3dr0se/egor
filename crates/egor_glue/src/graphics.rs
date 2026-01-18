@@ -1,4 +1,5 @@
-use egor_render::{GeometryBatch, Renderer, math::Vec2};
+use egor_render::{GeometryBatch, Renderer};
+use glam::Vec2;
 
 use crate::{
     camera::Camera,
@@ -18,8 +19,11 @@ pub struct Graphics<'a> {
 impl<'a> Graphics<'a> {
     /// Upload camera matrix & extract batched geometry
     pub(crate) fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
-        self.renderer
-            .upload_camera_matrix(self.camera.view_proj(self.renderer.surface_size().into()));
+        self.renderer.upload_camera_matrix(
+            self.camera
+                .view_proj(self.renderer.surface_size().into())
+                .to_cols_array_2d(),
+        );
         self.batch.take()
     }
 

@@ -72,5 +72,5 @@ pub mod render {
 }
 
 pub mod math {
-    pub use egor_render::math::{IVec2, Rect, Vec2, ivec2, vec2};
+    pub use egor_glue::math::{IVec2, Rect, Vec2, ivec2, vec2};
 }
