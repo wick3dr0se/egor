@@ -12,15 +12,18 @@ pub(crate) struct PrimitiveBatch {
 }
 
 impl PrimitiveBatch {
-    // Add verts & indices to batch with matching texture_id or create a new batch
+    // Add verts & indices to batch, preserving submission order & batching consecutive geometry per texture
     pub(crate) fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
-        if let Some((_, batch)) = self.geometry.iter_mut().find(|(id, _)| *id == texture_id) {
-            batch.push(verts, indices);
-        } else {
-            let mut batch = GeometryBatch::default();
-            batch.push(verts, indices);
-            self.geometry.push((texture_id, batch));
+        if let Some((last_texture, last_batch)) = self.geometry.last_mut() {
+            if *last_texture == texture_id {
+                last_batch.push(verts, indices);
+                return;
+            }
         }
+
+        let mut batch = GeometryBatch::default();
+        batch.push(verts, indices);
+        self.geometry.push((texture_id, batch));
     }
 
     pub(crate) fn take(&mut self) -> Vec<(usize, GeometryBatch)> {
@@ -148,7 +151,7 @@ impl<'a> RectangleBuilder<'a> {
             rotation: 0.0,
             color: Color::WHITE,
             uvs: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
-            tex_id: usize::MAX,
+            tex_id: 0,
         }
     }
     /// Sets the position & size from a [`Rect`].
