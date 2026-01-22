@@ -7,6 +7,7 @@ pub use winit::{event::WindowEvent, window::Window};
 
 use winit::{
     application::ApplicationHandler,
+    dpi::PhysicalSize,
     event::MouseScrollDelta,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
     window::WindowId,
@@ -46,8 +47,6 @@ pub trait AppHandler<R> {
     fn frame(&mut self, _window: &Window, _resource: &mut R, _input: &Input, _timer: &FrameTimer) {}
     /// Called on window resize
     fn resize(&mut self, _w: u32, _h: u32, _resource: &mut R) {}
-    /// Called when the window is requested to close
-    fn on_quit(&mut self) {}
 }
 
 /// Generic application entry point
@@ -69,48 +68,41 @@ pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
 impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, H> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         // Called when window is ready; initializes the resource async (wasm) or sync (native)
-        if let Some(proxy) = self.proxy.take() {
-            let win_attrs = {
-                use winit::dpi::PhysicalSize;
+        let Some(proxy) = self.proxy.take() else {
+            return;
+        };
 
-                #[allow(unused_mut)]
-                let mut attrs = Window::default_attributes()
-                    .with_title(&self.config.title)
-                    .with_resizable(self.config.resizable);
+        let mut win_attrs = Window::default_attributes()
+            .with_title(&self.config.title)
+            .with_resizable(self.config.resizable);
+        if let (Some(w), Some(h)) = (self.config.width, self.config.height) {
+            win_attrs = win_attrs.with_inner_size(PhysicalSize::new(w, h));
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            use winit::platform::web::WindowAttributesExtWebSys;
+            win_attrs = win_attrs.with_append(true);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            win_attrs = win_attrs.with_visible(false);
+        }
 
-                if let (Some(width), Some(height)) = (self.config.width, self.config.height) {
-                    attrs = attrs.with_inner_size(PhysicalSize::new(width, height));
-                }
+        let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
+        self.window = Some(window.clone());
 
-                #[cfg(target_arch = "wasm32")]
-                {
-                    use winit::platform::web::WindowAttributesExtWebSys;
-                    attrs = attrs.with_append(true);
-                }
-
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    attrs = attrs.with_visible(false);
-                }
-
-                attrs
-            };
-            let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
-            self.window = Some(window.clone());
-            let mut handler = self.handler.take().unwrap();
-
-            #[cfg(target_arch = "wasm32")]
-            {
-                wasm_bindgen_futures::spawn_local(async move {
-                    let resource = handler.with_resource(window).await;
-                    _ = proxy.send_event((resource, handler));
-                });
-            }
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                let resource = pollster::block_on(handler.with_resource(window));
+        let mut handler = self.handler.take().unwrap();
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(async move {
+                let resource = handler.with_resource(window).await;
                 _ = proxy.send_event((resource, handler));
-            }
+            });
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let resource = pollster::block_on(handler.with_resource(window));
+            _ = proxy.send_event((resource, handler));
         }
     }
 
@@ -120,32 +112,29 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         }
 
         match event {
-            WindowEvent::CloseRequested => {
-                if let Some(handler) = &mut self.handler {
-                    handler.on_quit();
-                }
-                event_loop.exit();
-            }
+            WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
-                if let (Some(w), Some(r), Some(handler)) = (
-                    self.window.as_ref(),
-                    self.resource.as_mut(),
-                    self.handler.as_mut(),
-                ) {
-                    handler.frame(w, r, &self.input, &self.timer);
-                    self.timer.update();
-                    self.input.end_frame();
-                }
-                if let Some(w) = self.window.as_ref() {
-                    w.request_redraw();
-                }
+                let Some(window) = &self.window else { return };
+                let (Some(resource), Some(handler)) = (&mut self.resource, &mut self.handler)
+                else {
+                    return;
+                };
+
+                self.timer.update();
+                handler.frame(window, resource, &self.input, &self.timer);
+                self.input.end_frame();
+
+                window.request_redraw();
             }
             WindowEvent::Resized(size) => {
-                if let (Some(r), Some(handler)) = (self.resource.as_mut(), self.handler.as_mut())
-                    && size.width > 0
-                    && size.height > 0
+                if size.width == 0 || size.height == 0 {
+                    return;
+                };
+
+                if let (Some(resource), Some(handler)) =
+                    (self.resource.as_mut(), self.handler.as_mut())
                 {
-                    handler.resize(size.width, size.height, r);
+                    handler.resize(size.width, size.height, resource);
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => self.input.update_key(event),
@@ -164,19 +153,17 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         }
     }
 
-    fn user_event(&mut self, _: &ActiveEventLoop, (resource, handler): (R, H)) {
+    fn user_event(&mut self, _: &ActiveEventLoop, (mut resource, mut handler): (R, H)) {
+        let Some(window) = &self.window else { return };
+
+        handler.on_ready(window, &mut resource);
+        #[cfg(not(target_arch = "wasm32"))]
+        handler.frame(window, &mut resource, &self.input, &self.timer);
+
+        window.set_visible(true);
+
         self.resource = Some(resource);
         self.handler = Some(handler);
-
-        if let (Some(r), Some(h), Some(w)) = (&mut self.resource, &mut self.handler, &self.window) {
-            h.on_ready(w, r);
-
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                h.frame(w, r, &self.input, &self.timer);
-                w.set_visible(true);
-            }
-        }
     }
 }
 
