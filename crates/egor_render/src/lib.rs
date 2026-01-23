@@ -6,16 +6,13 @@ pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
 
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color, CommandEncoder,
-    DeviceDescriptor, IndexFormat, InstanceDescriptor, Limits, LoadOp, Operations, PresentMode,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
-    SurfaceConfiguration, SurfaceError, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
+    DeviceDescriptor, IndexFormat, LoadOp, Operations, PresentMode, RenderPassColorAttachment,
+    RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
+    SurfaceError, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
 use crate::{pipeline::Pipelines, texture::Texture, vertex::Vertex};
-
-const MAX_INDICES: usize = u16::MAX as usize * 32;
-const MAX_VERTICES: usize = (MAX_INDICES / 6) * 4;
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -32,13 +29,16 @@ pub struct GeometryBatch {
 impl Default for GeometryBatch {
     fn default() -> Self {
         Self {
-            vertices: Vec::with_capacity(MAX_VERTICES),
-            indices: Vec::with_capacity(MAX_INDICES),
+            vertices: Vec::with_capacity(Self::MAX_VERTICES),
+            indices: Vec::with_capacity(Self::MAX_INDICES),
         }
     }
 }
 
 impl GeometryBatch {
+    const MAX_INDICES: usize = u16::MAX as usize * 32;
+    const MAX_VERTICES: usize = (Self::MAX_INDICES / 6) * 4;
+
     pub fn push(&mut self, verts: &[Vertex], indices: &[u16]) {
         let idx_offset = self.vertices.len() as u16;
         self.vertices.extend_from_slice(verts);
@@ -86,7 +86,7 @@ impl Renderer {
         inner_height: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
-        let instance = new_instance_with_webgpu_detection(&InstanceDescriptor::default()).await;
+        let instance = new_instance_with_webgpu_detection(&Default::default()).await;
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
@@ -98,12 +98,8 @@ impl Renderer {
             .unwrap();
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
-                required_limits: if cfg!(target_arch = "wasm32") {
-                    // WebGL doesn't support all of wgpu's features; disable some
-                    Limits::downlevel_webgl2_defaults()
-                } else {
-                    Limits::default()
-                },
+                #[cfg(target_arch = "wasm32")]
+                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
                 ..Default::default()
             })
             .await
@@ -117,14 +113,14 @@ impl Renderer {
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&[CameraUniform {
+            contents: bytemuck::bytes_of(&CameraUniform {
                 view_proj: [
                     [1.0, 0.0, 0.0, 0.0],
                     [0.0, 1.0, 0.0, 0.0],
                     [0.0, 0.0, 1.0, 0.0],
                     [0.0, 0.0, 0.0, 1.0],
                 ],
-            }]),
+            }),
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
@@ -141,10 +137,7 @@ impl Renderer {
         let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
 
         Renderer {
-            gpu: Gpu {
-                device: device.clone(),
-                queue,
-            },
+            gpu: Gpu { device, queue },
             target: RenderTarget {
                 surface,
                 config: surface_cfg,
@@ -222,13 +215,9 @@ impl Renderer {
             contents: bytemuck::cast_slice(&batch.vertices),
             usage: BufferUsages::VERTEX,
         });
-
-        let mut index_data = bytemuck::cast_slice(&batch.indices).to_vec();
-        index_data.resize((index_data.len() + 3) & !3, 0);
-
         let index_buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
             label: None,
-            contents: &index_data,
+            contents: bytemuck::cast_slice(&batch.indices),
             usage: BufferUsages::INDEX,
         });
 
@@ -318,16 +307,15 @@ impl Renderer {
 
     /// Adds a texture from raw RGBA bytes & returns its id
     pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
-        let tex = Texture::from_bytes(
+        let texture_idx = self.textures.len();
+        self.textures.push(Texture::from_bytes(
             &self.gpu.device,
             &self.gpu.queue,
             &self.pipelines.texture_layout,
             data,
             w,
             h,
-        );
-        let texture_idx = self.textures.len();
-        self.textures.push(tex);
+        ));
         texture_idx
     }
 
@@ -340,7 +328,7 @@ impl Renderer {
 
     /// Replaces an existing texture with raw RGBA bytes
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
-        let tex = Texture::from_bytes(
+        self.textures[index] = Texture::from_bytes(
             &self.gpu.device,
             &self.gpu.queue,
             &self.pipelines.texture_layout,
@@ -348,6 +336,5 @@ impl Renderer {
             w,
             h,
         );
-        self.textures[index] = tex;
     }
 }
