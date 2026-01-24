@@ -151,7 +151,7 @@ impl EgorMap {
     pub fn render(&mut self, gfx: &mut Graphics) {
         let screen = gfx.screen_size();
         let view = gfx.camera().viewport(screen);
-        let (tw, th) = self.tiled.tile_size().into();
+        let (tw, th) = self.tiled.tile_size();
 
         for layer in &self.tiled.layers {
             if !layer.visible || layer.data.is_none() {

@@ -106,10 +106,6 @@ impl TextRenderer {
 }
 
 /// High-level text drawing API
-///
-/// Create with [`Graphics::text`] (or equivalent), configure,
-/// and let it drop to submit the text for the current frame
-///
 /// Text is queued immediately and rendered on the next frame
 pub struct TextBuilder<'a> {
     renderer: &'a mut TextRenderer,

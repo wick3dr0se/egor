@@ -119,7 +119,7 @@ fn main() {
             hp: 100.0,
             flash: 0.0,
         },
-        player_anim: SpriteAnim::new(3, 6, 17, 0.2),
+        player_anim: SpriteAnim::new(3, 6, 16, 0.2),
         player_tex: 0,
         enemies: spawn_wave(Vec2::ZERO, 5, (50.0, 125.0), 1.0),
         enemy_anim: SpriteAnim::new(2, 6, 11, 0.2),
@@ -143,15 +143,11 @@ fn main() {
                   events,
               }| {
             for event in events {
-                match event {
-                    WindowEvent::CloseRequested => {
-                        println!("Quitting already? Don't be a sore loser");
-                        println!("Final Wave: {}", state.wave);
-                        println!("Killed {} zombies", state.kills);
-
-                        state.game_over = true;
-                    }
-                    _ => {}
+                if event == &WindowEvent::CloseRequested {
+                    println!("Quitting already? Don't be a sore loser");
+                    println!("Final Wave: {}", state.wave);
+                    println!("Killed {} zombies", state.kills);
+                    state.game_over = true;
                 }
             }
 
@@ -277,7 +273,7 @@ fn main() {
 
             if state.enemies.is_empty() {
                 state.wave += 1;
-                if state.wave % 3 == 0 {
+                if state.wave.is_multiple_of(3) {
                     state.hp *= 1.1;
                     state.spread = (state.spread + 1).min(20);
                 }

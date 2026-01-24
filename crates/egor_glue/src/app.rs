@@ -31,6 +31,12 @@ pub struct App {
     egui: Option<EguiRenderer>,
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App {
     /// Create a new [`App`]
     pub fn new() -> Self {
@@ -78,7 +84,7 @@ impl App {
 
     /// Run the app with a per-frame update closure
     pub fn run(mut self, #[allow(unused_mut)] mut update: impl FnMut(&mut FrameContext) + 'static) {
-        #[cfg(feature = "hot_reload")]
+        #[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
         let update = {
             dioxus_devtools::connect_subsecond();
 

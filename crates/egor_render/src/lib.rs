@@ -32,6 +32,19 @@ pub struct GeometryBatch {
     indices_dirty: bool,
 }
 
+impl Default for GeometryBatch {
+    fn default() -> Self {
+        Self {
+            vertices: Vec::with_capacity(Self::MAX_VERTICES),
+            indices: Vec::with_capacity(Self::MAX_INDICES),
+            vertex_buffer: None,
+            index_buffer: None,
+            vertices_dirty: false,
+            indices_dirty: false,
+        }
+    }
+}
+
 impl GeometryBatch {
     const MAX_VERTICES: usize = u16::MAX as usize;
     const MAX_INDICES: usize = Self::MAX_VERTICES * 6;
@@ -124,19 +137,6 @@ impl GeometryBatch {
             IndexFormat::Uint16,
         );
         r_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
-    }
-}
-
-impl Default for GeometryBatch {
-    fn default() -> Self {
-        Self {
-            vertices: Vec::with_capacity(Self::MAX_VERTICES),
-            indices: Vec::with_capacity(Self::MAX_INDICES),
-            vertex_buffer: None,
-            index_buffer: None,
-            vertices_dirty: false,
-            indices_dirty: false,
-        }
     }
 }
 
@@ -332,7 +332,7 @@ impl Renderer {
     }
 
     /// Begins a render pass with the given encoder and target view.
-    /// Clears the view with [`clear_color`]
+    /// Clears the view (set by [`Self::set_clear_color`])
     pub fn begin_render_pass<'a>(
         &'a self,
         encoder: &'a mut CommandEncoder,

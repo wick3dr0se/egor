@@ -58,15 +58,16 @@ PRs that mix unrelated changes may be closed or asked to split
 Before submitting, make sure your changes pass these commands:
 
 ```bash
-# Check formatting
+# check formatting
 cargo fmt --all -- --check
-
-# Build and test native
-cargo test --all-targets --all-features --locked
-
-# Lint with Clippy
-cargo clippy --all-targets --all-features --locked -- -D warnings -A clippy::new-without-default
-
-# Verify documentation builds
-cargo doc --no-deps --document-private-items --locked
+# check clippy lints
+cargo clippy --workspace --features "log ui hot_reload" --locked
+# verify documentation
+cargo doc --workspace --no-deps --locked
+# test native
+cargo test --workspace --features "log ui hot_reload" --locked
+# build wasm
+cargo build --workspace --target wasm32-unknown-unknown --features "log ui" --locked
+# test for UB (miri requires nightly)
+RUSTFLAGS="-A warnings" cargo +nightly miri test --workspace --lib --locked
 ```

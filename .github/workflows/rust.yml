@@ -4,22 +4,22 @@ on:
   push:
     branches: ["main"]
     paths-ignore:
-        - 'README.md'
+      - "README.md"
   pull_request:
     branches: ["main"]
     paths-ignore:
-      - 'README.md'
-
+      - "README.md"
 env:
   CARGO_TERM_COLOR: always
-
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-test-matrix:
-    name: Build and test native on ${{ matrix.os }}
+  test-matrix:
+    name: Test ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -27,65 +27,77 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Build
-        run: cargo build --all-targets --all-features --locked
+      - uses: Swatinem/rust-cache@v2
       - name: Test
-        run: cargo test --all-targets --all-features --locked
-
-  build-wasm:
-    name: Build wasm
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install targets
-        run: rustup target add wasm32-unknown-unknown
-      - name: Build
-        run: cargo build --target wasm32-unknown-unknown --verbose
-
-  build-demos:
-    name: Build demos
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build
-        run: |
-          set -euxo pipefail
-          for d in demos/*/ ; do
-            echo "Building demo $d"
-            (cd "$d" && CARGO_TARGET_DIR=../target cargo build --verbose)
-          done
-
-  clippy:
-    name: Check clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - name: Check
-        run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::new-without-default
-
+        run: cargo test --workspace --features "log ui hot_reload" --locked
   fmt:
-    name: Check rustfmt
+    name: Check format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Check
-        run: cargo fmt --check
-
+      - run: cargo fmt --all -- --check
+  clippy:
+    name: Check lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --features "log ui hot_reload" --locked
+  docs:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo doc --workspace --no-deps --locked
+  wasm:
+    name: Build wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace --target wasm32-unknown-unknown --features "log ui" --locked
+  demos:
+    name: Build demos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "demos"
+          cache-directories: "target"
+      - name: Install mold
+        uses: rui314/setup-mold@v1
+      - name: Build all demos
+        run: |
+          set -euxo pipefail
+          for d in demos/*/Cargo.toml ; do
+            echo "Building demo $d"
+            cargo build --manifest-path "$d" --locked
+          done
   miri:
-    name: Test miri
+    name: Test UB
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
-      - name: Prepare
+      - uses: Swatinem/rust-cache@v2
+      - name: Setup
         run: cargo miri setup
       - name: Test
-        run: cargo miri test
+        run: cargo miri test --workspace --lib --locked
+        env:
+          RUSTFLAGS: "-A warnings"
