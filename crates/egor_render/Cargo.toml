@@ -3,7 +3,7 @@ name = "egor_render"
 version = "0.7.0"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
-description = "2D renderer for egor"
+description = "A dead simple 2D wgpu renderer"
 license = "MIT"
 repository = "https://github.com/wick3dr0se/egor"
 keywords = ["egor", "wgpu"]
@@ -24,19 +24,16 @@ wgpu = { version = "25.0.0", default-features = false, features = [
     "wgsl",
     "vulkan",
 ] }
-
 [target.'cfg(target_os = "windows")'.dependencies]
 wgpu = { version = "25.0.0", default-features = false, features = [
     "wgsl",
     "dx12",
 ] }
-
 [target.'cfg(target_os = "macos")'.dependencies]
 wgpu = { version = "25.0.0", default-features = false, features = [
     "wgsl",
     "metal",
 ] }
-
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wgpu = { version = "25.0.0", default-features = false, features = [
     "wgsl",

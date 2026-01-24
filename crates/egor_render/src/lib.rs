@@ -20,6 +20,9 @@ pub struct CameraUniform {
     pub view_proj: [[f32; 4]; 4],
 }
 
+/// A batch of geometry (vertices + indices) that can be drawn in a single GPU call
+///
+/// Tracks CPU vertex/index data, lazily uploads GPU buffers and prevents overflowing `u16` indices
 pub struct GeometryBatch {
     vertices: Vec<Vertex>,
     indices: Vec<u16>,
@@ -33,11 +36,13 @@ impl GeometryBatch {
     const MAX_VERTICES: usize = u16::MAX as usize;
     const MAX_INDICES: usize = Self::MAX_VERTICES * 6;
 
+    // Returns true if adding verts/indices would exceed max allowed
     fn would_overflow(&self, vert_count: usize, idx_count: usize) -> bool {
         self.vertices.len() + vert_count > Self::MAX_VERTICES
             || self.indices.len() + idx_count > Self::MAX_INDICES
     }
 
+    /// Adds vertices/indices, returns false if it would overflow
     pub fn push(&mut self, verts: &[Vertex], indices: &[u16]) -> bool {
         if self.would_overflow(verts.len(), indices.len()) {
             return false;
@@ -53,6 +58,7 @@ impl GeometryBatch {
         true
     }
 
+    // Uploads buffers to GPU only if needed
     fn upload(&mut self, device: &Device, queue: &Queue) {
         if self.is_empty() || (!self.vertices_dirty && !self.indices_dirty) {
             return;
@@ -239,22 +245,66 @@ impl Renderer {
         }
     }
 
+    /// Returns a reference to the underlying wgpu `Device`
     pub fn device(&self) -> &Device {
         &self.gpu.device
     }
-
+    /// Returns a reference to the underlying wgpu `Queue`
     pub fn queue(&self) -> &Queue {
         &self.gpu.queue
     }
 
+    /// Returns the format of the current surface
     pub fn surface_format(&self) -> TextureFormat {
         self.target.config.format
     }
-
+    /// Returns a reference to the current surface configuration
     pub fn surface_config(&self) -> &SurfaceConfiguration {
         &self.target.config
     }
+    /// Returns the current surface dimensions (in pixels)
+    pub fn surface_size(&self) -> (f32, f32) {
+        (
+            self.target.config.width as f32,
+            self.target.config.height as f32,
+        )
+    }
+    /// Resizes the surface & updates internal render targets
+    pub fn resize(&mut self, w: u32, h: u32) {
+        (self.target.config.width, self.target.config.height) = (w, h);
+        self.target
+            .surface
+            .configure(&self.gpu.device, &self.target.config);
+    }
+    /// Enables/disables V‑Sync by changing the surface present mode
+    ///
+    /// `vsync = true` → [`PresentMode::Fifo`] (V‑Sync ON)  
+    /// `vsync = false` → [`PresentMode::AutoNoVsync`] (V‑Sync OFF)
+    ///
+    /// Reconfigures the surface immediately
+    pub fn set_vsync(&mut self, on: bool) {
+        self.target.config.present_mode = if on {
+            PresentMode::Fifo
+        } else {
+            PresentMode::AutoNoVsync
+        };
 
+        self.target
+            .surface
+            .configure(&self.gpu.device, &self.target.config);
+    }
+
+    /// Sets the clear color for future render passes
+    pub fn set_clear_color(&mut self, color: [f64; 4]) {
+        self.clear_color = Color {
+            r: color[0],
+            g: color[1],
+            b: color[2],
+            a: color[3],
+        };
+    }
+
+    /// Returns the current surface dimensions (in pixels)
     /// Begins a new frame, returning the surface texture and command encoder
     pub fn begin_frame(&mut self) -> Option<Frame> {
         let surface_texture = match self.target.surface.get_current_texture() {
@@ -281,6 +331,26 @@ impl Renderer {
         frame.surface_texture.present();
     }
 
+    /// Begins a render pass with the given encoder and target view.
+    /// Clears the view with [`clear_color`]
+    pub fn begin_render_pass<'a>(
+        &'a self,
+        encoder: &'a mut CommandEncoder,
+        view: &'a TextureView,
+    ) -> RenderPass<'a> {
+        encoder.begin_render_pass(&RenderPassDescriptor {
+            color_attachments: &[Some(RenderPassColorAttachment {
+                view,
+                resolve_target: None,
+                ops: Operations {
+                    load: LoadOp::Clear(self.clear_color),
+                    store: StoreOp::Store,
+                },
+            })],
+            ..Default::default()
+        })
+    }
+
     /// Draws a geometry batch within an existing render pass
     pub fn draw_batch(
         &self,
@@ -304,67 +374,6 @@ impl Renderer {
 
         batch.draw(r_pass);
         batch.clear();
-    }
-
-    pub fn begin_render_pass<'a>(
-        &'a self,
-        encoder: &'a mut CommandEncoder,
-        view: &'a TextureView,
-    ) -> RenderPass<'a> {
-        encoder.begin_render_pass(&RenderPassDescriptor {
-            color_attachments: &[Some(RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(self.clear_color),
-                    store: StoreOp::Store,
-                },
-            })],
-            ..Default::default()
-        })
-    }
-
-    /// Resizes the surface & updates internal render targets
-    pub fn resize(&mut self, w: u32, h: u32) {
-        (self.target.config.width, self.target.config.height) = (w, h);
-        self.target
-            .surface
-            .configure(&self.gpu.device, &self.target.config);
-    }
-
-    /// Returns the current surface dimensions (in pixels)
-    pub fn surface_size(&self) -> (f32, f32) {
-        (
-            self.target.config.width as f32,
-            self.target.config.height as f32,
-        )
-    }
-
-    /// Enables/disables V‑Sync by changing the surface present mode
-    ///
-    /// `vsync = true` → [`PresentMode::Fifo`] (V‑Sync ON)  
-    /// `vsync = false` → [`PresentMode::AutoNoVsync`] (V‑Sync OFF)
-    ///
-    /// Reconfigures the surface immediately
-    pub fn set_vsync(&mut self, on: bool) {
-        self.target.config.present_mode = if on {
-            PresentMode::Fifo
-        } else {
-            PresentMode::AutoNoVsync
-        };
-
-        self.target
-            .surface
-            .configure(&self.gpu.device, &self.target.config);
-    }
-
-    pub fn set_clear_color(&mut self, color: [f64; 4]) {
-        self.clear_color = Color {
-            r: color[0],
-            g: color[1],
-            b: color[2],
-            a: color[3],
-        };
     }
 
     /// Uploads the given view-projection matrix to the GPU for use in vertex transforms
