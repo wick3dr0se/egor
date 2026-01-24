@@ -9,7 +9,7 @@ use rand::Rng;
 use secs::World;
 use std::f32::consts::TAU;
 
-const MAX_PARTICLES: usize = 9_999;
+const MAX_PARTICLES: usize = 29_999;
 
 enum ParticleType {
     Fire,
@@ -95,7 +95,7 @@ fn main() {
                     }
                     _ => {
                         lightning::spawn(&world, &mut rng, a, b, 0, 0);
-                        shake += vec2(rng.gen_range(-12.0..12.0), rng.gen_range(-12.0..12.0));
+                        shake += vec2(rng.gen_range(-6.0..6.0), rng.gen_range(-6.0..6.0));
                     }
                 }
             }
@@ -196,11 +196,11 @@ fn main() {
                         });
                     }
 
-                    if ice.depth < 5 {
+                    if ice.depth < 6 {
                         let split_count = if ice.depth == 0 {
                             rng.gen_range(3..5)
                         } else {
-                            rng.gen_range(2..3)
+                            rng.gen_range(2..4)
                         };
                         for _ in 0..split_count {
                             let a = rng.gen_range(0.0..TAU);
@@ -216,7 +216,7 @@ fn main() {
                         }
                     }
 
-                    shake += vec2(rng.gen_range(-10.0..10.0), rng.gen_range(-10.0..10.0));
+                    shake += vec2(rng.gen_range(-4.0..4.0), rng.gen_range(-4.0..4.0));
                     world.despawn(e);
                     return;
                 }

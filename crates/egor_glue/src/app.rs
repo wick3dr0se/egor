@@ -164,14 +164,14 @@ impl AppHandler<Renderer> for App {
         };
         update(&mut ctx);
 
-        let geometry = ctx.gfx.flush();
+        let mut geometry = ctx.gfx.flush();
 
         text_renderer.prepare(&device, &queue, width, height);
 
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
 
-            for (tex_id, batch) in &geometry {
+            for (tex_id, batch) in &mut geometry {
                 renderer.draw_batch(&mut r_pass, batch, *tex_id);
             }
 
