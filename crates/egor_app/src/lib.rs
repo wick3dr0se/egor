@@ -73,6 +73,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         };
 
         let mut win_attrs = Window::default_attributes()
+            .with_visible(false)
             .with_title(&self.config.title)
             .with_resizable(self.config.resizable);
         if let (Some(w), Some(h)) = (self.config.width, self.config.height) {
@@ -82,10 +83,6 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         {
             use winit::platform::web::WindowAttributesExtWebSys;
             win_attrs = win_attrs.with_append(true);
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            win_attrs = win_attrs.with_visible(false);
         }
 
         let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
@@ -129,7 +126,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             WindowEvent::Resized(size) => {
                 if size.width == 0 || size.height == 0 {
                     return;
-                };
+                }
 
                 if let (Some(resource), Some(handler)) =
                     (self.resource.as_mut(), self.handler.as_mut())
@@ -157,10 +154,10 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
         let Some(window) = &self.window else { return };
 
         handler.on_ready(window, &mut resource);
-        #[cfg(not(target_arch = "wasm32"))]
         handler.frame(window, &mut resource, &self.input, &self.timer);
 
         window.set_visible(true);
+        window.request_redraw();
 
         self.resource = Some(resource);
         self.handler = Some(handler);

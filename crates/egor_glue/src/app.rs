@@ -122,23 +122,18 @@ impl AppHandler<Renderer> for App {
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
         renderer.set_vsync(self.vsync);
 
-        self.text_renderer = Some(TextRenderer::new(
-            renderer.device(),
-            renderer.queue(),
-            renderer.surface_format(),
-        ));
+        let (device, format) = (renderer.device(), renderer.surface_format());
+        self.text_renderer = Some(TextRenderer::new(device, renderer.queue(), format));
+        #[cfg(feature = "ui")]
+        {
+            self.egui = Some(EguiRenderer::new(device, format, window));
+        }
 
         self.resize(
             window.inner_size().width,
             window.inner_size().height,
             renderer,
         );
-
-        #[cfg(feature = "ui")]
-        {
-            let (device, format) = (renderer.device(), renderer.surface_format());
-            self.egui = Some(EguiRenderer::new(device, format, window));
-        }
     }
 
     fn frame(
