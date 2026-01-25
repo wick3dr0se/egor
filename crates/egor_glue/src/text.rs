@@ -7,9 +7,9 @@ use glyphon::{
 
 use crate::color::Color;
 
-pub struct TextEntry {
-    pub buffer: Buffer,
-    pub position: Vec2,
+struct TextEntry {
+    buffer: Buffer,
+    position: Vec2,
 }
 
 pub struct TextRenderer {
@@ -17,12 +17,12 @@ pub struct TextRenderer {
     swash_cache: SwashCache,
     atlas: TextAtlas,
     renderer: GlyphonRenderer,
-    entries: Vec<TextEntry>,
     viewport: Viewport,
+    entries: Vec<TextEntry>,
 }
 
 impl TextRenderer {
-    pub fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
+    pub(crate) fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
         let mut font_system = FontSystem::new();
         font_system
             .db_mut()
@@ -38,13 +38,17 @@ impl TextRenderer {
             swash_cache,
             atlas,
             renderer,
-            entries: Vec::new(),
             viewport,
+            entries: Vec::new(),
         }
     }
 
-    pub fn prepare(&mut self, device: &Device, queue: &Queue, width: u32, height: u32) {
-        self.viewport.update(queue, Resolution { width, height });
+    /// Prepare the text renderer for drawing
+    pub(crate) fn prepare(&mut self, device: &Device, queue: &Queue, width: u32, height: u32) {
+        if self.entries.is_empty() {
+            return;
+        }
+
         let text_areas: Vec<TextArea> = self
             .entries
             .iter()
@@ -53,17 +57,15 @@ impl TextRenderer {
                 left: entry.position.x,
                 top: entry.position.y,
                 bounds: TextBounds {
-                    left: 0,
-                    top: 0,
                     right: width as i32,
                     bottom: height as i32,
+                    ..Default::default()
                 },
                 scale: 1.0,
                 default_color: GlyphonColor::rgb(255, 255, 255),
                 custom_glyphs: &[],
             })
             .collect();
-
         self.renderer
             .prepare(
                 device,
@@ -79,43 +81,37 @@ impl TextRenderer {
         self.entries.clear();
     }
 
-    pub fn render<'a>(&'a mut self, pass: &mut RenderPass<'a>) {
+    pub(crate) fn render<'a>(&'a self, pass: &mut RenderPass<'a>) {
         self.renderer
             .render(&self.atlas, &self.viewport, pass)
             .unwrap();
     }
 
-    pub fn resize(&mut self, width: u32, height: u32) {
-        for entry in &mut self.entries {
-            entry.buffer.set_size(
-                &mut self.font_system,
-                Some(width as f32),
-                Some(height as f32),
-            );
-        }
-    }
-
-    // Internal access for TextBuilder
-    fn font_system_mut(&mut self) -> &mut FontSystem {
-        &mut self.font_system
-    }
-
-    fn push_entry(&mut self, entry: TextEntry) {
-        self.entries.push(entry);
+    pub(crate) fn resize(&mut self, width: u32, height: u32, queue: &Queue) {
+        self.viewport.update(queue, Resolution { width, height });
     }
 }
 
-/// High-level text drawing API
-/// Text is queued immediately and rendered on the next frame
+/// A builder for queuing a single line of text to the [`TextRenderer`].
+/// The text is uploaded and rendered on the next frame
+///
+/// # Example
+/// ```ignore
+/// gfx.text("Hello World").at((100.0, 50.0)).size(24.0).color(Color::WHITE);
+/// ```
 pub struct TextBuilder<'a> {
+    /// Reference to the renderer that will draw this text
     renderer: &'a mut TextRenderer,
+    /// The string content to render
     text: String,
+    /// Screen-space position of the text (top-left corner)
     position: Vec2,
     size: f32,
     color: Color,
 }
 
 impl<'a> TextBuilder<'a> {
+    /// Create a new text builder that will push text to the renderer
     pub fn new(renderer: &'a mut TextRenderer, text: String) -> Self {
         Self {
             renderer,
@@ -126,16 +122,17 @@ impl<'a> TextBuilder<'a> {
         }
     }
 
+    /// Set the position of text in screen space
     pub fn at(mut self, position: impl Into<Vec2>) -> Self {
         self.position = position.into();
         self
     }
-
+    /// Set the font size in points
     pub fn size(mut self, size: f32) -> Self {
         self.size = size;
         self
     }
-
+    /// Set the text color
     pub fn color(mut self, color: Color) -> Self {
         self.color = color;
         self
@@ -144,19 +141,15 @@ impl<'a> TextBuilder<'a> {
 
 impl Drop for TextBuilder<'_> {
     fn drop(&mut self) {
-        let mut buffer = Buffer::new(
-            self.renderer.font_system_mut(),
-            Metrics::new(self.size, 1.0),
-        );
-
+        let mut buffer = Buffer::new(&mut self.renderer.font_system, Metrics::new(self.size, 1.0));
         buffer.set_text(
-            self.renderer.font_system_mut(),
+            &mut self.renderer.font_system,
             &self.text,
             &Attrs::new().color(self.color.into()),
             Shaping::Basic,
         );
 
-        self.renderer.push_entry(TextEntry {
+        self.renderer.entries.push(TextEntry {
             buffer,
             position: self.position,
         });

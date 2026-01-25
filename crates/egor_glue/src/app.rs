@@ -121,13 +121,18 @@ impl AppHandler<Renderer> for App {
 
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
         renderer.set_vsync(self.vsync);
-        renderer.resize(window.inner_size().width, window.inner_size().height);
 
         self.text_renderer = Some(TextRenderer::new(
             renderer.device(),
             renderer.queue(),
             renderer.surface_format(),
         ));
+
+        self.resize(
+            window.inner_size().width,
+            window.inner_size().height,
+            renderer,
+        );
 
         #[cfg(feature = "ui")]
         {
@@ -202,6 +207,10 @@ impl AppHandler<Renderer> for App {
     }
 
     fn resize(&mut self, width: u32, height: u32, renderer: &mut Renderer) {
-        renderer.resize(width, height)
+        renderer.resize(width, height);
+        self.text_renderer
+            .as_mut()
+            .unwrap()
+            .resize(width, height, renderer.queue());
     }
 }
