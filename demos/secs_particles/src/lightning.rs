@@ -83,25 +83,19 @@ pub fn update(world: &World, timer: &FrameTimer, gfx: &mut Graphics) {
             world.despawn(e);
             return;
         }
-        let alpha = s.life * s.glow;
-        let d = s.b - s.a;
-        let ang = d.y.atan2(d.x);
-        let len = d.length();
 
-        gfx.rect()
-            .at(s.a)
-            .size(vec2(len, s.thickness * 6.0))
-            .rotate(ang)
+        let alpha = s.life * s.glow;
+        gfx.polyline()
+            .points(&[s.a, s.b])
+            .thickness(s.thickness * 6.0)
             .color(Color::new([0.3, 0.5, 1.0, alpha * 0.2]));
-        gfx.rect()
-            .at(s.a)
-            .size(vec2(len, s.thickness * 3.0))
-            .rotate(ang)
+        gfx.polyline()
+            .points(&[s.a, s.b])
+            .thickness(s.thickness * 3.0)
             .color(Color::new([0.6, 0.8, 1.0, alpha * 0.5]));
-        gfx.rect()
-            .at(s.a)
-            .size(vec2(len, s.thickness))
-            .rotate(ang)
+        gfx.polyline()
+            .points(&[s.a, s.b])
+            .thickness(s.thickness)
             .color(Color::new([1.0, 1.0, 1.0, alpha]));
     });
 }

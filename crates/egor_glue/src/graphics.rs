@@ -4,7 +4,7 @@ use glam::Vec2;
 use crate::{
     camera::Camera,
     color::Color,
-    primitives::{PolygonBuilder, PrimitiveBatch, RectangleBuilder},
+    primitives::{PolygonBuilder, PolylineBuilder, PrimitiveBatch, RectangleBuilder},
     text::{TextBuilder, TextRenderer},
 };
 
@@ -37,31 +37,31 @@ impl<'a> Graphics<'a> {
         }
     }
 
-    /// Start building a rectangle primitive
-    pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(&mut self.batch)
-    }
-
-    /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
-    pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        PolygonBuilder::new(&mut self.batch)
-    }
-
     /// Clear the screen to a color
     pub fn clear(&mut self, color: Color) {
         self.renderer.set_clear_color(color.into());
     }
-
     /// Get current surface size in pixels
     pub fn screen_size(&self) -> Vec2 {
         self.renderer.surface_size().into()
     }
-
     /// Mutable access to [`Camera`]
     pub fn camera(&mut self) -> &mut Camera {
         &mut self.camera
     }
 
+    /// Start building a rectangle primitive
+    pub fn rect(&mut self) -> RectangleBuilder<'_> {
+        RectangleBuilder::new(&mut self.batch)
+    }
+    /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
+    pub fn polygon(&mut self) -> PolygonBuilder<'_> {
+        PolygonBuilder::new(&mut self.batch)
+    }
+    /// Start building a polyline (stroked path) primitive
+    pub fn polyline(&mut self) -> PolylineBuilder<'_> {
+        PolylineBuilder::new(&mut self.batch)
+    }
     /// Draw a line of text
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         TextBuilder::new(self.text_renderer, text.to_string())
@@ -74,12 +74,10 @@ impl<'a> Graphics<'a> {
     pub fn load_texture(&mut self, data: &[u8]) -> usize {
         self.renderer.add_texture(data)
     }
-
     /// Update texture data by index
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
         self.renderer.update_texture(index, data);
     }
-
     /// Update texture data by index with raw width/height
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         self.renderer.update_texture_raw(index, w, h, data);
