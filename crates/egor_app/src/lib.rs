@@ -5,6 +5,13 @@ use crate::{input::Input, time::FrameTimer};
 use std::sync::Arc;
 pub use winit::{event::WindowEvent, window::Window};
 
+#[cfg(target_os = "android")]
+use std::sync::OnceLock;
+#[cfg(target_os = "android")]
+pub use winit::platform::android::activity::AndroidApp;
+#[cfg(target_os = "android")]
+pub static ANDROID_APP: OnceLock<AndroidApp> = OnceLock::new();
+
 use winit::{
     application::ApplicationHandler,
     dpi::PhysicalSize,
@@ -178,11 +185,23 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         }
     }
 
-    /// Starts the app & runs the event loop
+    /// Runs the app’s event loop on the current platform
+    ///
+    /// Handles Android, WASM and native setups, plus logging and user events
     pub fn run(mut self) {
-        let event_loop = EventLoop::<(R, H)>::with_user_event().build().unwrap();
-        event_loop.set_control_flow(ControlFlow::Poll);
+        let mut event_loop_builder = EventLoop::<(R, H)>::with_user_event();
+        #[cfg(target_os = "android")]
+        {
+            #[cfg(feature = "log")]
+            android_logger::init_once(Default::default().with_max_level(log::LevelFilter::Info));
 
+            use winit::platform::android::EventLoopBuilderExtAndroid;
+            let android_app = ANDROID_APP.get().unwrap().clone();
+            event_loop_builder.with_android_app(android_app);
+        }
+
+        let event_loop = event_loop_builder.build().unwrap();
+        event_loop.set_control_flow(ControlFlow::Poll);
         self.proxy = Some(event_loop.create_proxy());
 
         #[cfg(target_arch = "wasm32")]
@@ -200,8 +219,8 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            #[cfg(feature = "log")]
-            env_logger::init_from_env(env_logger::Env::default().default_filter_or("error"));
+            #[cfg(all(feature = "log", not(target_os = "android")))]
+            env_logger::init_from_env(Default::default().default_filter_or("error"));
 
             event_loop.run_app(&mut self).unwrap();
         }
