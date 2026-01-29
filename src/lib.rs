@@ -52,8 +52,12 @@
 //! - Windows builds use DX12 by default, Linux builds use Vulkan by default, etc
 //! - Optional backends can be enabled to override defaults or for cross-platform targeting
 
+pub use egor_macro::main;
+
 pub mod app {
     pub use egor_app::WindowEvent;
+    #[cfg(target_os = "android")]
+    pub use egor_app::{ANDROID_APP, AndroidApp};
     pub use egor_glue::app::{App, FrameContext};
     #[cfg(feature = "ui")]
     pub use egor_glue::ui::egui;

@@ -3,6 +3,9 @@ name = "demo_egor_secs_particles"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 egor = { path = "../../" }
 rand = "0.8"

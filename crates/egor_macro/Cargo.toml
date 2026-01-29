@@ -1,0 +1,16 @@
+[package]
+name = "egor_macro"
+version = "0.8.0"
+edition = "2024"
+authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
+description = "Procedural macros for egor"
+license = "MIT"
+repository = "https://github.com/wick3dr0se/egor"
+keywords = ["egor"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0"
+syn = "2.0"
