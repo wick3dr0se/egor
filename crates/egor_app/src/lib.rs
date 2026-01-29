@@ -220,7 +220,7 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         #[cfg(not(target_arch = "wasm32"))]
         {
             #[cfg(all(feature = "log", not(target_os = "android")))]
-            env_logger::init_from_env(Default::default().default_filter_or("error"));
+            env_logger::init_from_env(env_logger::Env::default().default_filter_or("error"));
 
             event_loop.run_app(&mut self).unwrap();
         }
