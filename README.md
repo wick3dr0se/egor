@@ -93,10 +93,10 @@ Make sure your crate is a library:
 crate-type = ["cdylib", "rlib"]
 ```
 
-Have a lib.rs with your #[egor::main] function:
+Have a lib.rs with your `egor::main` function:
 
 ```rust
-#[egor::main]
+egor::main!(main);
 fn main() {
     App::new().run()
 }
