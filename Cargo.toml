@@ -35,7 +35,6 @@ ui = ["egor_glue/ui"]
 egor_app = { version = "0.8.0", path = "crates/egor_app" }
 egor_glue = { version = "0.8.0", path = "crates/egor_glue" }
 egor_render = { version = "0.8.0", path = "crates/egor_render" }
-egor_macro = { version = "0.8.0", path = "crates/egor_macro" }
 
 [profile.dev]
 opt-level = 1

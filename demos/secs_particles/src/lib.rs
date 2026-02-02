@@ -45,7 +45,8 @@ struct IceCube {
     depth: u8,
 }
 
-#[egor::main]
+egor::main!(main);
+
 pub fn main() {
     let world = World::default();
     let mut rng = rand::thread_rng();
