@@ -1,0 +1,9 @@
+{
+    "rust-analyzer.cargo.features": "all",
+    "rust-analyzer.check.features": "all",
+    "rust-analyzer.check.overrideCommand": [
+        "cargo",
+        "clippy",
+        "--message-format=json"
+    ]
+}

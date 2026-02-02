@@ -47,7 +47,7 @@ struct IceCube {
 
 egor::main!(main);
 
-pub fn main() {
+fn main() {
     let world = World::default();
     let mut rng = rand::thread_rng();
     let mut spawn_timer = 0.0;

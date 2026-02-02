@@ -1,4 +1,4 @@
 /target
-/demos/*/dist
+/dist
 .cargo/
 /crates/*/demos/*/dist

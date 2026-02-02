@@ -523,28 +523,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a2330da5de22e8a3cb63252ce2abb30116bf5265e89c0e01bc17015ce30a476"
 
 [[package]]
-name = "demo_egor_secs_particles"
-version = "0.1.0"
-dependencies = [
- "egor",
- "getrandom 0.2.16",
- "rand 0.8.5",
- "secs",
-]
-
-[[package]]
-name = "demo_egor_shooter"
-version = "0.1.0"
-dependencies = [
- "egor",
- "getrandom 0.2.16",
- "image",
- "rand 0.8.5",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -686,6 +664,12 @@ dependencies = [
  "egor_app",
  "egor_glue",
  "egor_render",
+ "getrandom 0.2.17",
+ "image",
+ "rand 0.8.5",
+ "secs",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1033,9 +1017,9 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.2.16"
+version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
+checksum = "ff2abc00be7fca6ebc474524697ae276ad847ad0a6b3faa4bcb027e9a4614ad0"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -1202,13 +1186,6 @@ name = "hexf-parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
-
-[[package]]
-name = "hot-reload-test"
-version = "0.1.0"
-dependencies = [
- "egor",
-]
 
 [[package]]
 name = "http"
@@ -2083,7 +2060,7 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
 dependencies = [
- "getrandom 0.2.16",
+ "getrandom 0.2.17",
 ]
 
 [[package]]

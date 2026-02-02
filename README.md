@@ -76,6 +76,25 @@ cargo run
 
 ### Running a WASM Build
 
+**Setup**
+
+Create an `index.html` next to your `Cargo.toml`:
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset=utf-8>
+  <meta name=viewport content="width=device-width,initial-scale=1">
+  <link data-trunk rel="rust"/>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+  </style>
+</head>
+</html>
+```
+
 Run `trunk` (defer to [Trunk docs](https://docs.rs/crate/trunk/latest) for setup):
 
 ```bash

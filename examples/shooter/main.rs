@@ -113,7 +113,7 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 
 fn main() {
     let mut state = GameState {
-        map: EgorMap::new(include_str!("../assets/map.json")),
+        map: EgorMap::new(include_str!("assets/map.json")),
         player: Soldier {
             rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
             hp: 100.0,
@@ -154,16 +154,16 @@ fn main() {
             if timer.frame == 0 {
                 state.map.load_tileset(
                     gfx,
-                    include_bytes!("../assets/otsp_tiles_01.png"),
+                    include_bytes!("assets/otsp_tiles_01.png"),
                     "otsp_tiles_01.png",
                 );
                 state.map.load_tileset(
                     gfx,
-                    include_bytes!("../assets/otsp_walls_01.png"),
+                    include_bytes!("assets/otsp_walls_01.png"),
                     "otsp_walls_01.png",
                 );
-                state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
-                state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
+                state.player_tex = gfx.load_texture(include_bytes!("assets/soldier.png"));
+                state.enemy_tex = gfx.load_texture(include_bytes!("assets/zombie.png"));
                 return;
             }
 
