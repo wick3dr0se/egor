@@ -685,7 +685,6 @@ version = "0.8.0"
 dependencies = [
  "egor_app",
  "egor_glue",
- "egor_macro",
  "egor_render",
 ]
 
@@ -716,14 +715,6 @@ dependencies = [
  "egui-winit",
  "glam",
  "glyphon",
-]
-
-[[package]]
-name = "egor_macro"
-version = "0.8.0"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]
