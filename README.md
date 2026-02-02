@@ -102,7 +102,7 @@ fn main() {
 }
 ```
 
-The `#[egor::main]` macro generates `android_main()` on Android and is a no-op otherwise, allowing the same code to run on native, WASM and Android
+The `egor::main!(main)` macro defines the required `android_main()` entry point on Android and forwards execution to your `main()` function. On other platforms it expands to nothing
 
 Add an Android build target (if needed):
 
