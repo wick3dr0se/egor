@@ -12,7 +12,7 @@
 
 ## Why Egor?
 
-**Egor** is dead **simple**, **lightweight** and **cross-platform**. The same code runs on native and web (WASM) with minimal boilerplate. It's is built from small, composable crates on top of modern graphics and windowing abstractions
+**Egor** is dead **simple**, **lightweight** and **cross-platform**. The same code runs on native and web (WASM) with minimal boilerplate. It's built from small, composable crates on top of modern graphics and windowing abstractions
 
 **Egor** gives you the essentials for 2D apps and games:
 
@@ -30,9 +30,7 @@
 | MacOS      | Metal, Vulkan (MoltenVK) | ✅ Stable  |
 | Linux      | Vulkan, OpenGL           | ✅ Stable  |
 | Web (WASM) | WebGPU, WebGL2           | ✅ Working |
-
-> [!NOTE]
-> Mobile (Android/iOS) isn't (intended to be) supported & neither is touch input
+| Android    | Vulkan, OpenGL           | ✅ Working |
 
 ## Getting Started
 
@@ -82,6 +80,42 @@ Run `trunk` (defer to [Trunk docs](https://docs.rs/crate/trunk/latest) for setup
 
 ```bash
 trunk serve
+```
+
+### Running an Android Build
+
+**Setup**
+
+Make sure your crate is a library:
+
+```toml
+[lib]
+crate-type = ["cdylib", "rlib"]
+```
+
+Have a lib.rs with your #[egor::main] function:
+
+```rust
+#[egor::main]
+fn main() {
+    App::new().run()
+}
+```
+
+The `egor::main!(main)` macro defines the required `android_main()` entry point on Android and forwards execution to your `main()` function. On other platforms it expands to nothing
+
+Add an Android build target (if needed):
+
+```bash
+rustup target add aarch64-linux-android
+```
+
+Egor defers Android toolchain setup and build workflow to xbuild. See the [xbuild - getting started](https://github.com/rust-mobile/xbuild?tab=readme-ov-file#getting-started) for SDK/NDK and device setup
+
+Build with `xbuild`
+
+```bash
+x build
 ```
 
 ### Try Out Subsecond Hot-reloading

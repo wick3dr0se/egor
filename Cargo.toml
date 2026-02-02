@@ -14,7 +14,8 @@ members = [
     "crates/*",
     "demos/secs_particles",
     "demos/shooter",
-    "crates/egor_render/demos/triangle", "demos/hot-reload-test",
+    "crates/egor_render/demos/triangle",
+    "demos/hot-reload-test",
 ]
 resolver = "2"
 

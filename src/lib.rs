@@ -54,6 +54,8 @@
 
 pub mod app {
     pub use egor_app::WindowEvent;
+    #[cfg(target_os = "android")]
+    pub use egor_app::{ANDROID_APP, AndroidApp};
     pub use egor_glue::app::{App, FrameContext};
     #[cfg(feature = "ui")]
     pub use egor_glue::ui::egui;
@@ -73,4 +75,18 @@ pub mod render {
 
 pub mod math {
     pub use egor_glue::math::{IVec2, Rect, Vec2, ivec2, vec2};
+}
+
+#[macro_export]
+/// Invoke this by passing your main function as an argument.
+/// Ensures unusual platforms like android get initialized properly.
+macro_rules! main {
+    ($main:expr) => {
+        #[cfg(target_os = "android")]
+        #[unsafe(no_mangle)]
+        fn android_main(app: ::egor::app::AndroidApp) {
+            let _ = ::egor::app::ANDROID_APP.set(app);
+            ($main)();
+        }
+    };
 }
