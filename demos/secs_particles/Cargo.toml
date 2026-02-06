@@ -3,9 +3,14 @@ name = "demo_egor_secs_particles"
 version = "0.1.0"
 edition = "2024"
 
+# for android, `x run` expects package name to match generated lib so
 [lib]
-name = "demo_egor_secs_particles_lib"
 crate-type = ["cdylib", "rlib"]
+
+# renamed to avoid conflict with generated lib so
+[[bin]]
+name = "secs_particles"
+path = "src/main.rs"
 
 [dependencies]
 egor = { path = "../../" }

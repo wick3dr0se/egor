@@ -45,8 +45,11 @@ struct IceCube {
     depth: u8,
 }
 
+// Android expects `android_main()` entry point to exist here in lib.rs.
+// This macro generates the entry point for Android targets and nothing for other targets
+// It expects a `main()` function and it needs to be public, so it can be called outside
+// Calling this in main.rs, gives us a way to run the same exact code on desktop, wasm & Android
 egor::main!(main);
-
 pub fn main() {
     let world = World::default();
     let mut rng = rand::thread_rng();
