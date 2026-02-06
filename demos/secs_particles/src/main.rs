@@ -1,3 +1,3 @@
 fn main() {
-    demo_egor_secs_particles::main();
+    demo_egor_secs_particles_lib::main();
 }

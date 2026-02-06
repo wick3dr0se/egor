@@ -10,13 +10,7 @@ keywords = ["2d", "graphics", "wgpu", "winit"]
 categories = ["graphics", "game-development"]
 
 [workspace]
-members = [
-    "crates/*",
-    "demos/secs_particles",
-    "demos/shooter",
-    "crates/egor_render/demos/triangle",
-    "demos/hot-reload-test",
-]
+members = ["xtask", "crates/*", "demos/*"]
 resolver = "2"
 
 [features]
