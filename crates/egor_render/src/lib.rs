@@ -249,6 +249,7 @@ pub struct Renderer {
     textures: Vec<Texture>,
     default_texture: Texture,
     clear_color: Color,
+    last_size: (u32, u32),
 }
 
 impl Renderer {
@@ -325,6 +326,7 @@ impl Renderer {
             textures: Vec::new(),
             default_texture,
             clear_color: Color::BLACK,
+            last_size: (w, h),
         }
     }
 
@@ -359,6 +361,7 @@ impl Renderer {
     }
     /// Resize the current render target
     pub fn resize(&mut self, w: u32, h: u32) {
+        self.last_size = (w, h);
         self.target.as_mut().unwrap().resize(&self.gpu.device, w, h);
     }
     /// Enables/disables V‑Sync (only for backbuffer targets)
@@ -367,6 +370,25 @@ impl Renderer {
             .as_mut()
             .unwrap()
             .set_vsync(&self.gpu.device, on);
+    }
+    /// Stores the current surface size and invalidates render target
+    pub fn destroy_surface(&mut self) {
+        if let Some(target) = &self.target {
+            self.last_size = target.size();
+        }
+        self.target = None;
+    }
+    /// Creates a new backbuffer using the last known surface size
+    pub fn recreate_surface(&mut self, window: impl Into<SurfaceTarget<'static>> + WindowHandle) {
+        let (w, h) = self.last_size;
+        self.target = Some(Box::new(Backbuffer::new(
+            &self.gpu.instance,
+            &self.gpu.adapter,
+            &self.gpu.device,
+            window,
+            w,
+            h,
+        )));
     }
 
     /// Sets the clear color for future render passes

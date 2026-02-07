@@ -205,4 +205,12 @@ impl AppHandler<Renderer> for App {
             .unwrap()
             .resize(width, height, renderer.queue());
     }
+
+    fn suspended(&mut self, renderer: &mut Renderer) {
+        renderer.destroy_surface();
+    }
+
+    fn resumed(&mut self, window: Arc<Window>, renderer: &mut Renderer) {
+        renderer.recreate_surface(window);
+    }
 }
