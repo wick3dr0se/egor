@@ -12,7 +12,7 @@
 
 ## Why Egor?
 
-**Egor** is dead **simple**, **lightweight** and **cross-platform**. The same code runs on native and web (WASM) with minimal boilerplate. It's built from small, composable crates on top of modern graphics and windowing abstractions
+**Egor** is dead **simple**, **lightweight** and **cross-platform**. The same code runs on desktop, web (WASM) and mobile with minimal boilerplate. It's built from small, composable crates on top of modern graphics and windowing abstractions
 
 **Egor** gives you the essentials for 2D apps and games:
 
@@ -62,7 +62,7 @@ App::new()
 To see more of **egor** in action, check out [demos/](demos)
 
 > [!TIP]
-> Running a demo for WASM? You’ll need to move [index.html](demos/index.html) into a demo, or just use the included [run.sh](demos/run.sh) script (see usage). It simplifies running native, WASM & hot-reload builds
+> Run any of egor's demos with `cargo xtask run <demo>`. See it's usage (`--help`) for targeting different platforms and features (e.g. `cargo xtask run secs_particles --wasm`)
 
 For full documentation see the [official docs](https://docs.rs/egor/latest)
 
@@ -83,15 +83,21 @@ Create an `index.html` next to your `Cargo.toml`:
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset=utf-8>
-  <meta name=viewport content="width=device-width,initial-scale=1">
-  <link data-trunk rel="rust"/>
-  <style>
-    body { margin: 0; }
-    canvas { display: block; width: 100vw; height: 100vh; }
-  </style>
-</head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link data-trunk rel="rust" />
+    <style>
+      body {
+        margin: 0;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+    </style>
+  </head>
 </html>
 ```
 
@@ -116,12 +122,12 @@ Have a lib.rs with your `egor::main` function:
 
 ```rust
 egor::main!(main);
-fn main() {
-    App::new().run()
+pub fn main() {
+    App::new().run(...)
 }
 ```
 
-The `egor::main!(main)` macro defines the required `android_main()` entry point on Android and forwards execution to your `main()` function. On other platforms it expands to nothing
+The `egor::main!(main)` macro defines the required `android_main()` entry point on Android and forwards execution to your `main()` function. On other platforms it expands to nothing (see the secs_particles demo for reference)
 
 Add an Android build target (if needed):
 
