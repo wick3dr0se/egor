@@ -150,10 +150,7 @@ impl AppHandler<Renderer> for App {
             return;
         };
 
-        let (width, height) = (
-            renderer.surface_config().width,
-            renderer.surface_config().height,
-        );
+        let (w, h) = renderer.surface_size();
         let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
 
         let text_renderer = self.text_renderer.as_mut().unwrap();
@@ -172,7 +169,7 @@ impl AppHandler<Renderer> for App {
 
         let mut geometry = ctx.gfx.flush();
 
-        text_renderer.prepare(&device, &queue, width, height);
+        text_renderer.prepare(&device, &queue, w, h);
 
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
@@ -192,8 +189,8 @@ impl AppHandler<Renderer> for App {
                 &queue,
                 &mut frame.encoder,
                 &frame.view,
-                width,
-                height,
+                w,
+                h,
                 render_data,
             );
         }

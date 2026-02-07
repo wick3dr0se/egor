@@ -19,9 +19,10 @@ pub struct Graphics<'a> {
 impl<'a> Graphics<'a> {
     /// Upload camera matrix & extract batched geometry
     pub(crate) fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
+        let (w, h) = self.renderer.surface_size();
         self.renderer.upload_camera_matrix(
             self.camera
-                .view_proj(self.renderer.surface_size().into())
+                .view_proj((w as f32, h as f32).into())
                 .to_cols_array_2d(),
         );
         self.batch.take()
@@ -43,7 +44,8 @@ impl<'a> Graphics<'a> {
     }
     /// Get current surface size in pixels
     pub fn screen_size(&self) -> Vec2 {
-        self.renderer.surface_size().into()
+        let (w, h) = self.renderer.surface_size();
+        (w as f32, h as f32).into()
     }
     /// Mutable access to [`Camera`]
     pub fn camera(&mut self) -> &mut Camera {

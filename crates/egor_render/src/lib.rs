@@ -5,10 +5,10 @@ pub mod vertex;
 pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
 
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color, CommandEncoder,
-    DeviceDescriptor, IndexFormat, LoadOp, Operations, PresentMode, RenderPassColorAttachment,
-    RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface, SurfaceConfiguration,
-    SurfaceError, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
+    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
+    CommandEncoder, DeviceDescriptor, IndexFormat, Instance, LoadOp, Operations, PresentMode,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, Surface,
+    SurfaceConfiguration, SurfaceTarget, SurfaceTexture, TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
@@ -140,20 +140,101 @@ impl GeometryBatch {
     }
 }
 
-struct RenderTarget {
-    surface: Surface<'static>,
-    config: SurfaceConfiguration,
+/// Trait for presenting rendered frames
+pub trait Presentable {
+    fn present(self: Box<Self>);
 }
 
-struct Gpu {
-    device: Device,
-    queue: Queue,
+impl Presentable for SurfaceTexture {
+    fn present(self: Box<Self>) {
+        (*self).present();
+    }
 }
 
 pub struct Frame {
     pub view: TextureView,
     pub encoder: CommandEncoder,
-    surface_texture: SurfaceTexture,
+    presentable: Option<Box<dyn Presentable>>,
+}
+
+impl Frame {
+    fn finish(self, queue: &Queue) {
+        queue.submit(Some(self.encoder.finish()));
+        if let Some(p) = self.presentable {
+            p.present();
+        }
+    }
+}
+
+/// Trait for render targets (backbuffers, offscreen textures, etc.)
+pub trait RenderTarget {
+    fn format(&self) -> TextureFormat;
+    fn size(&self) -> (u32, u32);
+    fn begin(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)>;
+    fn resize(&mut self, device: &Device, w: u32, h: u32);
+    // only useful for backbuffer targets
+    fn set_vsync(&mut self, _device: &Device, _on: bool) {}
+}
+
+/// Renders to the window's backbuffer (swapchain)
+pub struct Backbuffer {
+    surface: Surface<'static>,
+    config: SurfaceConfiguration,
+}
+
+impl Backbuffer {
+    pub fn new(
+        instance: &Instance,
+        adapter: &Adapter,
+        device: &Device,
+        window: impl Into<SurfaceTarget<'static>> + WindowHandle,
+        w: u32,
+        h: u32,
+    ) -> Self {
+        let surface = instance.create_surface(window).unwrap();
+        let mut config = surface.get_default_config(adapter, w, h).unwrap();
+        config.present_mode = PresentMode::AutoVsync;
+        surface.configure(device, &config);
+        Self { surface, config }
+    }
+}
+
+impl RenderTarget for Backbuffer {
+    fn format(&self) -> TextureFormat {
+        self.config.format
+    }
+
+    fn size(&self) -> (u32, u32) {
+        (self.config.width, self.config.height)
+    }
+
+    fn begin(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
+        let surface_texture = self.surface.get_current_texture().ok()?;
+        let view = surface_texture.texture.create_view(&Default::default());
+
+        Some((view, Some(Box::new(surface_texture))))
+    }
+
+    fn resize(&mut self, device: &Device, w: u32, h: u32) {
+        (self.config.width, self.config.height) = (w, h);
+        self.surface.configure(device, &self.config);
+    }
+
+    fn set_vsync(&mut self, device: &Device, on: bool) {
+        self.config.present_mode = if on {
+            PresentMode::Fifo
+        } else {
+            PresentMode::AutoNoVsync
+        };
+        self.surface.configure(device, &self.config);
+    }
+}
+
+struct Gpu {
+    instance: Instance,
+    adapter: Adapter,
+    device: Device,
+    queue: Queue,
 }
 
 /// Low-level GPU renderer built on `wgpu`
@@ -161,7 +242,7 @@ pub struct Frame {
 /// Handles rendering pipelines, surface configuration, resources (textures, buffers), & drawing
 pub struct Renderer {
     gpu: Gpu,
-    target: RenderTarget,
+    target: Option<Box<dyn RenderTarget>>,
     pipelines: Pipelines,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
@@ -171,13 +252,12 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    /// Creates a new `Renderer` with a configured surface, pipeline & default resources
+    /// Creates a new `Renderer` configured for the given surface format
     ///
-    /// Initializes `wgpu`, sets up a basic alpha-blended render pipeline, default texture,
-    /// camera uniform, internal text renderer & more
+    /// Initializes `wgpu`, sets up render pipelines, default texture & camera uniform
     pub async fn new(
-        inner_width: u32,
-        inner_height: u32,
+        w: u32,
+        h: u32,
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
     ) -> Renderer {
         let instance = new_instance_with_webgpu_detection(&Default::default()).await;
@@ -199,9 +279,7 @@ impl Renderer {
             .await
             .unwrap();
 
-        let mut surface_cfg = surface
-            .get_default_config(&adapter, inner_width, inner_height)
-            .unwrap();
+        let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
         surface_cfg.present_mode = PresentMode::AutoVsync;
         surface.configure(&device, &surface_cfg);
 
@@ -231,11 +309,16 @@ impl Renderer {
         let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
 
         Renderer {
-            gpu: Gpu { device, queue },
-            target: RenderTarget {
+            gpu: Gpu {
+                instance,
+                adapter,
+                device,
+                queue,
+            },
+            target: Some(Box::new(Backbuffer {
                 surface,
                 config: surface_cfg,
-            },
+            })),
             pipelines,
             camera_bind_group,
             camera_buffer,
@@ -245,6 +328,14 @@ impl Renderer {
         }
     }
 
+    /// Returns a reference to the underlying wgpu `Instance`
+    pub fn instance(&self) -> &Instance {
+        &self.gpu.instance
+    }
+    /// Returns a reference to the underlying wgpu `Adapter`
+    pub fn adapter(&self) -> &Adapter {
+        &self.gpu.adapter
+    }
     /// Returns a reference to the underlying wgpu `Device`
     pub fn device(&self) -> &Device {
         &self.gpu.device
@@ -254,44 +345,28 @@ impl Renderer {
         &self.gpu.queue
     }
 
+    /// Sets the active render target
+    pub fn set_target(&mut self, target: impl RenderTarget + 'static) {
+        self.target = Some(Box::new(target));
+    }
     /// Returns the format of the current surface
     pub fn surface_format(&self) -> TextureFormat {
-        self.target.config.format
-    }
-    /// Returns a reference to the current surface configuration
-    pub fn surface_config(&self) -> &SurfaceConfiguration {
-        &self.target.config
+        self.target.as_ref().unwrap().format()
     }
     /// Returns the current surface dimensions (in pixels)
-    pub fn surface_size(&self) -> (f32, f32) {
-        (
-            self.target.config.width as f32,
-            self.target.config.height as f32,
-        )
+    pub fn surface_size(&self) -> (u32, u32) {
+        self.target.as_ref().unwrap().size()
     }
-    /// Resizes the surface & updates internal render targets
+    /// Resize the current render target
     pub fn resize(&mut self, w: u32, h: u32) {
-        (self.target.config.width, self.target.config.height) = (w, h);
-        self.target
-            .surface
-            .configure(&self.gpu.device, &self.target.config);
+        self.target.as_mut().unwrap().resize(&self.gpu.device, w, h);
     }
-    /// Enables/disables V‑Sync by changing the surface present mode
-    ///
-    /// `vsync = true` → [`PresentMode::Fifo`] (V‑Sync ON)  
-    /// `vsync = false` → [`PresentMode::AutoNoVsync`] (V‑Sync OFF)
-    ///
-    /// Reconfigures the surface immediately
+    /// Enables/disables V‑Sync (only for backbuffer targets)
     pub fn set_vsync(&mut self, on: bool) {
-        self.target.config.present_mode = if on {
-            PresentMode::Fifo
-        } else {
-            PresentMode::AutoNoVsync
-        };
-
         self.target
-            .surface
-            .configure(&self.gpu.device, &self.target.config);
+            .as_mut()
+            .unwrap()
+            .set_vsync(&self.gpu.device, on);
     }
 
     /// Sets the clear color for future render passes
@@ -304,31 +379,21 @@ impl Renderer {
         };
     }
 
-    /// Returns the current surface dimensions (in pixels)
-    /// Begins a new frame, returning the surface texture and command encoder
+    /// Begins a new frame with the given render target
     pub fn begin_frame(&mut self) -> Option<Frame> {
-        let surface_texture = match self.target.surface.get_current_texture() {
-            Ok(frame) => frame,
-            Err(SurfaceError::OutOfMemory) => {
-                panic!("Out of GPU memory!");
-            }
-            Err(_) => return None,
-        };
-
-        let view = surface_texture.texture.create_view(&Default::default());
+        let (view, presentable) = self.target.as_mut()?.begin()?;
         let encoder = self.gpu.device.create_command_encoder(&Default::default());
 
         Some(Frame {
             view,
             encoder,
-            surface_texture,
+            presentable,
         })
     }
 
     /// Ends the frame by submitting commands and presenting
     pub fn end_frame(&mut self, frame: Frame) {
-        self.gpu.queue.submit(Some(frame.encoder.finish()));
-        frame.surface_texture.present();
+        frame.finish(&self.gpu.queue);
     }
 
     /// Begins a render pass with the given encoder and target view.
