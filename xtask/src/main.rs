@@ -28,6 +28,7 @@ enum Cmd {
 impl Cmd {
     fn run(&self) {
         let Cmd::Run { demo, features, .. } = self;
+        let mut features = features.clone();
         let demo_dir = format!("demos/{}", demo);
         let index_path = Path::new(&demo_dir).join("index.html");
 
@@ -51,7 +52,10 @@ impl Cmd {
             } => ("x", &["run", "--arch", "arm64", "--device", device]),
             Cmd::Run {
                 hot_reload: true, ..
-            } => ("dx", &["serve"]),
+            } => {
+                features.push("hot_reload".to_string());
+                ("dx", &["serve", "--hot-patch"])
+            }
             _ => ("cargo", &["run"]),
         };
 
