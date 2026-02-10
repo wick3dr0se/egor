@@ -27,7 +27,7 @@ impl ApplicationHandler for MinimalApp {
         let window = Arc::new(event_loop.create_window(Default::default()).unwrap());
         let size = window.inner_size();
 
-        let renderer = pollster::block_on(Renderer::new());
+        let renderer = pollster::block_on(Renderer::new(window.clone()));
         let backbuffer = Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),

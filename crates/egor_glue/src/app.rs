@@ -118,7 +118,7 @@ impl AppHandler<Renderer> for App {
             if size.width == 0 { 800 } else { size.width },
             if size.height == 0 { 600 } else { size.height },
         );
-        let renderer = Renderer::new().await;
+        let renderer = Renderer::new(window.clone()).await;
         self.backbuffer = Some(Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),
@@ -217,16 +217,17 @@ impl AppHandler<Renderer> for App {
     }
 
     fn resize(&mut self, w: u32, h: u32, renderer: &mut Renderer) {
-        if let Some(backbuffer) = &mut self.backbuffer {
-            backbuffer.resize(renderer.device(), w, h);
-        }
+        self.backbuffer
+            .as_mut()
+            .unwrap()
+            .resize(renderer.device(), w, h);
         self.text_renderer
             .as_mut()
             .unwrap()
             .resize(w, h, renderer.queue());
     }
 
-    fn suspended(&mut self, _renderer: &mut Renderer) {
+    fn suspended(&mut self) {
         self.backbuffer = None;
     }
 

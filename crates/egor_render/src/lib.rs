@@ -251,13 +251,18 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    /// Creates a renderer without any render target
+    /// Creates a renderer & initializes GPU state using the window's surface
     ///
-    /// Initializes `wgpu`, sets up render pipelines, default texture & camera uniform
-    pub async fn new() -> Self {
+    /// Sets up wgpu, pipelines, default texture & camera resources
+    pub async fn new(window: impl Into<SurfaceTarget<'static>> + WindowHandle) -> Self {
         let instance = new_instance_with_webgpu_detection(&Default::default()).await;
+        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
-            .request_adapter(&RequestAdapterOptions::default())
+            .request_adapter(&RequestAdapterOptions {
+                // Required for WebGL to prevent selecting a non-presentable device
+                compatible_surface: Some(&surface),
+                ..Default::default()
+            })
             .await
             .unwrap();
         let (device, queue) = adapter
@@ -269,8 +274,8 @@ impl Renderer {
             .await
             .unwrap();
 
-        let format = TextureFormat::Bgra8UnormSrgb;
-        let pipelines = Pipelines::new(&device, format);
+        let config = surface.get_default_config(&adapter, 1, 1).unwrap();
+        let pipelines = Pipelines::new(&device, config.format);
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
