@@ -170,9 +170,10 @@ impl Frame {
 pub trait RenderTarget {
     fn format(&self) -> TextureFormat;
     fn size(&self) -> (u32, u32);
-    fn begin(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)>;
+    /// Returns the view and optionally something that must be presented (swapchain)
+    fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)>;
     fn resize(&mut self, device: &Device, w: u32, h: u32);
-    // only useful for backbuffer targets
+    /// Only useful for backbuffer targets
     fn set_vsync(&mut self, _device: &Device, _on: bool) {}
 }
 
@@ -208,10 +209,9 @@ impl RenderTarget for Backbuffer {
         (self.config.width, self.config.height)
     }
 
-    fn begin(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
+    fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
         let surface_texture = self.surface.get_current_texture().ok()?;
         let view = surface_texture.texture.create_view(&Default::default());
-
         Some((view, Some(Box::new(surface_texture))))
     }
 
@@ -242,33 +242,22 @@ struct Gpu {
 /// Handles rendering pipelines, surface configuration, resources (textures, buffers), & drawing
 pub struct Renderer {
     gpu: Gpu,
-    target: Option<Box<dyn RenderTarget>>,
     pipelines: Pipelines,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
     textures: Vec<Texture>,
     default_texture: Texture,
     clear_color: Color,
-    last_size: (u32, u32),
 }
 
 impl Renderer {
-    /// Creates a new `Renderer` configured for the given surface format
+    /// Creates a renderer without any render target
     ///
     /// Initializes `wgpu`, sets up render pipelines, default texture & camera uniform
-    pub async fn new(
-        w: u32,
-        h: u32,
-        window: impl Into<SurfaceTarget<'static>> + WindowHandle,
-    ) -> Renderer {
+    pub async fn new() -> Self {
         let instance = new_instance_with_webgpu_detection(&Default::default()).await;
-        let surface = instance.create_surface(window).unwrap();
         let adapter = instance
-            .request_adapter(&RequestAdapterOptions {
-                // Force find adapter that can present to this surface
-                compatible_surface: Some(&surface),
-                ..Default::default()
-            })
+            .request_adapter(&RequestAdapterOptions::default())
             .await
             .unwrap();
         let (device, queue) = adapter
@@ -280,9 +269,8 @@ impl Renderer {
             .await
             .unwrap();
 
-        let mut surface_cfg = surface.get_default_config(&adapter, w, h).unwrap();
-        surface_cfg.present_mode = PresentMode::AutoVsync;
-        surface.configure(&device, &surface_cfg);
+        let format = TextureFormat::Bgra8UnormSrgb;
+        let pipelines = Pipelines::new(&device, format);
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
@@ -297,7 +285,6 @@ impl Renderer {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let pipelines = Pipelines::new(&device, surface_cfg.format);
         let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
             layout: &pipelines.camera_layout,
@@ -316,17 +303,12 @@ impl Renderer {
                 device,
                 queue,
             },
-            target: Some(Box::new(Backbuffer {
-                surface,
-                config: surface_cfg,
-            })),
             pipelines,
             camera_bind_group,
             camera_buffer,
             textures: Vec::new(),
             default_texture,
             clear_color: Color::BLACK,
-            last_size: (w, h),
         }
     }
 
@@ -347,50 +329,6 @@ impl Renderer {
         &self.gpu.queue
     }
 
-    /// Sets the active render target
-    pub fn set_target(&mut self, target: impl RenderTarget + 'static) {
-        self.target = Some(Box::new(target));
-    }
-    /// Returns the format of the current surface
-    pub fn surface_format(&self) -> TextureFormat {
-        self.target.as_ref().unwrap().format()
-    }
-    /// Returns the current surface dimensions (in pixels)
-    pub fn surface_size(&self) -> (u32, u32) {
-        self.target.as_ref().unwrap().size()
-    }
-    /// Resize the current render target
-    pub fn resize(&mut self, w: u32, h: u32) {
-        self.last_size = (w, h);
-        self.target.as_mut().unwrap().resize(&self.gpu.device, w, h);
-    }
-    /// Enables/disables V‑Sync (only for backbuffer targets)
-    pub fn set_vsync(&mut self, on: bool) {
-        self.target
-            .as_mut()
-            .unwrap()
-            .set_vsync(&self.gpu.device, on);
-    }
-    /// Stores the current surface size and invalidates render target
-    pub fn destroy_surface(&mut self) {
-        if let Some(target) = &self.target {
-            self.last_size = target.size();
-        }
-        self.target = None;
-    }
-    /// Creates a new backbuffer using the last known surface size
-    pub fn recreate_surface(&mut self, window: impl Into<SurfaceTarget<'static>> + WindowHandle) {
-        let (w, h) = self.last_size;
-        self.target = Some(Box::new(Backbuffer::new(
-            &self.gpu.instance,
-            &self.gpu.adapter,
-            &self.gpu.device,
-            window,
-            w,
-            h,
-        )));
-    }
-
     /// Sets the clear color for future render passes
     pub fn set_clear_color(&mut self, color: [f64; 4]) {
         self.clear_color = Color {
@@ -401,11 +339,10 @@ impl Renderer {
         };
     }
 
-    /// Begins a new frame with the given render target
-    pub fn begin_frame(&mut self) -> Option<Frame> {
-        let (view, presentable) = self.target.as_mut()?.begin()?;
+    /// Begins a frame with the given render target
+    pub fn begin_frame(&mut self, target: &mut dyn RenderTarget) -> Option<Frame> {
+        let (view, presentable) = target.acquire()?;
         let encoder = self.gpu.device.create_command_encoder(&Default::default());
-
         Some(Frame {
             view,
             encoder,

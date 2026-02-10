@@ -14,12 +14,29 @@ pub struct Graphics<'a> {
     batch: PrimitiveBatch,
     camera: Camera,
     text_renderer: &'a mut TextRenderer,
+    target_size: (u32, u32),
 }
 
 impl<'a> Graphics<'a> {
+    /// Create `Graphics` with a [`Renderer`] & [`TextRenderer`]
+    pub fn new(
+        renderer: &'a mut Renderer,
+        text_renderer: &'a mut TextRenderer,
+        w: u32,
+        h: u32,
+    ) -> Self {
+        Self {
+            renderer,
+            batch: PrimitiveBatch::default(),
+            camera: Camera::default(),
+            text_renderer,
+            target_size: (w, h),
+        }
+    }
+
     /// Upload camera matrix & extract batched geometry
     pub(crate) fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
-        let (w, h) = self.renderer.surface_size();
+        let (w, h) = self.target_size;
         self.renderer.upload_camera_matrix(
             self.camera
                 .view_proj((w as f32, h as f32).into())
@@ -28,23 +45,13 @@ impl<'a> Graphics<'a> {
         self.batch.take()
     }
 
-    /// Create `Graphics` with a [`Renderer`] & [`TextRenderer`]
-    pub fn new(renderer: &'a mut Renderer, text_renderer: &'a mut TextRenderer) -> Self {
-        Self {
-            renderer,
-            batch: PrimitiveBatch::default(),
-            camera: Camera::default(),
-            text_renderer,
-        }
-    }
-
     /// Clear the screen to a color
     pub fn clear(&mut self, color: Color) {
         self.renderer.set_clear_color(color.into());
     }
     /// Get current surface size in pixels
     pub fn screen_size(&self) -> Vec2 {
-        let (w, h) = self.renderer.surface_size();
+        let (w, h) = self.target_size;
         (w as f32, h as f32).into()
     }
     /// Mutable access to [`Camera`]
