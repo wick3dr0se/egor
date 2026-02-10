@@ -8,7 +8,7 @@ use crate::ui::EguiRenderer;
 use egor_app::{
     AppConfig, AppHandler, AppRunner, Window, WindowEvent, input::Input, time::FrameTimer,
 };
-use egor_render::Renderer;
+use egor_render::{Backbuffer, RenderTarget, Renderer};
 
 type UpdateFn = dyn FnMut(&mut FrameContext);
 
@@ -29,6 +29,7 @@ pub struct App {
     text_renderer: Option<TextRenderer>,
     #[cfg(feature = "ui")]
     egui: Option<EguiRenderer>,
+    backbuffer: Option<Backbuffer>,
 }
 
 impl Default for App {
@@ -48,6 +49,7 @@ impl App {
             text_renderer: None,
             #[cfg(feature = "ui")]
             egui: None,
+            backbuffer: None,
         }
     }
 
@@ -116,13 +118,27 @@ impl AppHandler<Renderer> for App {
             if size.width == 0 { 800 } else { size.width },
             if size.height == 0 { 600 } else { size.height },
         );
-        Renderer::new(w, h, window).await
+        let renderer = Renderer::new(window.clone()).await;
+        self.backbuffer = Some(Backbuffer::new(
+            renderer.instance(),
+            renderer.adapter(),
+            renderer.device(),
+            window,
+            w,
+            h,
+        ));
+        renderer
     }
 
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
-        renderer.set_vsync(self.vsync);
-
-        let (device, format) = (renderer.device(), renderer.surface_format());
+        let (device, format) = (
+            renderer.device(),
+            self.backbuffer.as_ref().unwrap().format(),
+        );
+        self.backbuffer
+            .as_mut()
+            .unwrap()
+            .set_vsync(device, self.vsync);
         self.text_renderer = Some(TextRenderer::new(device, renderer.queue(), format));
         #[cfg(feature = "ui")]
         {
@@ -146,19 +162,21 @@ impl AppHandler<Renderer> for App {
         let Some(update) = &mut self.update else {
             return;
         };
-        let Some(mut frame) = renderer.begin_frame() else {
+        let Some(backbuffer) = &mut self.backbuffer else {
+            return;
+        };
+        let Some(mut frame) = renderer.begin_frame(backbuffer) else {
             return;
         };
 
-        let (w, h) = renderer.surface_size();
+        let (w, h) = backbuffer.size();
         let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
-
         let text_renderer = self.text_renderer.as_mut().unwrap();
 
         #[cfg(feature = "ui")]
         let egui_ctx = self.egui.as_mut().unwrap().begin_frame(_window);
         let mut ctx = FrameContext {
-            gfx: Graphics::new(renderer, text_renderer),
+            gfx: Graphics::new(renderer, text_renderer, w, h),
             input,
             timer,
             #[cfg(feature = "ui")]
@@ -198,19 +216,32 @@ impl AppHandler<Renderer> for App {
         renderer.end_frame(frame);
     }
 
-    fn resize(&mut self, width: u32, height: u32, renderer: &mut Renderer) {
-        renderer.resize(width, height);
+    fn resize(&mut self, w: u32, h: u32, renderer: &mut Renderer) {
+        self.backbuffer
+            .as_mut()
+            .unwrap()
+            .resize(renderer.device(), w, h);
         self.text_renderer
             .as_mut()
             .unwrap()
-            .resize(width, height, renderer.queue());
+            .resize(w, h, renderer.queue());
     }
 
-    fn suspended(&mut self, renderer: &mut Renderer) {
-        renderer.destroy_surface();
+    fn suspended(&mut self) {
+        self.backbuffer = None;
     }
 
     fn resumed(&mut self, window: Arc<Window>, renderer: &mut Renderer) {
-        renderer.recreate_surface(window);
+        let size = window.inner_size();
+        let mut backbuffer = Backbuffer::new(
+            renderer.instance(),
+            renderer.adapter(),
+            renderer.device(),
+            window,
+            size.width,
+            size.height,
+        );
+        backbuffer.set_vsync(renderer.device(), self.vsync);
+        self.backbuffer = Some(backbuffer);
     }
 }
