@@ -1,0 +1,9 @@
+[package]
+name = "demo_egor_ferrismark"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+egor = { path = "../../" }
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] }
