@@ -22,6 +22,8 @@
 - Interactive UIs with optional **egui** integration
 - Optional hot-reload during development
 
+How many Ferris crabs can **Egor** handle? Find out in our [Ferrismark benchmark](#performance)
+
 ## Platform Support
 
 | Target     | Backend(s)               | Status     |
@@ -58,11 +60,6 @@ App::new()
         gfx.rect().at(position).color(Color::RED);
     })
 ```
-
-To see more of **egor** in action, check out [demos/](demos)
-
-> [!TIP]
-> Run any of egor's demos with `cargo xtask run <demo>`. See it's usage (`--help`) for targeting different platforms and features (e.g. `cargo xtask run secs_particles --wasm`)
 
 For full documentation see the [official docs](https://docs.rs/egor/latest)
 
@@ -156,6 +153,22 @@ dx serve --hot-patch
 > [!NOTE]
 > Subsecond hot-reloading is experimental; native is working
 
+## Performance
+
+To stress test **egor**, we made [ferrismark](demos/ferrismark), a bunnymark like demo, rendering hundreds of thousands of Ferris crabs at stable FPS on modest hardware
+
+<img src="media/ferrismark.png" height="400" />
+
+## Demos
+
+To try ferrismark or see more of **egor** in action, check out [demos/](demos)
+
+Run any demo with (see `--help` usage) xtask:
+
+```bash
+cargo xtask run <demo>
+```
+
 ## Contributing
 
 **egor** is moving fast. Before opening a PR or submitting a change, please read [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -165,3 +178,7 @@ Check out some [issues](https://github.com/wick3dr0se/egor/issues), open a new o
 ---
 
 **egor** is maintained with ❤️ by [Open Source Force](https://github.com/opensource-force)
+
+```
+
+```
