@@ -24,6 +24,10 @@ impl Vertex {
         }
     }
 
+    pub fn zeroed() -> Self {
+        Zeroable::zeroed()
+    }
+
     /// Returns the vertex buffer layout
     ///
     /// This must match the vertex shader input layout:

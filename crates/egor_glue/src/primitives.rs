@@ -23,6 +23,28 @@ impl PrimitiveBatch {
         self.geometry.push((texture_id, batch));
     }
 
+    /// Allocates space for vertices & indices in the correct batch for `texture_id`
+    pub(crate) fn allocate(
+        &mut self,
+        vert_count: usize,
+        idx_count: usize,
+        texture_id: usize,
+    ) -> Option<(&mut [Vertex], &mut [u16], u16)> {
+        // pick last batch if texture matches
+        if !self.geometry.is_empty() {
+            let last_idx = self.geometry.len() - 1;
+            if self.geometry[last_idx].0 == texture_id {
+                return self.geometry[last_idx].1.allocate(vert_count, idx_count);
+            }
+        }
+
+        let idx = self.geometry.len();
+        self.geometry.push((texture_id, GeometryBatch::default()));
+        let batch = &mut self.geometry[idx].1;
+        let slice = batch.allocate(vert_count, idx_count)?;
+        Some(slice)
+    }
+
     pub(crate) fn take(&mut self) -> Vec<(usize, GeometryBatch)> {
         std::mem::take(&mut self.geometry)
     }
@@ -112,20 +134,23 @@ impl Drop for RectangleBuilder<'_> {
             Anchor::TopLeft => Vec2::ZERO,
             Anchor::Center => -self.size / 2.0,
         };
+
         let top_left = self.position + offset;
         let rect = Rect::new(top_left, self.size);
         let rot = Mat2::from_angle(self.rotation);
-        let verts: Vec<_> = rect
-            .corners()
-            .iter()
-            .zip(self.uvs.iter())
-            .map(|(&corner, &uv)| {
-                let world = rot * (corner - rect.center()) + rect.center();
-                Vertex::new(world.into(), self.color.components(), uv)
-            })
-            .collect();
 
-        self.batch.push(&verts, &[0, 1, 2, 2, 3, 0], self.tex_id);
+        let corners = rect.corners();
+        let center = rect.center();
+        let color = self.color.components();
+
+        if let Some((verts, indices, base)) = self.batch.allocate(4, 6, self.tex_id) {
+            for i in 0..4 {
+                let world = rot * (corners[i] - center) + center;
+                verts[i] = Vertex::new(world.into(), color, self.uvs[i]);
+            }
+
+            indices.copy_from_slice(&[base, base + 1, base + 2, base + 2, base + 3, base]);
+        }
     }
 }
 
