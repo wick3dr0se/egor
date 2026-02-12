@@ -2,10 +2,16 @@
 
 ![Ferris](/demos/ferrismark/assets/ferris_smol.png) (the little dude seen below)
 
-A simple stress test for **egor**, rendering tens to hundreds of thousands of Ferris crabs at stable FPS without instancing
+A simple stress test for **egor** with Ferris the crab (or a few)
 
 ![Ferrismark Screenshot](/media/ferrismark.png)
 
-> Stable 55 FPS with ~400k crabs (Ryzen 5 2600 + Radeon PRO WX2100, Wayland/Arch Linux)
+> Stable 56 FPS with ~2.4 million crabs
 
-Just left click to spawn 9999 crabs as many times as you can
+## Performance
+
+The results seen here were produced (with this demo) from an optimized release build with a Ryzen 5 2600 and a Radeon Pro WX2100 using the Vulkan backend on Wayland/Arch Linux. Each crab is updated and rendered individually, without GPU instancing
+
+## Spawning Crabs
+
+Click to spawn 9,999 crabs at a time. Repeat to see how many **egor** can handle

@@ -155,7 +155,7 @@ dx serve --hot-patch
 
 ## Performance
 
-To stress test **egor**, we made [ferrismark](demos/ferrismark), a bunnymark like demo, rendering hundreds of thousands of Ferris crabs at stable FPS on modest hardware
+To stress test **egor**, we made [ferrismark](demos/ferrismark), a bunnymark like demo capable of rendering millions of Ferris crabs at stable FPS on modest hardware
 
 <img src="media/ferrismark.png" height="400" />
 
@@ -178,7 +178,3 @@ Check out some [issues](https://github.com/wick3dr0se/egor/issues), open a new o
 ---
 
 **egor** is maintained with ❤️ by [Open Source Force](https://github.com/opensource-force)
-
-```
-
-```
