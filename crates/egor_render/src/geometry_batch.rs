@@ -37,6 +37,31 @@ impl GeometryBatch {
             || self.indices.len() + idx_count > Self::MAX_INDICES
     }
 
+    pub fn allocate(
+        &mut self,
+        vert_count: usize,
+        idx_count: usize,
+    ) -> Option<(&mut [Vertex], &mut [u16], u16)> {
+        if self.would_overflow(vert_count, idx_count) {
+            return None;
+        }
+
+        let v_start = self.vertices.len();
+        let i_start = self.indices.len();
+
+        self.vertices.resize(v_start + vert_count, Vertex::zeroed());
+        self.indices.resize(i_start + idx_count, 0);
+
+        self.vertices_dirty = true;
+        self.indices_dirty = true;
+
+        Some((
+            &mut self.vertices[v_start..],
+            &mut self.indices[i_start..],
+            v_start as u16,
+        ))
+    }
+
     /// Adds vertices/indices, returns false if it would overflow
     pub fn push(&mut self, verts: &[Vertex], indices: &[u16]) -> bool {
         if self.would_overflow(verts.len(), indices.len()) {

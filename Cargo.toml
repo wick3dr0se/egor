@@ -37,10 +37,9 @@ opt-level = 1
 opt-level = 3
 
 [profile.release]
-strip = true
-lto = true
+strip = false
 codegen-units = 1
-opt-level = "z"
+opt-level = 3
 panic = "abort"
 
 [profile.wasm-dev]
