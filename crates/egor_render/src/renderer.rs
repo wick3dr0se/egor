@@ -7,12 +7,8 @@ use wgpu::{
 };
 
 use crate::{
-    geometry_batch::GeometryBatch,
-    camera::CameraUniform,
-    frame::Frame,
-    pipeline::Pipelines,
-    target::RenderTarget,
-    texture::Texture,
+    camera::CameraUniform, frame::Frame, geometry_batch::GeometryBatch, pipeline::Pipelines,
+    target::RenderTarget, texture::Texture,
 };
 
 pub(crate) struct Gpu {
