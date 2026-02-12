@@ -15,6 +15,8 @@ struct Cli {
 enum Cmd {
     Run {
         demo: String,
+        #[arg(long)]
+        release: bool,
         #[arg(long, num_args = 0..)]
         features: Vec<String>,
         #[arg(long)]
@@ -27,7 +29,12 @@ enum Cmd {
 }
 impl Cmd {
     fn run(&self) {
-        let Cmd::Run { demo, features, .. } = self;
+        let Cmd::Run {
+            demo,
+            release,
+            features,
+            ..
+        } = self;
         let mut features = features.clone();
         let demo_dir = format!("demos/{}", demo);
         let index_path = Path::new(&demo_dir).join("index.html");
@@ -62,6 +69,9 @@ impl Cmd {
         let mut cmd = Command::new(cmd);
         cmd.args(args);
 
+        if *release {
+            cmd.arg("--release");
+        }
         if !features.is_empty() {
             let prefixed: Vec<_> = features.iter().map(|f| format!("egor/{}", f)).collect();
             cmd.arg("--features").arg(prefixed.join(","));

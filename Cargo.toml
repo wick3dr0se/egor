@@ -30,24 +30,16 @@ egor_app = { version = "0.8.0", path = "crates/egor_app" }
 egor_glue = { version = "0.8.0", path = "crates/egor_glue" }
 egor_render = { version = "0.8.0", path = "crates/egor_render" }
 
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package."*"]
-opt-level = 3
-
 [profile.release]
-strip = false
+strip = true
+lto = true
 codegen-units = 1
-opt-level = 3
 panic = "abort"
 
-[profile.wasm-dev]
-inherits = "dev"
-opt-level = 1
-
-[profile.server-dev]
-inherits = "dev"
-
-[profile.android-dev]
-inherits = "dev"
+[profile.profiling]
+inherits = "release"
+lto = false
+strip = false
+debug = true
+codegen-units = 16
+panic = "unwind"
