@@ -9,20 +9,6 @@ pub(crate) struct PrimitiveBatch {
 }
 
 impl PrimitiveBatch {
-    // Add verts & indices to batch, preserving submission order & batching consecutive geometry per texture
-    pub(crate) fn push(&mut self, verts: &[Vertex], indices: &[u16], texture_id: usize) {
-        if let Some((last_texture, last_batch)) = self.geometry.last_mut()
-            && *last_texture == texture_id
-        {
-            last_batch.push(verts, indices);
-            return;
-        }
-
-        let mut batch = GeometryBatch::default();
-        batch.push(verts, indices);
-        self.geometry.push((texture_id, batch));
-    }
-
     /// Allocates space for vertices & indices in the correct batch for `texture_id`
     pub(crate) fn allocate(
         &mut self,
@@ -223,23 +209,28 @@ impl Drop for PolygonBuilder<'_> {
                 })
                 .collect()
         };
-        let rot = Mat2::from_angle(self.rotation);
-        let verts: Vec<Vertex> = points
-            .iter()
-            .map(|p| {
-                let world = rot * p + self.position;
-                Vertex::new(world.into(), self.color.components(), [0.0, 0.0])
-            })
-            .collect();
-        let mut indices = Vec::new();
 
-        // Convex fan triangulation
-        for i in 1..points.len() - 1 {
-            indices.push(0);
-            indices.push(i as u16);
-            indices.push((i + 1) as u16);
+        let rot = Mat2::from_angle(self.rotation);
+        let center = self.position;
+        let color = self.color.components();
+
+        let vert_count = points.len();
+        let idx_count = (points.len().saturating_sub(2)) * 3;
+
+        if let Some((verts, indices, base)) = self.batch.allocate(vert_count, idx_count, 0) {
+            for (i, p) in points.iter().enumerate() {
+                let world = rot * *p + center;
+                verts[i] = Vertex::new(world.into(), color, [0.0, 0.0]);
+            }
+
+            // Convex fan triangulation
+            for i in 0..points.len().saturating_sub(2) {
+                let offset = i * 3;
+                indices[offset] = base;
+                indices[offset + 1] = base + (i as u16 + 1);
+                indices[offset + 2] = base + (i as u16 + 2);
+            }
         }
-        self.batch.push(&verts, &indices, 0);
     }
 }
 
@@ -304,41 +295,51 @@ impl<'a> PolylineBuilder<'a> {
 
 impl Drop for PolylineBuilder<'_> {
     fn drop(&mut self) {
-        if self.points.len() < 2 {
+        let n = self.points.len();
+        if n < 2 {
             return;
         }
 
         let rot = Mat2::from_angle(self.rotation);
-        let mut verts = Vec::new();
-        let mut indices = Vec::new();
-        let mut add_segment = |a: Vec2, b: Vec2| {
-            let dir = (b - a).normalize();
-            let normal = vec2(-dir.y, dir.x) * (self.thickness * 0.5);
-            let base = verts.len() as u16;
-            let p0 = rot * (a + normal) + self.position;
-            let p1 = rot * (a - normal) + self.position;
-            let p2 = rot * (b - normal) + self.position;
-            let p3 = rot * (b + normal) + self.position;
-            let color = self.color.components();
+        let color = self.color.components();
+        let segments = if self.closed { n } else { n - 1 };
+        let vert_count = segments * 4;
+        let idx_count = segments * 6;
 
-            verts.extend_from_slice(&[
-                Vertex::new(p0.into(), color, [0.0, 0.0]),
-                Vertex::new(p1.into(), color, [0.0, 0.0]),
-                Vertex::new(p2.into(), color, [0.0, 0.0]),
-                Vertex::new(p3.into(), color, [0.0, 0.0]),
-            ]);
+        if let Some((verts, indices, mut base)) = self.batch.allocate(vert_count, idx_count, 0) {
+            let mut vi = 0;
+            let mut ii = 0;
 
-            indices.extend_from_slice(&[base, base + 1, base + 2, base + 2, base + 3, base]);
-        };
+            for s in 0..segments {
+                let a = self.points[s];
+                let b = self.points[(s + 1) % n]; // wraps if closed
 
-        for i in 0..self.points.len() - 1 {
-            add_segment(self.points[i], self.points[i + 1]);
+                let dir = (b - a).normalize();
+                let nrm = vec2(-dir.y, dir.x) * (self.thickness * 0.5);
+
+                let p = [
+                    rot * (a + nrm) + self.position,
+                    rot * (a - nrm) + self.position,
+                    rot * (b - nrm) + self.position,
+                    rot * (b + nrm) + self.position,
+                ];
+
+                for &pos in &p {
+                    verts[vi] = Vertex::new(pos.into(), color, [0.0, 0.0]);
+                    vi += 1;
+                }
+
+                indices[ii..ii + 6].copy_from_slice(&[
+                    base,
+                    base + 1,
+                    base + 2,
+                    base + 2,
+                    base + 3,
+                    base,
+                ]);
+                ii += 6;
+                base += 4;
+            }
         }
-
-        if self.closed {
-            add_segment(*self.points.last().unwrap(), self.points[0]);
-        }
-
-        self.batch.push(&verts, &indices, 0);
     }
 }

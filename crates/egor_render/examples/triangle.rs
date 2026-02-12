@@ -64,7 +64,14 @@ impl ApplicationHandler for MinimalApp {
                         Vertex::new([0.5, -0.5], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0]),
                     ];
                     let indices = [0, 1, 2];
-                    self.batch.push(&vertices, &indices);
+
+                    if let Some((batch_verts, batch_indices, base)) =
+                        self.batch.allocate(vertices.len(), indices.len())
+                    {
+                        batch_verts.copy_from_slice(&vertices);
+                        batch_indices.copy_from_slice(&indices.map(|i| i + base));
+                    }
+
                     {
                         let mut r_pass = r.begin_render_pass(&mut frame.encoder, &frame.view);
                         r.draw_batch(&mut r_pass, &mut self.batch, 0);

@@ -80,22 +80,6 @@ impl GeometryBatch {
         ))
     }
 
-    /// Adds vertices/indices, returns false if it would overflow
-    pub fn push(&mut self, verts: &[Vertex], indices: &[u16]) -> bool {
-        if self.would_overflow(verts.len(), indices.len()) {
-            return false;
-        }
-
-        let idx_offset = self.vertices.len() as u16;
-        self.vertices.extend_from_slice(verts);
-        self.indices.extend(indices.iter().map(|i| *i + idx_offset));
-
-        self.vertices_dirty = true;
-        self.indices_dirty = true;
-
-        true
-    }
-
     // Uploads buffers to GPU only if needed
     fn upload(&mut self, device: &Device, queue: &Queue) {
         if self.is_empty() || (!self.vertices_dirty && !self.indices_dirty) {
