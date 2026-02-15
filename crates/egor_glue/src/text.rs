@@ -1,7 +1,7 @@
 use egor_render::{Device, Queue, RenderPass, TextureFormat};
 use glam::Vec2;
 use glyphon::{
-    Attrs, Buffer, Cache, Color as GlyphonColor, FontSystem, Metrics, Resolution, Shaping,
+    Attrs, Buffer, Cache, Color as GlyphonColor, Family, FontSystem, Metrics, Resolution, Shaping,
     SwashCache, TextArea, TextAtlas, TextBounds, TextRenderer as GlyphonRenderer, Viewport,
 };
 
@@ -24,6 +24,7 @@ pub struct TextRenderer {
 impl TextRenderer {
     pub(crate) fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
         let mut font_system = FontSystem::new();
+        // Glyphon will use sytstem font but we embed one for wasm + consistency
         font_system
             .db_mut()
             .load_font_data(include_bytes!("../inter-v19-latin-regular.ttf").to_vec());
@@ -41,6 +42,13 @@ impl TextRenderer {
             viewport,
             entries: Vec::new(),
         }
+    }
+
+    pub fn load_font_bytes(&mut self, bytes: &[u8]) -> Option<String> {
+        self.font_system.db_mut().load_font_data(bytes.to_vec());
+        let face = self.font_system.db().faces().last()?;
+        let family = face.families.first()?.0.clone();
+        Some(family)
     }
 
     /// Prepare the text renderer for drawing
@@ -108,10 +116,14 @@ pub struct TextBuilder<'a> {
     position: Vec2,
     size: f32,
     color: Color,
+    /// Font family name used for matching
+    family: String,
 }
 
 impl<'a> TextBuilder<'a> {
     /// Create a new text builder that will push text to the renderer
+    ///
+    /// A default font family is selected automatically. Use [`Self::font`] to override it
     pub fn new(renderer: &'a mut TextRenderer, text: String) -> Self {
         Self {
             renderer,
@@ -119,7 +131,17 @@ impl<'a> TextBuilder<'a> {
             position: Vec2::new(10.0, 10.0),
             size: 16.0,
             color: Color::BLACK,
+            family: "Inter".into(),
         }
+    }
+
+    /// Set the font family used to render the text
+    ///
+    /// The family must match a font that has been loaded into the renderer.
+    /// If the family cannot be found, a fallback font will be used (Inter)
+    pub fn font(mut self, family: String) -> Self {
+        self.family = family;
+        self
     }
 
     /// Set the position of text in screen space
@@ -145,7 +167,9 @@ impl Drop for TextBuilder<'_> {
         buffer.set_text(
             &mut self.renderer.font_system,
             &self.text,
-            &Attrs::new().color(self.color.into()),
+            &Attrs::new()
+                .family(Family::Name(&self.family))
+                .color(self.color.into()),
             Shaping::Basic,
         );
 

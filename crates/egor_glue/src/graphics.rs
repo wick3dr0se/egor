@@ -71,6 +71,11 @@ impl<'a> Graphics<'a> {
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
         PolylineBuilder::new(&mut self.batch)
     }
+
+    /// Load a font from disk into the text system.
+    pub fn load_font(&mut self, bytes: &[u8]) -> Option<String> {
+        self.text_renderer.load_font_bytes(bytes)
+    }
     /// Draw a line of text
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         TextBuilder::new(self.text_renderer, text.to_string())
