@@ -71,6 +71,7 @@ pub mod time {
 
 pub mod render {
     pub use egor_glue::{color::Color, graphics::Graphics, primitives::Anchor};
+    pub use egor_render::target::OffscreenTarget;
 }
 
 pub mod math {
