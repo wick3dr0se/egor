@@ -65,7 +65,7 @@ impl<'a> RectangleBuilder<'a> {
             rotation: 0.0,
             color: Color::WHITE,
             uvs: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
-            tex_id: 0,
+            tex_id: usize::MAX,
         }
     }
     /// Sets the position & size from a [`Rect`].

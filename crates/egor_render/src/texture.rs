@@ -1,7 +1,8 @@
 use wgpu::{
-    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Device,
-    Extent3d, Origin3d, Queue, RenderPass, TexelCopyBufferLayout, TexelCopyTextureInfo,
-    TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages,
+    AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource,
+    Device, Extent3d, FilterMode, Origin3d, Queue, RenderPass, SamplerDescriptor,
+    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureUsages, TextureView,
 };
 
 /// A GPU texture that can be bound in shaders for rendering
@@ -69,6 +70,38 @@ impl Texture {
                 BindGroupEntry {
                     binding: 0,
                     resource: BindingResource::TextureView(&view),
+                },
+                BindGroupEntry {
+                    binding: 1,
+                    resource: BindingResource::Sampler(&sampler),
+                },
+            ],
+        });
+
+        Self { bind_group }
+    }
+
+    /// Creates a bindable texture from an existing GPU texture view.
+    ///
+    /// This does not allocate or upload image data.  
+    /// It wraps a view produced elsewhere (an offscreen render target)
+    /// and builds the bind group required for sampling in shaders
+    pub fn from_view(view: &TextureView, device: &Device, layout: &BindGroupLayout) -> Self {
+        let sampler = device.create_sampler(&SamplerDescriptor {
+            address_mode_u: AddressMode::ClampToEdge,
+            address_mode_v: AddressMode::ClampToEdge,
+            mag_filter: FilterMode::Linear,
+            min_filter: FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: None,
+            layout,
+            entries: &[
+                BindGroupEntry {
+                    binding: 0,
+                    resource: BindingResource::TextureView(view),
                 },
                 BindGroupEntry {
                     binding: 1,

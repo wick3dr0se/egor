@@ -2,13 +2,17 @@ use wgpu::{
     Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
     CommandEncoder, Device, DeviceDescriptor, Instance, LoadOp, Operations, Queue, RenderPass,
     RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, SurfaceTarget,
-    TextureView, WindowHandle,
+    TextureFormat, TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
 use crate::{
-    camera::CameraUniform, frame::Frame, geometry_batch::GeometryBatch, pipeline::Pipelines,
-    target::RenderTarget, texture::Texture,
+    camera::CameraUniform,
+    frame::Frame,
+    geometry_batch::GeometryBatch,
+    pipeline::Pipelines,
+    target::{OffscreenTarget, RenderTarget},
+    texture::Texture,
 };
 
 pub(crate) struct Gpu {
@@ -193,6 +197,27 @@ impl Renderer {
             0,
             bytemuck::bytes_of(&CameraUniform { view_proj }),
         );
+    }
+
+    /// Create an offscreen render target
+    pub fn create_offscreen_target(
+        &self,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+    ) -> OffscreenTarget {
+        OffscreenTarget::new(&self.gpu.device, width, height, format)
+    }
+
+    /// Adds an offscreen target texture & returns its id
+    pub fn add_offscreen_texture(&mut self, offscreen: &OffscreenTarget) -> usize {
+        let texture = Texture::from_view(
+            offscreen.view(),
+            &self.gpu.device,
+            &self.pipelines.texture_layout,
+        );
+        self.textures.push(texture);
+        self.textures.len() - 1
     }
 
     /// Adds a new texture from image bytes & returns its id

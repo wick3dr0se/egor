@@ -7,7 +7,7 @@ use egor::{
     app::{App, FrameContext, WindowEvent, egui::Window},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
-    render::Color,
+    render::{Color, OffscreenTarget},
 };
 
 use crate::{animation::SpriteAnim, tilemap::EgorMap};
@@ -35,6 +35,8 @@ struct Soldier {
 
 struct GameState {
     map: EgorMap,
+    minimap: Option<OffscreenTarget>,
+    minimap_tex: usize,
     player: Soldier,
     player_anim: SpriteAnim,
     player_tex: usize,
@@ -114,6 +116,8 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 fn main() {
     let mut state = GameState {
         map: EgorMap::new(include_str!("../assets/map.json")),
+        minimap: None,
+        minimap_tex: 0,
         player: Soldier {
             rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
             hp: 100.0,
@@ -164,6 +168,9 @@ fn main() {
                 );
                 state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
                 state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
+                let minimap = gfx.create_offscreen(200, 200);
+                state.minimap_tex = gfx.offscreen_as_texture(&minimap);
+                state.minimap = Some(minimap);
                 return;
             }
 
@@ -175,7 +182,34 @@ fn main() {
                     .at(vec2(screen_size.x / 2. - 40., screen_size.y / 2.));
                 return;
             }
+            if let Some(minimap) = &mut state.minimap {
+                gfx.render_offscreen(minimap, |gfx| {
+                    gfx.clear(Color::BLACK);
 
+                    gfx.camera().set_zoom(0.15);
+                    gfx.camera()
+                        .center(state.player.rect.center(), vec2(200.0, 200.0));
+
+                    for e in &state.enemies {
+                        gfx.rect()
+                            .at(e.rect.position)
+                            .color(Color::RED)
+                            .size(Vec2::splat(48.0));
+                    }
+
+                    gfx.rect()
+                        .at(state.player.rect.position)
+                        .color(Color::GREEN)
+                        .texture(41);
+
+                    for b in &state.bullets {
+                        gfx.rect()
+                            .at(b.rect.position)
+                            .size(Vec2::splat(16.0))
+                            .color(Color::WHITE);
+                    }
+                });
+            }
             let screen_half = screen_size / 2.0;
             let position = state.player.rect.position - screen_half
                 + Into::<Vec2>::into(input.mouse_position());
@@ -287,6 +321,16 @@ fn main() {
                     ),
                     state.hp,
                 );
+            }
+
+            if state.minimap.is_some() {
+                let screen_pos = vec2(screen_size.x - 210.0, 10.0);
+                let world_pos = gfx.camera().screen_to_world(screen_pos);
+
+                gfx.rect()
+                    .at(world_pos)
+                    .size(vec2(200.0, 200.0))
+                    .texture(state.minimap_tex);
             }
 
             Window::new("Debug").show(egui_ctx, |ui| {

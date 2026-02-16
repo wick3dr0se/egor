@@ -1,4 +1,4 @@
-use egor_render::{GeometryBatch, Renderer};
+use egor_render::{GeometryBatch, RenderTarget, Renderer, TextureFormat, target::OffscreenTarget};
 use glam::Vec2;
 
 use crate::{
@@ -14,14 +14,16 @@ pub struct Graphics<'a> {
     batch: PrimitiveBatch,
     camera: Camera,
     text_renderer: &'a mut TextRenderer,
+    target_format: TextureFormat,
     target_size: (u32, u32),
 }
 
 impl<'a> Graphics<'a> {
-    /// Create `Graphics` with a [`Renderer`] & [`TextRenderer`]
+    /// Create `Graphics` with [`Renderer`], [`TextRenderer`] & `TextureFormat`
     pub fn new(
         renderer: &'a mut Renderer,
         text_renderer: &'a mut TextRenderer,
+        format: TextureFormat,
         w: u32,
         h: u32,
     ) -> Self {
@@ -30,8 +32,57 @@ impl<'a> Graphics<'a> {
             batch: PrimitiveBatch::default(),
             camera: Camera::default(),
             text_renderer,
+            target_format: format,
             target_size: (w, h),
         }
+    }
+
+    /// Create a new offscreen render target
+    pub fn create_offscreen(&self, width: u32, height: u32) -> OffscreenTarget {
+        self.renderer
+            .create_offscreen_target(width, height, self.target_format)
+    }
+
+    /// Render to an offscreen target
+    pub fn render_offscreen(
+        &mut self,
+        target: &mut OffscreenTarget,
+        mut render_fn: impl FnMut(&mut Graphics),
+    ) {
+        let Some(mut frame) = self.renderer.begin_frame(target) else {
+            return;
+        };
+
+        let (w, h) = target.size();
+        let format = target.format();
+
+        let mut offscreen_gfx = Graphics {
+            renderer: self.renderer,
+            batch: PrimitiveBatch::default(),
+            camera: Camera::default(),
+            text_renderer: self.text_renderer,
+            target_size: (w, h),
+            target_format: format,
+        };
+
+        render_fn(&mut offscreen_gfx);
+
+        let mut geometry = offscreen_gfx.flush();
+        let mut r_pass = self
+            .renderer
+            .begin_render_pass(&mut frame.encoder, &frame.view);
+
+        for (tex_id, batch) in &mut geometry {
+            self.renderer.draw_batch(&mut r_pass, batch, *tex_id);
+        }
+
+        drop(r_pass);
+        self.renderer.end_frame(frame);
+    }
+
+    /// Use an offscreen target as a texture
+    pub fn offscreen_as_texture(&mut self, target: &OffscreenTarget) -> usize {
+        self.renderer.add_offscreen_texture(target)
     }
 
     /// Upload camera matrix & extract batched geometry

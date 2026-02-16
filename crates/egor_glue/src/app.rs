@@ -176,7 +176,7 @@ impl AppHandler<Renderer> for App {
         #[cfg(feature = "ui")]
         let egui_ctx = self.egui.as_mut().unwrap().begin_frame(_window);
         let mut ctx = FrameContext {
-            gfx: Graphics::new(renderer, text_renderer, w, h),
+            gfx: Graphics::new(renderer, text_renderer, backbuffer.format(), w, h),
             input,
             timer,
             #[cfg(feature = "ui")]
