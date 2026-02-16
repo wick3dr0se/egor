@@ -1,7 +1,8 @@
 [package]
 name = "demo_egor_secs_particles"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2024"
+publish = false
 
 # for android, `x run` expects package name to match generated lib so
 [lib]

@@ -584,7 +584,7 @@ checksum = "2a2330da5de22e8a3cb63252ce2abb30116bf5265e89c0e01bc17015ce30a476"
 
 [[package]]
 name = "demo_egor_ferrismark"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "egor",
  "getrandom 0.2.16",
@@ -593,14 +593,14 @@ dependencies = [
 
 [[package]]
 name = "demo_egor_hot_reload"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "egor",
 ]
 
 [[package]]
 name = "demo_egor_secs_particles"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "egor",
  "getrandom 0.2.16",
@@ -610,7 +610,7 @@ dependencies = [
 
 [[package]]
 name = "demo_egor_shooter"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "egor",
  "getrandom 0.2.16",
@@ -769,7 +769,7 @@ dependencies = [
 
 [[package]]
 name = "egor"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "egor_app",
  "egor_glue",
@@ -778,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "egor_app"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -792,7 +792,7 @@ dependencies = [
 
 [[package]]
 name = "egor_glue"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "color",
  "dioxus-devtools",
@@ -807,7 +807,7 @@ dependencies = [
 
 [[package]]
 name = "egor_render"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "bytemuck",
  "image",

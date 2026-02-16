@@ -1,7 +1,8 @@
 [package]
 name = "demo_egor_hot_reload"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2024"
+publish = false
 
 [dependencies]
 egor = { path = "../../", features = ["hot_reload"] }

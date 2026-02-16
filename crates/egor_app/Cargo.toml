@@ -1,6 +1,6 @@
 [package]
 name = "egor_app"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2024"
 authors = ["wick3dr0se <wick3dr0se@protonmail.com>"]
 description = "Standalone runtime for building interactive Rust applications"
