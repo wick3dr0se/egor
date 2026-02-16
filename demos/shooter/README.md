@@ -1,5 +1,5 @@
 # Egor Shooter Demo
 
-A basic top-down zombie shooter game; showcasing textures, primitives, input, text, animations and more
+A top-down zombie shooter game; showcasing textures (minimap), primitives, input, text, animations, ui and more
 
 ![Shooter GIF](/media/shooter.gif)
