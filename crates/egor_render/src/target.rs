@@ -1,9 +1,10 @@
 use wgpu::{
-    Adapter, Device, Instance, PresentMode, Surface, SurfaceConfiguration, SurfaceTarget,
-    TextureFormat, TextureView, WindowHandle,
+    Adapter, BindGroupLayout, Device, Extent3d, Instance, PresentMode, Surface,
+    SurfaceConfiguration, SurfaceTarget, TextureDescriptor, TextureDimension, TextureFormat,
+    TextureUsages, TextureView, WindowHandle,
 };
 
-use crate::frame::Presentable;
+use crate::{frame::Presentable, texture::Texture};
 
 /// Trait for render targets (backbuffers, offscreen textures, etc.)
 pub trait RenderTarget {
@@ -66,5 +67,82 @@ impl RenderTarget for Backbuffer {
             PresentMode::AutoNoVsync
         };
         self.surface.configure(device, &self.config);
+    }
+}
+
+/// Renders to an offscreen texture that can be read back or used as a texture
+pub struct OffscreenTarget {
+    texture: wgpu::Texture,
+    view: TextureView,
+    format: TextureFormat,
+    width: u32,
+    height: u32,
+}
+
+impl OffscreenTarget {
+    pub fn new(device: &Device, width: u32, height: u32, format: TextureFormat) -> Self {
+        let texture = device.create_texture(&TextureDescriptor {
+            label: None,
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format,
+            usage: TextureUsages::RENDER_ATTACHMENT
+                | TextureUsages::TEXTURE_BINDING
+                | TextureUsages::COPY_SRC, // for reading back pixels if needed
+            view_formats: &[],
+        });
+
+        let view = texture.create_view(&Default::default());
+
+        Self {
+            texture,
+            view,
+            format,
+            width,
+            height,
+        }
+    }
+
+    pub fn as_texture(&self, device: &Device, layout: &BindGroupLayout) -> Texture {
+        Texture::from_view(&self.view, device, layout)
+    }
+
+    /// Get the underlying texture for binding as a shader resource
+    pub fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+
+    /// Get a view to the texture
+    pub fn view(&self) -> &TextureView {
+        &self.view
+    }
+}
+
+impl RenderTarget for OffscreenTarget {
+    fn format(&self) -> TextureFormat {
+        self.format
+    }
+
+    fn size(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
+    fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
+        // no presentation needed for offscreen targets
+        Some((self.view.clone(), None))
+    }
+
+    fn resize(&mut self, device: &Device, w: u32, h: u32) {
+        if self.width == w && self.height == h {
+            return;
+        }
+        // recreate the texture with new dimensions
+        *self = Self::new(device, w, h, self.format);
     }
 }
