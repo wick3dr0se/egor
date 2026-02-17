@@ -192,8 +192,8 @@ impl AppHandler<Renderer> for App {
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
 
-            for (tex_id, batch) in &mut geometry {
-                renderer.draw_batch(&mut r_pass, batch, *tex_id);
+            for (tex_id, shader_id, batch) in &mut geometry {
+                renderer.draw_batch(&mut r_pass, batch, *tex_id, *shader_id);
             }
 
             text_renderer.render(&mut r_pass);

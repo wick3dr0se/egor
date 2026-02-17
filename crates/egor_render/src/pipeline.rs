@@ -15,6 +15,7 @@ use crate::vertex::Vertex;
 /// - Camera bind group layout (for view/projection transforms)
 pub struct Pipelines {
     pub primitive: RenderPipeline,
+    pub custom: Vec<RenderPipeline>,
     pub texture_layout: BindGroupLayout,
     pub camera_layout: BindGroupLayout,
 }
@@ -30,9 +31,33 @@ impl Pipelines {
 
         Self {
             primitive,
+            custom: Vec::new(),
             texture_layout,
             camera_layout,
         }
+    }
+
+    /// Creates a custom shader pipeline from WGSL source code
+    pub fn add_custom_pipeline(
+        &mut self,
+        device: &Device,
+        surface_format: TextureFormat,
+        wgsl_source: &str,
+    ) -> usize {
+        let pipeline = create_custom_pipeline(
+            device,
+            surface_format,
+            &self.texture_layout,
+            &self.camera_layout,
+            wgsl_source,
+        );
+        self.custom.push(pipeline);
+        self.custom.len() - 1
+    }
+
+    /// Get a custom pipeline by index
+    pub fn get_custom_pipeline(&self, index: usize) -> Option<&RenderPipeline> {
+        self.custom.get(index)
     }
 }
 
@@ -108,6 +133,58 @@ fn create_primitive_pipeline(
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
         label: Some("Primitive Pipeline"),
+        layout: Some(&pipeline_layout),
+        vertex: VertexState {
+            module: &shader,
+            entry_point: Some("vs_main"),
+            buffers: &[Vertex::desc()],
+            compilation_options: Default::default(),
+        },
+        primitive: Default::default(),
+        depth_stencil: None,
+        multisample: Default::default(),
+        fragment: Some(FragmentState {
+            module: &shader,
+            entry_point: Some("fs_main"),
+            targets: &[Some(ColorTargetState {
+                format: surface_format,
+                blend: Some(BlendState::ALPHA_BLENDING),
+                write_mask: ColorWrites::ALL,
+            })],
+            compilation_options: Default::default(),
+        }),
+        multiview: None,
+        cache: None,
+    })
+}
+
+/// Creates a custom rendering pipeline from user-provided WGSL source
+///
+/// Configured with the same layout as the primitive pipeline:
+/// - Alpha blending for transparency
+/// - Vertex shader transforms using camera uniform
+/// - Fragment shader samples from texture
+/// - `Vertex` buffer layout from vertex module
+fn create_custom_pipeline(
+    device: &Device,
+    surface_format: TextureFormat,
+    texture_layout: &BindGroupLayout,
+    camera_layout: &BindGroupLayout,
+    wgsl_source: &str,
+) -> RenderPipeline {
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("Custom Shader"),
+        source: wgpu::ShaderSource::Wgsl(wgsl_source.into()),
+    });
+
+    let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
+        label: Some("Custom Pipeline Layout"),
+        bind_group_layouts: &[texture_layout, camera_layout],
+        push_constant_ranges: &[],
+    });
+
+    device.create_render_pipeline(&RenderPipelineDescriptor {
+        label: Some("Custom Pipeline"),
         layout: Some(&pipeline_layout),
         vertex: VertexState {
             module: &shader,

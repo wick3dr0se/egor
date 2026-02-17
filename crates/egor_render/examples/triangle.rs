@@ -74,7 +74,7 @@ impl ApplicationHandler for MinimalApp {
 
                     {
                         let mut r_pass = r.begin_render_pass(&mut frame.encoder, &frame.view);
-                        r.draw_batch(&mut r_pass, &mut self.batch, 0);
+                        r.draw_batch(&mut r_pass, &mut self.batch, 0, None);
                     }
                     r.end_frame(frame);
                 }

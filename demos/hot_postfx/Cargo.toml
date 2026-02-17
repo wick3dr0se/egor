@@ -1,5 +1,5 @@
 [package]
-name = "demo_egor_hot_reload"
+name = "demo_egor_hot_postfx"
 version = "0.0.0"
 edition = "2024"
 publish = false

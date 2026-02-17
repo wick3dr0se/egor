@@ -33,6 +33,7 @@ pub struct Renderer {
     textures: Vec<Texture>,
     default_texture: Texture,
     clear_color: Color,
+    surface_format: TextureFormat,
 }
 
 impl Renderer {
@@ -59,8 +60,9 @@ impl Renderer {
             .await
             .unwrap();
 
-        let config = surface.get_default_config(&adapter, 1, 1).unwrap();
-        let pipelines = Pipelines::new(&device, config.format);
+        let surface_config = surface.get_default_config(&adapter, 1, 1).unwrap();
+        let surface_format = surface_config.format;
+        let pipelines = Pipelines::new(&device, surface_format);
 
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
@@ -99,6 +101,7 @@ impl Renderer {
             textures: Vec::new(),
             default_texture,
             clear_color: Color::BLACK,
+            surface_format,
         }
     }
 
@@ -171,6 +174,7 @@ impl Renderer {
         r_pass: &mut RenderPass<'_>,
         batch: &mut GeometryBatch,
         texture_id: usize,
+        shader_id: Option<usize>,
     ) {
         if batch.is_empty() {
             return;
@@ -183,7 +187,11 @@ impl Renderer {
             .unwrap_or(&self.default_texture);
         texture.bind(r_pass, 0);
 
-        r_pass.set_pipeline(&self.pipelines.primitive);
+        let pipeline = shader_id
+            .and_then(|id| self.pipelines.get_custom_pipeline(id))
+            .unwrap_or(&self.pipelines.primitive);
+
+        r_pass.set_pipeline(pipeline);
         r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
         batch.draw(r_pass);
@@ -210,14 +218,22 @@ impl Renderer {
     }
 
     /// Adds an offscreen target texture & returns its id
-    pub fn add_offscreen_texture(&mut self, offscreen: &OffscreenTarget) -> usize {
+    pub fn add_offscreen_texture(&mut self, offscreen: &mut OffscreenTarget) -> usize {
         let texture = Texture::from_view(
             offscreen.view(),
             &self.gpu.device,
             &self.pipelines.texture_layout,
         );
-        self.textures.push(texture);
-        self.textures.len() - 1
+
+        if let Some(id) = offscreen.texture_id() {
+            self.textures[id] = texture;
+            id
+        } else {
+            let id = self.textures.len();
+            self.textures.push(texture);
+            offscreen.set_texture_id(id);
+            id
+        }
     }
 
     /// Adds a new texture from image bytes & returns its id
@@ -258,5 +274,12 @@ impl Renderer {
             w,
             h,
         );
+    }
+
+    /// Creates a custom shader pipeline from WGSL source code
+    /// Returns the pipeline index for use in draw calls
+    pub fn add_shader(&mut self, wgsl_source: &str) -> usize {
+        self.pipelines
+            .add_custom_pipeline(&self.gpu.device, self.surface_format, wgsl_source)
     }
 }

@@ -72,17 +72,20 @@ impl RenderTarget for Backbuffer {
 
 /// Renders to an offscreen texture that can be read back or used as a texture
 pub struct OffscreenTarget {
-    texture: wgpu::Texture,
-    view: TextureView,
+    render_texture: wgpu::Texture,
+    render_view: TextureView,
+    sample_texture: wgpu::Texture,
+    sample_view: TextureView,
     format: TextureFormat,
     width: u32,
     height: u32,
+    texture_id: Option<usize>,
 }
 
 impl OffscreenTarget {
     pub fn new(device: &Device, width: u32, height: u32, format: TextureFormat) -> Self {
-        let texture = device.create_texture(&TextureDescriptor {
-            label: None,
+        let render_texture = device.create_texture(&TextureDescriptor {
+            label: Some("Offscreen Render Texture"),
             size: Extent3d {
                 width,
                 height,
@@ -92,35 +95,75 @@ impl OffscreenTarget {
             sample_count: 1,
             dimension: TextureDimension::D2,
             format,
-            usage: TextureUsages::RENDER_ATTACHMENT
-                | TextureUsages::TEXTURE_BINDING
-                | TextureUsages::COPY_SRC, // for reading back pixels if needed
+            usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::COPY_SRC,
             view_formats: &[],
         });
 
-        let view = texture.create_view(&Default::default());
+        let sample_texture = device.create_texture(&TextureDescriptor {
+            label: Some("Offscreen Sample Texture"),
+            size: Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format,
+            usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        let render_view = render_texture.create_view(&Default::default());
+        let sample_view = sample_texture.create_view(&Default::default());
 
         Self {
-            texture,
-            view,
+            render_texture,
+            render_view,
+            sample_texture,
+            sample_view,
             format,
             width,
             height,
+            texture_id: None,
         }
     }
 
     pub fn as_texture(&self, device: &Device, layout: &BindGroupLayout) -> Texture {
-        Texture::from_view(&self.view, device, layout)
+        Texture::from_view(&self.sample_view, device, layout)
     }
 
-    /// Get the underlying texture for binding as a shader resource
     pub fn texture(&self) -> &wgpu::Texture {
-        &self.texture
+        &self.sample_texture
     }
 
-    /// Get a view to the texture
     pub fn view(&self) -> &TextureView {
-        &self.view
+        &self.sample_view
+    }
+
+    pub fn render_view(&self) -> &TextureView {
+        &self.render_view
+    }
+
+    /// Copy render texture into sample texture so it can be sampled
+    pub fn copy_to_sample(&self, encoder: &mut wgpu::CommandEncoder) {
+        encoder.copy_texture_to_texture(
+            self.render_texture.as_image_copy(),
+            self.sample_texture.as_image_copy(),
+            Extent3d {
+                width: self.width,
+                height: self.height,
+                depth_or_array_layers: 1,
+            },
+        );
+    }
+
+    pub fn texture_id(&self) -> Option<usize> {
+        self.texture_id
+    }
+
+    pub fn set_texture_id(&mut self, id: usize) {
+        self.texture_id = Some(id);
     }
 }
 
@@ -135,7 +178,7 @@ impl RenderTarget for OffscreenTarget {
 
     fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
         // no presentation needed for offscreen targets
-        Some((self.view.clone(), None))
+        Some((self.render_view.clone(), None))
     }
 
     fn resize(&mut self, device: &Device, w: u32, h: u32) {
