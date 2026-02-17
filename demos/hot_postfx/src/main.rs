@@ -28,7 +28,7 @@ fn main() {
 
             if offscreen_target
                 .as_ref()
-                .map_or(true, |t: &OffscreenTarget| t.size() != target_size)
+                .is_none_or(|t: &OffscreenTarget| t.size() != target_size)
             {
                 let mut offscreen = gfx.create_offscreen(target_size.0, target_size.1);
                 texture_id = gfx.offscreen_as_texture(&mut offscreen);
