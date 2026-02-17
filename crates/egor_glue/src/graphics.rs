@@ -51,10 +51,6 @@ impl<'a> Graphics<'a> {
         target: &mut OffscreenTarget,
         mut render_fn: impl FnMut(&mut Graphics),
     ) {
-        let Some(mut frame) = self.renderer.begin_frame(target) else {
-            return;
-        };
-
         let (w, h) = target.size();
         let format = target.format();
 
@@ -70,34 +66,43 @@ impl<'a> Graphics<'a> {
 
         render_fn(&mut offscreen_gfx);
 
-        let (mut geometry, shader_id) = offscreen_gfx.flush();
-        let mut r_pass = self
-            .renderer
-            .begin_render_pass(&mut frame.encoder, &frame.view);
+        let mut geometry = offscreen_gfx.flush();
 
-        for (tex_id, batch) in &mut geometry {
-            self.renderer
-                .draw_batch(&mut r_pass, batch, *tex_id, shader_id);
+        let mut encoder = self
+            .renderer
+            .device()
+            .create_command_encoder(&Default::default());
+
+        {
+            let mut r_pass = self
+                .renderer
+                .begin_render_pass(&mut encoder, target.render_view());
+
+            for (tex_id, shader_id, batch) in &mut geometry {
+                self.renderer
+                    .draw_batch(&mut r_pass, batch, *tex_id, *shader_id);
+            }
         }
 
-        drop(r_pass);
-        self.renderer.end_frame(frame);
+        target.copy_to_sample(&mut encoder);
+
+        let _ = self.renderer.queue().submit(Some(encoder.finish()));
     }
 
     /// Use an offscreen target as a texture
-    pub fn offscreen_as_texture(&mut self, target: &OffscreenTarget) -> usize {
+    pub fn offscreen_as_texture(&mut self, target: &mut OffscreenTarget) -> usize {
         self.renderer.add_offscreen_texture(target)
     }
 
     /// Upload camera matrix & extract batched geometry
-    pub(crate) fn flush(&mut self) -> (Vec<(usize, GeometryBatch)>, Option<usize>) {
+    pub(crate) fn flush(&mut self) -> Vec<(usize, Option<usize>, GeometryBatch)> {
         let (w, h) = self.target_size;
         self.renderer.upload_camera_matrix(
             self.camera
                 .view_proj((w as f32, h as f32).into())
                 .to_cols_array_2d(),
         );
-        (self.batch.take(), self.current_shader)
+        self.batch.take()
     }
 
     /// Clear the screen to a color
@@ -116,15 +121,18 @@ impl<'a> Graphics<'a> {
 
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(&mut self.batch)
+        let shader_id = self.current_shader.unwrap_or(usize::MAX);
+        RectangleBuilder::new(&mut self.batch, shader_id)
     }
     /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
     pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        PolygonBuilder::new(&mut self.batch)
+        let shader_id = self.current_shader.unwrap_or(usize::MAX);
+        PolygonBuilder::new(&mut self.batch, shader_id)
     }
     /// Start building a polyline (stroked path) primitive
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
-        PolylineBuilder::new(&mut self.batch)
+        let shader_id = self.current_shader.unwrap_or(usize::MAX);
+        PolylineBuilder::new(&mut self.batch, shader_id)
     }
 
     /// Load a font from disk into the text system.

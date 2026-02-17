@@ -218,14 +218,22 @@ impl Renderer {
     }
 
     /// Adds an offscreen target texture & returns its id
-    pub fn add_offscreen_texture(&mut self, offscreen: &OffscreenTarget) -> usize {
+    pub fn add_offscreen_texture(&mut self, offscreen: &mut OffscreenTarget) -> usize {
         let texture = Texture::from_view(
             offscreen.view(),
             &self.gpu.device,
             &self.pipelines.texture_layout,
         );
-        self.textures.push(texture);
-        self.textures.len() - 1
+
+        if let Some(id) = offscreen.texture_id() {
+            self.textures[id] = texture;
+            id
+        } else {
+            let id = self.textures.len();
+            self.textures.push(texture);
+            offscreen.set_texture_id(id);
+            id
+        }
     }
 
     /// Adds a new texture from image bytes & returns its id
