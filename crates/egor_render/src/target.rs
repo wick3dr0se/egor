@@ -11,7 +11,7 @@ pub trait RenderTarget {
     fn format(&self) -> TextureFormat;
     fn size(&self) -> (u32, u32);
     /// Returns the view and optionally something that must be presented (swapchain)
-    fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)>;
+    fn acquire(&mut self, device: &Device) -> Option<(TextureView, Option<Box<dyn Presentable>>)>;
     fn resize(&mut self, device: &Device, w: u32, h: u32);
     /// Only useful for backbuffer targets
     fn set_vsync(&mut self, _device: &Device, _on: bool) {}
@@ -49,10 +49,21 @@ impl RenderTarget for Backbuffer {
         (self.config.width, self.config.height)
     }
 
-    fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
-        let surface_texture = self.surface.get_current_texture().ok()?;
-        let view = surface_texture.texture.create_view(&Default::default());
-        Some((view, Some(Box::new(surface_texture))))
+    fn acquire(&mut self, device: &Device) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
+        match self.surface.get_current_texture() {
+            Ok(surface_texture) => {
+                let view = surface_texture.texture.create_view(&Default::default());
+                Some((view, Some(Box::new(surface_texture))))
+            }
+            Err(wgpu::SurfaceError::Outdated) => {
+                self.resize(device, self.config.width, self.config.height);
+                None
+            }
+            Err(e) => {
+                eprintln!("Surface error: {:?}", e);
+                None
+            }
+        }
     }
 
     fn resize(&mut self, device: &Device, w: u32, h: u32) {
@@ -176,7 +187,7 @@ impl RenderTarget for OffscreenTarget {
         (self.width, self.height)
     }
 
-    fn acquire(&mut self) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
+    fn acquire(&mut self, _: &Device) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
         // no presentation needed for offscreen targets
         Some((self.render_view.clone(), None))
     }
