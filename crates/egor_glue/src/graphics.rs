@@ -16,6 +16,7 @@ pub struct Graphics<'a> {
     text_renderer: &'a mut TextRenderer,
     target_format: TextureFormat,
     target_size: (u32, u32),
+    current_shader: Option<usize>,
 }
 
 impl<'a> Graphics<'a> {
@@ -34,6 +35,7 @@ impl<'a> Graphics<'a> {
             text_renderer,
             target_format: format,
             target_size: (w, h),
+            current_shader: None,
         }
     }
 
@@ -63,17 +65,19 @@ impl<'a> Graphics<'a> {
             text_renderer: self.text_renderer,
             target_size: (w, h),
             target_format: format,
+            current_shader: None,
         };
 
         render_fn(&mut offscreen_gfx);
 
-        let mut geometry = offscreen_gfx.flush();
+        let (mut geometry, shader_id) = offscreen_gfx.flush();
         let mut r_pass = self
             .renderer
             .begin_render_pass(&mut frame.encoder, &frame.view);
 
         for (tex_id, batch) in &mut geometry {
-            self.renderer.draw_batch(&mut r_pass, batch, *tex_id);
+            self.renderer
+                .draw_batch(&mut r_pass, batch, *tex_id, shader_id);
         }
 
         drop(r_pass);
@@ -86,14 +90,14 @@ impl<'a> Graphics<'a> {
     }
 
     /// Upload camera matrix & extract batched geometry
-    pub(crate) fn flush(&mut self) -> Vec<(usize, GeometryBatch)> {
+    pub(crate) fn flush(&mut self) -> (Vec<(usize, GeometryBatch)>, Option<usize>) {
         let (w, h) = self.target_size;
         self.renderer.upload_camera_matrix(
             self.camera
                 .view_proj((w as f32, h as f32).into())
                 .to_cols_array_2d(),
         );
-        self.batch.take()
+        (self.batch.take(), self.current_shader)
     }
 
     /// Clear the screen to a color
@@ -146,5 +150,20 @@ impl<'a> Graphics<'a> {
     /// Update texture data by index with raw width/height
     pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
         self.renderer.update_texture_raw(index, w, h, data);
+    }
+
+    /// Load a custom shader from WGSL source code
+    pub fn load_shader(&mut self, wgsl_source: &str) -> usize {
+        self.renderer.add_shader(wgsl_source)
+    }
+
+    /// Execute drawing commands with a custom shader
+    ///
+    /// The shader is automatically reset to default after the closure drops
+    pub fn with_shader(&mut self, shader_id: usize, mut render_fn: impl FnMut(&mut Self)) {
+        let previous_shader = self.current_shader;
+        self.current_shader = Some(shader_id);
+        render_fn(self);
+        self.current_shader = previous_shader;
     }
 }
