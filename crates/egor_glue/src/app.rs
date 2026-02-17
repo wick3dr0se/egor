@@ -78,6 +78,30 @@ impl App {
         self
     }
 
+    /// Enable or disable window maximized (defaults to false)
+    pub fn maximized(mut self, maximized: bool) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.maximized = maximized;
+        }
+        self
+    }
+
+    /// Enable or disable fullscreen (defaults to false)
+    pub fn fullscreen(mut self, fullscreen: bool) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.fullscreen = fullscreen;
+        }
+        self
+    }
+
+    /// Enable or disable window decorations (defaults to true)
+    pub fn decorations(mut self, decorations: bool) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.decorations = decorations;
+        }
+        self
+    }
+
     /// Enable or disable vsync
     pub fn vsync(mut self, enabled: bool) -> Self {
         self.vsync = enabled;
