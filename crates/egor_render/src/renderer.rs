@@ -134,7 +134,7 @@ impl Renderer {
 
     /// Begins a frame with the given render target
     pub fn begin_frame(&mut self, target: &mut dyn RenderTarget) -> Option<Frame> {
-        let (view, presentable) = target.acquire()?;
+        let (view, presentable) = target.acquire(&self.gpu.device)?;
         let encoder = self.gpu.device.create_command_encoder(&Default::default());
         Some(Frame {
             view,
