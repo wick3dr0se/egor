@@ -66,7 +66,7 @@ impl ApplicationHandler for MinimalApp {
                     let indices = [0, 1, 2];
 
                     if let Some((batch_verts, batch_indices, base)) =
-                        self.batch.allocate(vertices.len(), indices.len())
+                        self.batch.try_allocate(vertices.len(), indices.len())
                     {
                         batch_verts.copy_from_slice(&vertices);
                         batch_indices.copy_from_slice(&indices.map(|i| i + base));
@@ -74,7 +74,7 @@ impl ApplicationHandler for MinimalApp {
 
                     {
                         let mut r_pass = r.begin_render_pass(&mut frame.encoder, &frame.view);
-                        r.draw_batch(&mut r_pass, &mut self.batch, 0, None);
+                        r.draw_batch(&mut r_pass, &mut self.batch, None, None);
                     }
                     r.end_frame(frame);
                 }

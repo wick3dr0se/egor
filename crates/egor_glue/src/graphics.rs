@@ -95,7 +95,7 @@ impl<'a> Graphics<'a> {
     }
 
     /// Upload camera matrix & extract batched geometry
-    pub(crate) fn flush(&mut self) -> Vec<(usize, Option<usize>, GeometryBatch)> {
+    pub(crate) fn flush(&mut self) -> Vec<(Option<usize>, Option<usize>, GeometryBatch)> {
         let (w, h) = self.target_size;
         self.renderer.upload_camera_matrix(
             self.camera
@@ -121,18 +121,15 @@ impl<'a> Graphics<'a> {
 
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        let shader_id = self.current_shader.unwrap_or(usize::MAX);
-        RectangleBuilder::new(&mut self.batch, shader_id)
+        RectangleBuilder::new(&mut self.batch, self.current_shader)
     }
     /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
     pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        let shader_id = self.current_shader.unwrap_or(usize::MAX);
-        PolygonBuilder::new(&mut self.batch, shader_id)
+        PolygonBuilder::new(&mut self.batch, self.current_shader)
     }
     /// Start building a polyline (stroked path) primitive
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
-        let shader_id = self.current_shader.unwrap_or(usize::MAX);
-        PolylineBuilder::new(&mut self.batch, shader_id)
+        PolylineBuilder::new(&mut self.batch, self.current_shader)
     }
 
     /// Load a font from disk into the text system.

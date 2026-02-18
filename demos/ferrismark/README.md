@@ -6,7 +6,7 @@ A simple stress test for **egor** with Ferris the crab (or a few)
 
 ![Ferrismark Screenshot](/media/ferrismark.png)
 
-> Stable 56 FPS with ~2.4 million crabs
+> Stable 60 FPS with ~100k Ferris crabs
 
 ## Performance
 

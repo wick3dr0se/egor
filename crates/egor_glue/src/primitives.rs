@@ -4,45 +4,50 @@ use glam::{Mat2, Vec2, vec2};
 use crate::{color::Color, math::Rect};
 
 #[derive(Default)]
+struct BatchEntry {
+    texture_id: Option<usize>,
+    shader_id: Option<usize>,
+    geometry: GeometryBatch,
+}
+
+#[derive(Default)]
 pub(crate) struct PrimitiveBatch {
-    geometry: Vec<(usize, usize, GeometryBatch)>,
+    batches: Vec<BatchEntry>,
 }
 
 impl PrimitiveBatch {
-    /// Allocates space for vertices & indices in the correct batch for `texture_id`
+    /// Allocates space for vertices & indices in the correct batch for `texture_id` + `shader_id`
     pub(crate) fn allocate(
         &mut self,
         vert_count: usize,
         idx_count: usize,
-        texture_id: usize,
-        shader_id: usize,
+        texture_id: Option<usize>,
+        shader_id: Option<usize>,
     ) -> Option<(&mut [Vertex], &mut [u16], u16)> {
-        if !self.geometry.is_empty() {
-            let last_idx = self.geometry.len() - 1;
-            let (last_tex, last_shader, _) = &self.geometry[last_idx];
-            if *last_tex == texture_id && *last_shader == shader_id {
-                return self.geometry[last_idx].2.allocate(vert_count, idx_count);
-            }
+        if let Some(i) = self.batches.iter().position(|e| {
+            e.texture_id == texture_id
+                && e.shader_id == shader_id
+                && !e.geometry.would_overflow(vert_count, idx_count)
+        }) {
+            return self.batches[i].geometry.try_allocate(vert_count, idx_count);
         }
 
-        let idx = self.geometry.len();
-        self.geometry
-            .push((texture_id, shader_id, GeometryBatch::default()));
-        let batch = &mut self.geometry[idx].2;
-        batch.allocate(vert_count, idx_count)
+        self.batches.push(BatchEntry {
+            texture_id,
+            shader_id,
+            geometry: GeometryBatch::default(),
+        });
+        self.batches
+            .last_mut()
+            .unwrap()
+            .geometry
+            .try_allocate(vert_count, idx_count)
     }
 
-    pub(crate) fn take(&mut self) -> Vec<(usize, Option<usize>, GeometryBatch)> {
-        std::mem::take(&mut self.geometry)
+    pub(crate) fn take(&mut self) -> Vec<(Option<usize>, Option<usize>, GeometryBatch)> {
+        std::mem::take(&mut self.batches)
             .into_iter()
-            .map(|(tex_id, shader_id, batch)| {
-                let shader = if shader_id == usize::MAX {
-                    None
-                } else {
-                    Some(shader_id)
-                };
-                (tex_id, shader, batch)
-            })
+            .map(|entry| (entry.texture_id, entry.shader_id, entry.geometry))
             .collect()
     }
 }
@@ -56,19 +61,19 @@ pub enum Anchor {
 /// Builder for (textured) rectangles, drawn on `Drop`
 pub struct RectangleBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: usize,
+    shader_id: Option<usize>,
     anchor: Anchor,
     position: Vec2,
     size: Vec2,
     rotation: f32,
     color: Color,
     uvs: [[f32; 2]; 4],
-    tex_id: usize,
+    tex_id: Option<usize>,
 }
 
 /// Builds a rectangle with configurable position, size, color, anchor, rotation, & texture
 impl<'a> RectangleBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: usize) -> Self {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
         Self {
             batch,
             shader_id,
@@ -78,7 +83,7 @@ impl<'a> RectangleBuilder<'a> {
             rotation: 0.0,
             color: Color::WHITE,
             uvs: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
-            tex_id: usize::MAX,
+            tex_id: None,
         }
     }
     /// Sets the position & size from a [`Rect`].
@@ -116,7 +121,7 @@ impl<'a> RectangleBuilder<'a> {
     }
     /// Sets the texture ID for the rectangle
     pub fn texture(mut self, id: usize) -> Self {
-        self.tex_id = id;
+        self.tex_id = Some(id);
         self
     }
     /// Custom UV coordinates
@@ -157,7 +162,7 @@ impl Drop for RectangleBuilder<'_> {
 /// Builder for polygons, triangles, circles, n-gons. Drawn on `Drop`
 pub struct PolygonBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: usize,
+    shader_id: Option<usize>,
     position: Vec2,
     rotation: f32,
     points: Vec<Vec2>,
@@ -167,7 +172,7 @@ pub struct PolygonBuilder<'a> {
 }
 
 impl<'a> PolygonBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: usize) -> Self {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
         Self {
             batch,
             shader_id,
@@ -235,7 +240,7 @@ impl Drop for PolygonBuilder<'_> {
 
         if let Some((verts, indices, base)) =
             self.batch
-                .allocate(vert_count, idx_count, 0, self.shader_id)
+                .allocate(vert_count, idx_count, None, self.shader_id)
         {
             for (i, p) in points.iter().enumerate() {
                 let world = rot * *p + center;
@@ -258,7 +263,7 @@ impl Drop for PolygonBuilder<'_> {
 /// Expands each line segment into quad (triangle) geometry on `Drop`
 pub struct PolylineBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: usize,
+    shader_id: Option<usize>,
     position: Vec2,
     rotation: f32,
     points: Vec<Vec2>,
@@ -268,7 +273,7 @@ pub struct PolylineBuilder<'a> {
 }
 
 impl<'a> PolylineBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: usize) -> Self {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
         Self {
             batch,
             shader_id,
@@ -329,7 +334,7 @@ impl Drop for PolylineBuilder<'_> {
 
         if let Some((verts, indices, mut base)) =
             self.batch
-                .allocate(vert_count, idx_count, 0, self.shader_id)
+                .allocate(vert_count, idx_count, None, self.shader_id)
         {
             let mut vi = 0;
             let mut ii = 0;

@@ -32,12 +32,12 @@ impl GeometryBatch {
     const MAX_INDICES: usize = Self::MAX_VERTICES * 6;
 
     // Returns true if adding verts/indices would exceed max allowed
-    fn would_overflow(&self, vert_count: usize, idx_count: usize) -> bool {
+    pub fn would_overflow(&self, vert_count: usize, idx_count: usize) -> bool {
         self.vertices.len() + vert_count > Self::MAX_VERTICES
             || self.indices.len() + idx_count > Self::MAX_INDICES
     }
 
-    pub fn allocate(
+    pub fn try_allocate(
         &mut self,
         vert_count: usize,
         idx_count: usize,

@@ -22,8 +22,6 @@
 - Interactive UIs with optional **egui** integration
 - Optional hot-reload during development
 
-How many Ferris crabs can **Egor** handle? Find out in our [Ferrismark benchmark](#performance)
-
 ## Platform Support
 
 | Target     | Backend(s)               | Status     |
@@ -155,7 +153,7 @@ dx serve --hot-patch
 
 ## Performance
 
-To stress test **egor**, we made [ferrismark](demos/ferrismark), a bunnymark like demo capable of rendering millions of Ferris crabs at stable FPS on modest hardware
+To stress test **egor**, we made [ferrismark](demos/ferrismark), a bunnymark like demo capable of rendering hundreds of thousands of Ferris crabs at stable FPS on modest hardware
 
 <img src="media/ferrismark.png" height="400" />
 

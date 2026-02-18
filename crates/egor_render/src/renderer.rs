@@ -173,7 +173,7 @@ impl Renderer {
         &self,
         r_pass: &mut RenderPass<'_>,
         batch: &mut GeometryBatch,
-        texture_id: usize,
+        texture_id: Option<usize>,
         shader_id: Option<usize>,
     ) {
         if batch.is_empty() {
@@ -181,10 +181,10 @@ impl Renderer {
         }
         batch.upload(&self.gpu.device, &self.gpu.queue);
 
-        let texture = self
-            .textures
-            .get(texture_id)
+        let texture = texture_id
+            .and_then(|id| self.textures.get(id))
             .unwrap_or(&self.default_texture);
+
         texture.bind(r_pass, 0);
 
         let pipeline = shader_id
