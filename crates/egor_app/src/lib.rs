@@ -17,7 +17,7 @@ use winit::{
     dpi::PhysicalSize,
     event::MouseScrollDelta,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
-    window::WindowId,
+    window::{Fullscreen, WindowId},
 };
 
 pub struct AppConfig {
@@ -25,6 +25,9 @@ pub struct AppConfig {
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub resizable: bool,
+    pub maximized: bool,
+    pub fullscreen: bool,
+    pub decorations: bool,
 }
 
 impl Default for AppConfig {
@@ -34,6 +37,9 @@ impl Default for AppConfig {
             width: None,
             height: None,
             resizable: true,
+            maximized: false,
+            fullscreen: false,
+            decorations: true,
         }
     }
 }
@@ -91,10 +97,19 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             return;
         };
 
+        let fullscreen = match self.config.fullscreen {
+            true => Some(Fullscreen::Borderless(None)),
+            false => None,
+        };
+
         let mut win_attrs = Window::default_attributes()
             .with_visible(false)
             .with_title(&self.config.title)
-            .with_resizable(self.config.resizable);
+            .with_resizable(self.config.resizable)
+            .with_maximized(self.config.maximized)
+            .with_fullscreen(fullscreen)
+            .with_decorations(self.config.decorations);
+
         if let (Some(w), Some(h)) = (self.config.width, self.config.height) {
             win_attrs = win_attrs.with_inner_size(PhysicalSize::new(w, h));
         }
