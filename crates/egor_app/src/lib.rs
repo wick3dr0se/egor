@@ -3,7 +3,11 @@ pub mod time;
 
 use crate::{input::Input, time::FrameTimer};
 use std::sync::Arc;
-pub use winit::{event::WindowEvent, window::Window};
+pub use winit::{
+    dpi::PhysicalSize,
+    event::WindowEvent,
+    window::{Fullscreen, Window},
+};
 
 #[cfg(target_os = "android")]
 use std::sync::OnceLock;
@@ -14,10 +18,9 @@ pub static ANDROID_APP: OnceLock<AndroidApp> = OnceLock::new();
 
 use winit::{
     application::ApplicationHandler,
-    dpi::PhysicalSize,
     event::MouseScrollDelta,
     event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
-    window::{Fullscreen, WindowId},
+    window::WindowId,
 };
 
 pub struct AppConfig {

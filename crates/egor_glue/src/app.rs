@@ -6,14 +6,43 @@ use crate::{graphics::Graphics, text::TextRenderer};
 use crate::ui::EguiRenderer;
 
 use egor_app::{
-    AppConfig, AppHandler, AppRunner, Window, WindowEvent, input::Input, time::FrameTimer,
+    AppConfig, AppHandler, AppRunner, Fullscreen, PhysicalSize, Window, WindowEvent, input::Input,
+    time::FrameTimer,
 };
-use egor_render::{Backbuffer, RenderTarget, Renderer};
+use egor_render::{Backbuffer, Device, RenderTarget, Renderer};
 
 type UpdateFn = dyn FnMut(&mut FrameContext);
 
+pub struct AppControl<'a> {
+    window: &'a Window,
+    backbuffer: &'a mut Backbuffer,
+    device: &'a Device,
+}
+
+impl<'a> AppControl<'a> {
+    /// Set the inner size of the window in physical pixels
+    /// Returns the new size depending on platform
+    pub fn set_size(&self, w: u32, h: u32) -> Option<PhysicalSize<u32>> {
+        self.window.request_inner_size(PhysicalSize::new(w, h))
+    }
+
+    /// Enable or disable borderless fullscreen mode
+    pub fn set_fullscreen(&self, enabled: bool) {
+        self.window
+            .set_fullscreen(enabled.then(|| Fullscreen::Borderless(None)));
+    }
+
+    /// Enable or disable vertical sync
+    /// When enabled, frame presentation is synchronized to the display's refresh
+    /// rate, preventing screen tearing
+    pub fn set_vsync(&mut self, on: bool) {
+        self.backbuffer.set_vsync(self.device, on);
+    }
+}
+
 pub struct FrameContext<'a> {
     pub events: Vec<WindowEvent>,
+    pub app: AppControl<'a>,
     pub gfx: Graphics<'a>,
     pub input: &'a Input,
     pub timer: &'a FrameTimer,
@@ -195,17 +224,23 @@ impl AppHandler<Renderer> for App {
 
         let (w, h) = backbuffer.size();
         let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
+        let format = backbuffer.format();
         let text_renderer = self.text_renderer.as_mut().unwrap();
 
         #[cfg(feature = "ui")]
         let egui_ctx = self.egui.as_mut().unwrap().begin_frame(_window);
         let mut ctx = FrameContext {
-            gfx: Graphics::new(renderer, text_renderer, backbuffer.format(), w, h),
+            events: std::mem::take(&mut self.events),
+            app: AppControl {
+                window: _window,
+                backbuffer,
+                device: &device,
+            },
+            gfx: Graphics::new(renderer, text_renderer, format, w, h),
             input,
             timer,
             #[cfg(feature = "ui")]
             egui_ctx,
-            events: std::mem::take(&mut self.events),
         };
         update(&mut ctx);
 
@@ -257,15 +292,16 @@ impl AppHandler<Renderer> for App {
 
     fn resumed(&mut self, window: Arc<Window>, renderer: &mut Renderer) {
         let size = window.inner_size();
+        let device = renderer.device();
         let mut backbuffer = Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),
-            renderer.device(),
+            device,
             window,
             size.width,
             size.height,
         );
-        backbuffer.set_vsync(renderer.device(), self.vsync);
+        backbuffer.set_vsync(device, self.vsync);
         self.backbuffer = Some(backbuffer);
     }
 }

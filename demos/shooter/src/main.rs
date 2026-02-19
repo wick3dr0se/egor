@@ -145,6 +145,7 @@ fn main() {
                   timer,
                   egui_ctx,
                   events,
+                  ..
               }| {
             for event in events {
                 if event == &WindowEvent::CloseRequested {
