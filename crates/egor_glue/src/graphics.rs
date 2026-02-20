@@ -162,6 +162,22 @@ impl<'a> Graphics<'a> {
         self.renderer.add_shader(wgsl_source)
     }
 
+    /// Create a uniform buffer from raw bytes, returns a uniform id
+    pub fn create_uniform(&mut self, data: &[u8]) -> usize {
+        self.renderer.add_uniform(data)
+    }
+
+    /// Update an existing uniform buffer with raw bytes
+    pub fn update_uniform(&mut self, id: usize, data: &[u8]) {
+        self.renderer.update_uniform(id, data);
+    }
+
+    /// Load a custom shader with associated uniform buffers
+    pub fn load_shader_with_uniforms(&mut self, wgsl_source: &str, uniform_ids: &[usize]) -> usize {
+        self.renderer
+            .add_shader_with_uniforms(wgsl_source, uniform_ids)
+    }
+
     /// Execute drawing commands with a custom shader
     ///
     /// The shader is automatically reset to default after the closure drops

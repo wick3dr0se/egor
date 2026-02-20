@@ -1,8 +1,9 @@
 use wgpu::{
-    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
+    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
+    BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferUsages, Color,
     CommandEncoder, Device, DeviceDescriptor, Instance, LoadOp, Operations, Queue, RenderPass,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, SurfaceTarget,
-    TextureFormat, TextureView, WindowHandle,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, ShaderStages, StoreOp,
+    SurfaceTarget, TextureFormat, TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
@@ -22,6 +23,12 @@ pub(crate) struct Gpu {
     pub queue: Queue,
 }
 
+pub(crate) struct UniformEntry {
+    pub buffer: Buffer,
+    pub bind_group: BindGroup,
+    pub layout: BindGroupLayout,
+}
+
 /// Low-level GPU renderer built on `wgpu`
 ///
 /// Handles rendering pipelines, surface configuration, resources (textures, buffers), & drawing
@@ -34,6 +41,8 @@ pub struct Renderer {
     default_texture: Texture,
     clear_color: Color,
     surface_format: TextureFormat,
+    uniform_buffers: Vec<UniformEntry>,
+    shader_bindings: Vec<Vec<usize>>,
 }
 
 impl Renderer {
@@ -102,6 +111,8 @@ impl Renderer {
             default_texture,
             clear_color: Color::BLACK,
             surface_format,
+            uniform_buffers: Vec::new(),
+            shader_bindings: Vec::new(),
         }
     }
 
@@ -194,6 +205,12 @@ impl Renderer {
         r_pass.set_pipeline(pipeline);
         r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
 
+        if let Some(uniform_ids) = shader_id.and_then(|id| self.shader_bindings.get(id)) {
+            for (i, &uid) in uniform_ids.iter().enumerate() {
+                r_pass.set_bind_group((2 + i) as u32, &self.uniform_buffers[uid].bind_group, &[]);
+            }
+        }
+
         batch.draw(r_pass);
         batch.clear();
     }
@@ -279,7 +296,80 @@ impl Renderer {
     /// Creates a custom shader pipeline from WGSL source code
     /// Returns the pipeline index for use in draw calls
     pub fn add_shader(&mut self, wgsl_source: &str) -> usize {
-        self.pipelines
-            .add_custom_pipeline(&self.gpu.device, self.surface_format, wgsl_source)
+        let id = self.pipelines.add_custom_pipeline(
+            &self.gpu.device,
+            self.surface_format,
+            wgsl_source,
+            &[],
+        );
+        self.shader_bindings.push(vec![]);
+        id
+    }
+
+    /// Creates a uniform buffer and returns its id
+    pub fn add_uniform(&mut self, data: &[u8]) -> usize {
+        let buffer = self.gpu.device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("User Uniform Buffer"),
+            contents: data,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+
+        let layout = self
+            .gpu
+            .device
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("User Uniform Layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::VERTEX_FRAGMENT,
+                    ty: BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let bind_group = self.gpu.device.create_bind_group(&BindGroupDescriptor {
+            label: Some("User Uniform Bind Group"),
+            layout: &layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        });
+
+        let id = self.uniform_buffers.len();
+        self.uniform_buffers.push(UniformEntry {
+            buffer,
+            bind_group,
+            layout,
+        });
+        id
+    }
+
+    /// Updates an existing uniform buffer with new data
+    pub fn update_uniform(&mut self, id: usize, data: &[u8]) {
+        self.gpu
+            .queue
+            .write_buffer(&self.uniform_buffers[id].buffer, 0, data);
+    }
+
+    /// Creates a custom shader pipeline with associated uniform buffers
+    /// Returns the pipeline index for use in draw calls
+    pub fn add_shader_with_uniforms(&mut self, wgsl_source: &str, uniform_ids: &[usize]) -> usize {
+        let layouts: Vec<&BindGroupLayout> = uniform_ids
+            .iter()
+            .map(|&id| &self.uniform_buffers[id].layout)
+            .collect();
+        let id = self.pipelines.add_custom_pipeline(
+            &self.gpu.device,
+            self.surface_format,
+            wgsl_source,
+            &layouts,
+        );
+        self.shader_bindings.push(uniform_ids.to_vec());
+        id
     }
 }

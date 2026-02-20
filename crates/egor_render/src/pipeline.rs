@@ -43,12 +43,14 @@ impl Pipelines {
         device: &Device,
         surface_format: TextureFormat,
         wgsl_source: &str,
+        uniform_layouts: &[&BindGroupLayout],
     ) -> usize {
         let pipeline = create_custom_pipeline(
             device,
             surface_format,
             &self.texture_layout,
             &self.camera_layout,
+            uniform_layouts,
             wgsl_source,
         );
         self.custom.push(pipeline);
@@ -170,6 +172,7 @@ fn create_custom_pipeline(
     surface_format: TextureFormat,
     texture_layout: &BindGroupLayout,
     camera_layout: &BindGroupLayout,
+    extra_layouts: &[&BindGroupLayout],
     wgsl_source: &str,
 ) -> RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -177,9 +180,12 @@ fn create_custom_pipeline(
         source: wgpu::ShaderSource::Wgsl(wgsl_source.into()),
     });
 
+    let mut layouts: Vec<&BindGroupLayout> = vec![texture_layout, camera_layout];
+    layouts.extend(extra_layouts);
+
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("Custom Pipeline Layout"),
-        bind_group_layouts: &[texture_layout, camera_layout],
+        bind_group_layouts: &layouts,
         push_constant_ranges: &[],
     });
 

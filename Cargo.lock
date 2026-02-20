@@ -592,6 +592,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo_egor_health_bar"
+version = "0.0.0"
+dependencies = [
+ "bytemuck",
+ "egor",
+]
+
+[[package]]
 name = "demo_egor_hot_postfx"
 version = "0.0.0"
 dependencies = [
