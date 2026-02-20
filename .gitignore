@@ -1,2 +1,5 @@
 /target
 /demos/*/dist
+dist/
+*.DS_Store
+.cargo/

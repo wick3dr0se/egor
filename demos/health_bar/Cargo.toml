@@ -1,0 +1,9 @@
+[package]
+name = "demo_egor_health_bar"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+egor = { path = "../../" }
+bytemuck = { version = "1.23.0", features = ["derive"] }
