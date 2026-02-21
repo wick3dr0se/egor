@@ -1,7 +1,14 @@
+use crate::{color::Color, math::Rect};
 use egor_render::{GeometryBatch, vertex::Vertex};
 use glam::{Mat2, Vec2, vec2};
+use lyon::geom::euclid::Point2D;
+use lyon::geom::{Box2D, Point};
+use lyon::path::Winding;
+use lyon::math::point;
+use lyon::path::Path;
+use lyon::tessellation::*;
 
-use crate::{color::Color, math::Rect};
+const MIN_THICKNESS: f32 = 0.001;
 
 #[derive(Default)]
 struct BatchEntry {
@@ -324,7 +331,7 @@ impl<'a> PolylineBuilder<'a> {
     }
     /// Sets the stroke thickness in world units
     pub fn thickness(mut self, t: f32) -> Self {
-        self.thickness = t.max(0.001);
+        self.thickness = t.max(MIN_THICKNESS);
         self
     }
     /// Sets the color of the polyline
@@ -388,6 +395,197 @@ impl Drop for PolylineBuilder<'_> {
                 ]);
                 ii += 6;
                 base += 4;
+            }
+        }
+    }
+}
+
+pub enum Shape {
+    Path { steps: Vec<PathStep> },
+    Rect { size: Vec2 },
+    Circle { center: Vec2, radius: f32 },
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum PathStep {
+    Begin(Vec2),
+    LineTo(Vec2),
+    QuadBezierTo(Vec2, Vec2),
+    CubicBezierTo(Vec2, Vec2, Vec2),
+}
+
+pub struct ShapeBuilder<'a> {
+    batch: &'a mut PrimitiveBatch,
+    shader_id: Option<usize>,
+    position: Vec2,
+    rotation: f32,
+    scale: Vec2,
+    thickness: f32,
+    stroke_color: Option<Color>,
+    fill_color: Option<Color>,
+    shape: Option<Shape>,
+}
+
+impl<'a> ShapeBuilder<'a> {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
+        Self {
+            batch,
+            shader_id,
+            position: Vec2::ZERO,
+            rotation: 0.0,
+            scale: Vec2::ONE,
+            thickness: 1.0,
+            stroke_color: None,
+            fill_color: None,
+            shape: None,
+        }
+    }
+
+    /// Sets the world-space position of the polygon
+    pub fn at(mut self, pos: Vec2) -> Self {
+        self.position = pos;
+        self
+    }
+    /// Sets rotation in radians around the polygon's origin (default center)
+    pub fn rotate(mut self, angle: f32) -> Self {
+        self.rotation = angle;
+        self
+    }
+    /// Sets the scale of the path
+    pub fn scale(mut self, scale: Vec2) -> Self {
+        self.scale = scale;
+        self
+    }
+    /// Sets the stroke thickness in world units
+    pub fn thickness(mut self, t: f32) -> Self {
+        self.thickness = t.max(MIN_THICKNESS);
+        self
+    }
+    /// Sets the stroke color of the path
+    pub fn stroke_color(mut self, color: Color) -> Self {
+        self.stroke_color = Some(color);
+        self
+    }
+    /// Sets the fill color of the path
+    pub fn fill_color(mut self, color: Color) -> Self {
+        self.fill_color = Some(color);
+        self
+    }
+    /// Sets the shape to be drawn
+    pub fn shape(mut self, shape: Shape) -> Self {
+        self.shape = Some(shape);
+        self
+    }
+}
+
+impl Drop for ShapeBuilder<'_> {
+    fn drop(&mut self) {
+        let mut builder = Path::builder();
+
+        if let Some(shape) = &self.shape {
+            match shape {
+                Shape::Path { steps } => {
+                    for step in steps {
+                        match step {
+                            PathStep::Begin(v) => {
+                                builder.begin(point(v.x, v.y));
+                            }
+                            PathStep::LineTo(v) => {
+                                builder.line_to(point(v.x, v.y));
+                            }
+                            PathStep::QuadBezierTo(v1, v2) => {
+                                builder.quadratic_bezier_to(point(v1.x, v1.y), point(v2.x, v2.y));
+                            }
+                            PathStep::CubicBezierTo(v1, v2, v3) => {
+                                builder.cubic_bezier_to(
+                                    point(v1.x, v1.y),
+                                    point(v2.x, v2.y),
+                                    point(v3.x, v3.y),
+                                );
+                            }
+                        }
+                    }
+
+                    builder.end(true);
+                }
+                Shape::Rect { size } => {
+                    builder.add_rectangle(
+                        &Box2D::new(
+                            Point2D::new(self.position.x, self.position.y),
+                            Point2D::new(self.position.x + size.x, self.position.y + size.y),
+                        ),
+                        Winding::Positive,
+                    );
+                }
+                Shape::Circle { center, radius } => {
+                    builder.add_circle(Point::new(center.x, center.y), *radius, Winding::Positive);
+                }
+            }
+        }
+
+        let path = builder.build();
+        let mut geometry: VertexBuffers<Vertex, u16> = VertexBuffers::new();
+
+        if let Some(fill_color) = self.fill_color {
+            let mut tessellator = FillTessellator::new();
+            {
+                tessellator
+                    .tessellate_path(
+                        &path,
+                        &FillOptions::default(),
+                        &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+                            let [x, y] = vertex.position().to_array();
+                            Vertex {
+                                position: [x, y],
+                                color: fill_color.components(),
+                                tex_coords: [0.0, 0.0],
+                            }
+                        }),
+                    )
+                    .unwrap();
+            }
+        }
+
+        if let Some(stroke_color) = self.stroke_color {
+            let mut tessellator = StrokeTessellator::new();
+            {
+                tessellator
+                    .tessellate_path(
+                        &path,
+                        &StrokeOptions::default().with_line_width(self.thickness),
+                        &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| {
+                            let [x, y] = vertex.position().to_array();
+                            Vertex {
+                                position: [x, y],
+                                color: stroke_color.components(),
+                                tex_coords: [0.0, 0.0],
+                            }
+                        }),
+                    )
+                    .unwrap();
+            }
+        }
+
+        let rot = Mat2::from_angle(self.rotation);
+
+        let vert_count = geometry.vertices.len();
+        let idx_count = geometry.indices.len();
+
+        if let Some((verts, indices, base)) =
+            self.batch.allocate(vert_count, idx_count, None, self.shader_id)
+        {
+            let mut vi = 0;
+            for mut vo in geometry.vertices {
+                let mut p: Vec2 = vo.position.into();
+                p = rot * (self.scale * p) + self.position;
+                vo.position = p.to_array();
+
+                verts[vi] = vo;
+                vi += 1;
+            }
+
+            for i in 0..idx_count {
+                indices[i] = base + geometry.indices[i];
             }
         }
     }

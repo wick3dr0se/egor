@@ -5,9 +5,9 @@ use wgpu::{VertexAttribute, VertexBufferLayout, VertexFormat, VertexStepMode};
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Pod, Zeroable)]
 pub struct Vertex {
-    position: [f32; 2],
-    color: [f32; 4],
-    tex_coords: [f32; 2],
+    pub position: [f32; 2],
+    pub color: [f32; 4],
+    pub tex_coords: [f32; 2],
 }
 
 impl Vertex {

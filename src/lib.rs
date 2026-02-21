@@ -70,7 +70,10 @@ pub mod time {
 }
 
 pub mod render {
-    pub use egor_glue::{color::Color, graphics::Graphics, primitives::Anchor, text::Align};
+    pub use egor_glue::{
+        color::Color, graphics::Graphics, primitives::Anchor, primitives::PathStep,
+        primitives::Shape, text::Align,
+    };
     pub use egor_render::target::{OffscreenTarget, RenderTarget};
 }
 
