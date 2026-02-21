@@ -6,8 +6,8 @@ use crate::{graphics::Graphics, text::TextRenderer};
 use crate::ui::EguiRenderer;
 
 use egor_app::{
-    AppConfig, AppHandler, AppRunner, Fullscreen, PhysicalSize, Window, WindowEvent, input::Input,
-    time::FrameTimer,
+    AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, PhysicalSize, Window, WindowEvent,
+    input::Input, time::FrameTimer,
 };
 use egor_render::{Backbuffer, Device, RenderTarget, Renderer};
 
@@ -20,6 +20,11 @@ pub struct AppControl<'a> {
 }
 
 impl<'a> AppControl<'a> {
+    /// Request the window to redraw its contents on the next frame
+    pub fn request_redraw(&self) {
+        self.window.request_redraw();
+    }
+
     /// Set the inner size of the window in physical pixels
     /// Returns the new size depending on platform
     pub fn set_size(&self, w: u32, h: u32) -> Option<PhysicalSize<u32>> {
@@ -134,6 +139,20 @@ impl App {
     /// Enable or disable vsync
     pub fn vsync(mut self, enabled: bool) -> Self {
         self.vsync = enabled;
+        self
+    }
+
+    /// Set the event loop control flow (defaults to [`ControlFlow::Poll`])
+    ///
+    /// - `ControlFlow::Poll`: continuously redraws (game-style loop)
+    /// - `ControlFlow::Wait`: no frames are produced unless
+    ///   [`AppControl::request_redraw()`] is called
+    ///
+    /// When using `Wait`, you are responsible for requesting redraws
+    pub fn control_flow(mut self, control_flow: ControlFlow) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.control_flow = control_flow;
+        }
         self
     }
 

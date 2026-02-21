@@ -6,6 +6,7 @@ use std::sync::Arc;
 pub use winit::{
     dpi::PhysicalSize,
     event::WindowEvent,
+    event_loop::ControlFlow,
     window::{Fullscreen, Window},
 };
 
@@ -19,11 +20,12 @@ pub static ANDROID_APP: OnceLock<AndroidApp> = OnceLock::new();
 use winit::{
     application::ApplicationHandler,
     event::MouseScrollDelta,
-    event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy},
+    event_loop::{ActiveEventLoop, EventLoop, EventLoopProxy},
     window::WindowId,
 };
 
 pub struct AppConfig {
+    pub control_flow: ControlFlow,
     pub title: String,
     pub width: Option<u32>,
     pub height: Option<u32>,
@@ -36,6 +38,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
+            control_flow: ControlFlow::Poll,
             title: "Egor App".to_string(),
             width: None,
             height: None,
@@ -164,7 +167,9 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 handler.frame(window, resource, &self.input, &self.timer);
                 self.input.end_frame();
 
-                window.request_redraw();
+                if self.config.control_flow == ControlFlow::Poll {
+                    window.request_redraw();
+                }
             }
             WindowEvent::Resized(size) => {
                 if size.width == 0 || size.height == 0 {
@@ -237,7 +242,7 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         }
 
         let event_loop = event_loop_builder.build().unwrap();
-        event_loop.set_control_flow(ControlFlow::Poll);
+        event_loop.set_control_flow(self.config.control_flow);
         self.proxy = Some(event_loop.create_proxy());
 
         #[cfg(target_arch = "wasm32")]
