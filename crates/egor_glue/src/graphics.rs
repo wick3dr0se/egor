@@ -1,7 +1,7 @@
 use egor_render::{RenderTarget, Renderer, TextureFormat, target::OffscreenTarget};
 use glam::Vec2;
 
-use crate::primitives::ShapeBuilder;
+use crate::primitives::PathBuilder;
 use crate::{
     camera::Camera,
     color::Color,
@@ -138,9 +138,9 @@ impl<'a> Graphics<'a> {
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
         PolylineBuilder::new(self.batch, self.current_shader)
     }
-    /// Start building a shape
-    pub fn shape(&mut self) -> ShapeBuilder<'_> {
-        ShapeBuilder::new(&mut self.batch, self.current_shader)
+    /// Start building a vector path (lines + curves) to be filled or stroked
+    pub fn path(&mut self) -> PathBuilder<'_> {
+        PathBuilder::new(&mut self.batch, self.current_shader)
     }
     /// Load a font from disk into the text system.
     pub fn load_font(&mut self, bytes: &[u8]) -> Option<String> {
