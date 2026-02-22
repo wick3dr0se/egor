@@ -570,8 +570,8 @@ impl Drop for PathBuilder<'_> {
                 vo.position = p.to_array();
                 verts[vi] = vo;
             }
-            for i in 0..idx_count {
-                indices[i] = base + geometry.indices[i];
+            for (i, idx) in indices.iter_mut().enumerate().take(idx_count) {
+                *idx = base + geometry.indices[i];
             }
         }
     }
