@@ -41,7 +41,7 @@ fn main() {
                 .line_to(vec2(0.0, 200.0));
 
             // BLADES
-            let k = 0.5522847498;
+            let k = 0.552_284_8;
             let r = blade_width * 0.5;
             let tip_x = blade_length;
             for i in 0..4 {
