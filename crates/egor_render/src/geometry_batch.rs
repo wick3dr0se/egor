@@ -37,6 +37,11 @@ impl GeometryBatch {
             || self.indices.len() + idx_count > Self::MAX_INDICES
     }
 
+    /// Reserves space for `vert_count` + `idx_count`
+    ///
+    /// Returns mutable slices to the new ranges and the base vertex offset.
+    /// Returns `None` if this would exceed `u16` limits.
+    /// Marks buffers dirty
     pub fn try_allocate(
         &mut self,
         vert_count: usize,
@@ -78,6 +83,15 @@ impl GeometryBatch {
         true
     }
 
+    /// Clears CPU-side geometry but keeps capacity.
+    /// Marks buffers dirty for re-upload
+    pub fn clear(&mut self) {
+        self.vertices.clear();
+        self.indices.clear();
+        self.vertices_dirty = true;
+        self.indices_dirty = true;
+    }
+
     // Uploads buffers to GPU only if needed
     pub(crate) fn upload(&mut self, device: &Device, queue: &Queue) {
         if self.is_empty() || (!self.vertices_dirty && !self.indices_dirty) {
@@ -110,7 +124,7 @@ impl GeometryBatch {
             self.vertices_dirty = false;
         }
         if self.indices_dirty {
-            let mut indices_bytes: Vec<u8> = bytemuck::cast_slice(&self.indices).to_vec();
+            let mut indices_bytes = bytemuck::cast_slice(&self.indices).to_vec();
             let remainder = indices_bytes.len() % wgpu::COPY_BUFFER_ALIGNMENT as usize;
             if remainder != 0 {
                 let pad_len = wgpu::COPY_BUFFER_ALIGNMENT as usize - remainder;
@@ -124,13 +138,6 @@ impl GeometryBatch {
 
     pub(crate) fn is_empty(&self) -> bool {
         self.vertices.is_empty() || self.indices.is_empty()
-    }
-
-    pub(crate) fn clear(&mut self) {
-        self.vertices.clear();
-        self.indices.clear();
-        self.vertices_dirty = true;
-        self.indices_dirty = true;
     }
 
     pub(crate) fn draw(&self, r_pass: &mut RenderPass) {

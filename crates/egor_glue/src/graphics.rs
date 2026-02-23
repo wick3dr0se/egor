@@ -1,4 +1,4 @@
-use egor_render::{GeometryBatch, RenderTarget, Renderer, TextureFormat, target::OffscreenTarget};
+use egor_render::{RenderTarget, Renderer, TextureFormat, target::OffscreenTarget};
 use glam::Vec2;
 
 use crate::{
@@ -11,7 +11,7 @@ use crate::{
 /// High-level 2D drawing interface that simplifies the [`Renderer`]
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
-    batch: PrimitiveBatch,
+    batch: &'a mut PrimitiveBatch,
     camera: Camera,
     text_renderer: &'a mut TextRenderer,
     target_format: TextureFormat,
@@ -23,6 +23,7 @@ impl<'a> Graphics<'a> {
     /// Create `Graphics` with [`Renderer`], [`TextRenderer`] & `TextureFormat`
     pub fn new(
         renderer: &'a mut Renderer,
+        batch: &'a mut PrimitiveBatch,
         text_renderer: &'a mut TextRenderer,
         format: TextureFormat,
         w: u32,
@@ -30,7 +31,7 @@ impl<'a> Graphics<'a> {
     ) -> Self {
         Self {
             renderer,
-            batch: PrimitiveBatch::default(),
+            batch,
             camera: Camera::default(),
             text_renderer,
             target_format: format,
@@ -54,9 +55,10 @@ impl<'a> Graphics<'a> {
         let (w, h) = target.size();
         let format = target.format();
 
+        let mut offscreen_batch = PrimitiveBatch::default();
         let mut offscreen_gfx = Graphics {
             renderer: self.renderer,
-            batch: PrimitiveBatch::default(),
+            batch: &mut offscreen_batch,
             camera: Camera::default(),
             text_renderer: self.text_renderer,
             target_size: (w, h),
@@ -65,8 +67,8 @@ impl<'a> Graphics<'a> {
         };
 
         render_fn(&mut offscreen_gfx);
-
-        let mut geometry = offscreen_gfx.flush();
+        offscreen_gfx.upload_camera();
+        let mut geometry = offscreen_batch.take();
 
         let mut encoder = self
             .renderer
@@ -94,15 +96,15 @@ impl<'a> Graphics<'a> {
         self.renderer.add_offscreen_texture(target)
     }
 
-    /// Upload camera matrix & extract batched geometry
-    pub(crate) fn flush(&mut self) -> Vec<(Option<usize>, Option<usize>, GeometryBatch)> {
+    /// Upload camera matrix to the GPU.
+    /// Call after user drawing is complete and before the render pass
+    pub(crate) fn upload_camera(&mut self) {
         let (w, h) = self.target_size;
         self.renderer.upload_camera_matrix(
             self.camera
                 .view_proj((w as f32, h as f32).into())
                 .to_cols_array_2d(),
         );
-        self.batch.take()
     }
 
     /// Clear the screen to a color
@@ -121,15 +123,15 @@ impl<'a> Graphics<'a> {
 
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(&mut self.batch, self.current_shader)
+        RectangleBuilder::new(self.batch, self.current_shader)
     }
     /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
     pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        PolygonBuilder::new(&mut self.batch, self.current_shader)
+        PolygonBuilder::new(self.batch, self.current_shader)
     }
     /// Start building a polyline (stroked path) primitive
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
-        PolylineBuilder::new(&mut self.batch, self.current_shader)
+        PolylineBuilder::new(self.batch, self.current_shader)
     }
 
     /// Load a font from disk into the text system.

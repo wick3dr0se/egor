@@ -2,8 +2,9 @@ use wgpu::{
     Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferUsages, Color,
     CommandEncoder, Device, DeviceDescriptor, Instance, LoadOp, Operations, Queue, RenderPass,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, ShaderStages, StoreOp,
-    SurfaceTarget, TextureFormat, TextureView, WindowHandle,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, Sampler,
+    SamplerDescriptor, ShaderStages, StoreOp, SurfaceTarget, TextureFormat, TextureView,
+    WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
@@ -26,7 +27,6 @@ pub(crate) struct Gpu {
 pub(crate) struct UniformEntry {
     pub buffer: Buffer,
     pub bind_group: BindGroup,
-    pub layout: BindGroupLayout,
 }
 
 /// Low-level GPU renderer built on `wgpu`
@@ -42,7 +42,10 @@ pub struct Renderer {
     clear_color: Color,
     surface_format: TextureFormat,
     uniform_buffers: Vec<UniformEntry>,
+    uniform_layout: BindGroupLayout,
     shader_bindings: Vec<Vec<usize>>,
+    default_sampler: Sampler,
+    linear_clamp_sampler: Sampler,
 }
 
 impl Renderer {
@@ -95,7 +98,31 @@ impl Renderer {
             }],
         });
 
-        let default_texture = Texture::create_default(&device, &queue, &pipelines.texture_layout);
+        let default_sampler = device.create_sampler(&SamplerDescriptor::default());
+        let linear_clamp_sampler = device.create_sampler(&SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let default_texture =
+            Texture::create_default(&device, &queue, &pipelines.texture_layout, &default_sampler);
+
+        let uniform_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+            label: Some("Shared Uniform Layout"),
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: ShaderStages::VERTEX_FRAGMENT,
+                ty: BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
 
         Renderer {
             gpu: Gpu {
@@ -112,7 +139,10 @@ impl Renderer {
             clear_color: Color::BLACK,
             surface_format,
             uniform_buffers: Vec::new(),
+            uniform_layout,
             shader_bindings: Vec::new(),
+            default_sampler,
+            linear_clamp_sampler,
         }
     }
 
@@ -240,6 +270,7 @@ impl Renderer {
             offscreen.view(),
             &self.gpu.device,
             &self.pipelines.texture_layout,
+            &self.linear_clamp_sampler,
         );
 
         if let Some(id) = offscreen.texture_id() {
@@ -267,6 +298,7 @@ impl Renderer {
             &self.gpu.device,
             &self.gpu.queue,
             &self.pipelines.texture_layout,
+            &self.default_sampler,
             data,
             w,
             h,
@@ -287,6 +319,7 @@ impl Renderer {
             &self.gpu.device,
             &self.gpu.queue,
             &self.pipelines.texture_layout,
+            &self.default_sampler,
             data,
             w,
             h,
@@ -314,26 +347,9 @@ impl Renderer {
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
-        let layout = self
-            .gpu
-            .device
-            .create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: Some("User Uniform Layout"),
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::VERTEX_FRAGMENT,
-                    ty: BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
         let bind_group = self.gpu.device.create_bind_group(&BindGroupDescriptor {
-            label: Some("User Uniform Bind Group"),
-            layout: &layout,
+            label: Some("Uniform Bind Group"),
+            layout: &self.uniform_layout,
             entries: &[BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),
@@ -341,11 +357,8 @@ impl Renderer {
         });
 
         let id = self.uniform_buffers.len();
-        self.uniform_buffers.push(UniformEntry {
-            buffer,
-            bind_group,
-            layout,
-        });
+        self.uniform_buffers
+            .push(UniformEntry { buffer, bind_group });
         id
     }
 
@@ -359,10 +372,8 @@ impl Renderer {
     /// Creates a custom shader pipeline with associated uniform buffers
     /// Returns the pipeline index for use in draw calls
     pub fn add_shader_with_uniforms(&mut self, wgsl_source: &str, uniform_ids: &[usize]) -> usize {
-        let layouts: Vec<&BindGroupLayout> = uniform_ids
-            .iter()
-            .map(|&id| &self.uniform_buffers[id].layout)
-            .collect();
+        let layouts: Vec<&BindGroupLayout> =
+            uniform_ids.iter().map(|_| &self.uniform_layout).collect();
         let id = self.pipelines.add_custom_pipeline(
             &self.gpu.device,
             self.surface_format,

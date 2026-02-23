@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{graphics::Graphics, text::TextRenderer};
+use crate::{graphics::Graphics, primitives::PrimitiveBatch, text::TextRenderer};
 
 #[cfg(feature = "ui")]
 use crate::ui::EguiRenderer;
@@ -64,6 +64,7 @@ pub struct App {
     #[cfg(feature = "ui")]
     egui: Option<EguiRenderer>,
     backbuffer: Option<Backbuffer>,
+    primitive_batch: PrimitiveBatch,
 }
 
 impl Default for App {
@@ -84,6 +85,7 @@ impl App {
             #[cfg(feature = "ui")]
             egui: None,
             backbuffer: None,
+            primitive_batch: PrimitiveBatch::default(),
         }
     }
 
@@ -255,27 +257,35 @@ impl AppHandler<Renderer> for App {
                 backbuffer,
                 device: &device,
             },
-            gfx: Graphics::new(renderer, text_renderer, format, w, h),
+            gfx: Graphics::new(
+                renderer,
+                &mut self.primitive_batch,
+                text_renderer,
+                format,
+                w,
+                h,
+            ),
             input,
             timer,
             #[cfg(feature = "ui")]
             egui_ctx,
         };
         update(&mut ctx);
-
-        let mut geometry = ctx.gfx.flush();
+        ctx.gfx.upload_camera();
 
         text_renderer.prepare(&device, &queue, w, h);
 
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
 
-            for (tex_id, shader_id, batch) in &mut geometry {
-                renderer.draw_batch(&mut r_pass, batch, *tex_id, *shader_id);
+            for (tex_id, shader_id, batch) in self.primitive_batch.iter_mut() {
+                renderer.draw_batch(&mut r_pass, batch, tex_id, shader_id);
             }
 
             text_renderer.render(&mut r_pass);
         }
+
+        self.primitive_batch.reset();
 
         #[cfg(feature = "ui")]
         {
