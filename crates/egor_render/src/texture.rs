@@ -1,20 +1,19 @@
 use wgpu::{
-    AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource,
-    Device, Extent3d, FilterMode, Origin3d, Queue, RenderPass, SamplerDescriptor,
-    TexelCopyBufferLayout, TexelCopyTextureInfo, TextureAspect, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, TextureView,
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindingResource, Device,
+    Extent3d, Origin3d, Queue, RenderPass, Sampler, TexelCopyBufferLayout, TexelCopyTextureInfo,
+    TextureAspect, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView,
 };
 
 /// A GPU texture that can be bound in shaders for rendering
 ///
-/// Wraps a `wgpu::Texture`, its view, sampler, & bind group  
+/// Wraps a `wgpu::Texture`, its view, sampler, & bind group
 pub struct Texture {
     bind_group: BindGroup,
 }
 
 impl Texture {
     /// Creates a new texture from raw RGBA image data,
-    /// uploads the data, & builds the bind group using the layout
+    /// uploads the data, & builds the bind group using the layout and shared sampler
     ///
     /// - `data`: Must be in tightly packed 8-bit RGBA format
     /// - `width`, `height`: Dimensions of the image in pixels
@@ -22,6 +21,7 @@ impl Texture {
         device: &Device,
         queue: &Queue,
         bind_group_layout: &BindGroupLayout,
+        sampler: &Sampler,
         data: &[u8],
         width: u32,
         height: u32,
@@ -62,7 +62,6 @@ impl Texture {
         );
 
         let view = texture.create_view(&Default::default());
-        let sampler = device.create_sampler(&Default::default());
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
             layout: bind_group_layout,
@@ -73,7 +72,7 @@ impl Texture {
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Sampler(&sampler),
+                    resource: BindingResource::Sampler(sampler),
                 },
             ],
         });
@@ -83,18 +82,15 @@ impl Texture {
 
     /// Creates a bindable texture from an existing GPU texture view.
     ///
-    /// This does not allocate or upload image data.  
+    /// This does not allocate or upload image data.
     /// It wraps a view produced elsewhere (an offscreen render target)
     /// and builds the bind group required for sampling in shaders
-    pub fn from_view(view: &TextureView, device: &Device, layout: &BindGroupLayout) -> Self {
-        let sampler = device.create_sampler(&SamplerDescriptor {
-            address_mode_u: AddressMode::ClampToEdge,
-            address_mode_v: AddressMode::ClampToEdge,
-            mag_filter: FilterMode::Linear,
-            min_filter: FilterMode::Linear,
-            ..Default::default()
-        });
-
+    pub fn from_view(
+        view: &TextureView,
+        device: &Device,
+        layout: &BindGroupLayout,
+        sampler: &Sampler,
+    ) -> Self {
         let bind_group = device.create_bind_group(&BindGroupDescriptor {
             label: None,
             layout,
@@ -105,7 +101,7 @@ impl Texture {
                 },
                 BindGroupEntry {
                     binding: 1,
-                    resource: BindingResource::Sampler(&sampler),
+                    resource: BindingResource::Sampler(sampler),
                 },
             ],
         });
@@ -116,8 +112,21 @@ impl Texture {
     /// Creates a 1×1 white fallback texture
     ///
     /// Used when no valid texture is provided for a draw call
-    pub fn create_default(device: &Device, queue: &Queue, layout: &BindGroupLayout) -> Self {
-        Self::from_bytes(device, queue, layout, &[255u8, 255, 255, 255], 1, 1)
+    pub fn create_default(
+        device: &Device,
+        queue: &Queue,
+        layout: &BindGroupLayout,
+        sampler: &Sampler,
+    ) -> Self {
+        Self::from_bytes(
+            device,
+            queue,
+            layout,
+            sampler,
+            &[255u8, 255, 255, 255],
+            1,
+            1,
+        )
     }
 
     /// Binds this texture at the given index in the render pass

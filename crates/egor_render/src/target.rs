@@ -140,8 +140,13 @@ impl OffscreenTarget {
         }
     }
 
-    pub fn as_texture(&self, device: &Device, layout: &BindGroupLayout) -> Texture {
-        Texture::from_view(&self.sample_view, device, layout)
+    pub fn as_texture(
+        &self,
+        device: &Device,
+        layout: &BindGroupLayout,
+        sampler: &wgpu::Sampler,
+    ) -> Texture {
+        Texture::from_view(&self.sample_view, device, layout, sampler)
     }
 
     pub fn texture(&self) -> &wgpu::Texture {

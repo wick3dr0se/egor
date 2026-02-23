@@ -20,7 +20,10 @@ pub struct TextRenderer {
     renderer: GlyphonRenderer,
     viewport: Viewport,
     entries: Vec<TextEntry>,
+    buffer_pool: Vec<Buffer>,
 }
+
+const MAX_POOLED_BUFFERS: usize = 64;
 
 impl TextRenderer {
     pub(crate) fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
@@ -42,6 +45,7 @@ impl TextRenderer {
             renderer,
             viewport,
             entries: Vec::new(),
+            buffer_pool: Vec::new(),
         }
     }
 
@@ -87,7 +91,12 @@ impl TextRenderer {
             )
             .unwrap();
 
-        self.entries.clear();
+        // Return buffers to the pool for reuse next frame
+        for entry in self.entries.drain(..) {
+            if self.buffer_pool.len() < MAX_POOLED_BUFFERS {
+                self.buffer_pool.push(entry.buffer);
+            }
+        }
     }
 
     pub(crate) fn render<'a>(&'a self, pass: &mut RenderPass<'a>) {
@@ -98,6 +107,16 @@ impl TextRenderer {
 
     pub(crate) fn resize(&mut self, width: u32, height: u32, queue: &Queue) {
         self.viewport.update(queue, Resolution { width, height });
+    }
+
+    /// Takes a buffer from the pool, or creates a new one with the given metrics
+    fn take_buffer(&mut self, metrics: Metrics) -> Buffer {
+        if let Some(mut buf) = self.buffer_pool.pop() {
+            buf.set_metrics(&mut self.font_system, metrics);
+            buf
+        } else {
+            Buffer::new(&mut self.font_system, metrics)
+        }
     }
 }
 
@@ -232,10 +251,9 @@ impl<'a> TextBuilder<'a> {
 impl Drop for TextBuilder<'_> {
     fn drop(&mut self) {
         let line_height = self.line_height.unwrap_or(self.size * 1.2);
-        let mut buffer = Buffer::new(
-            &mut self.renderer.font_system,
-            Metrics::new(self.size, line_height),
-        );
+        let mut buffer = self
+            .renderer
+            .take_buffer(Metrics::new(self.size, line_height));
         buffer.set_text(
             &mut self.renderer.font_system,
             &self.text,

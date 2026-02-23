@@ -11,7 +11,7 @@ struct BatchEntry {
 }
 
 #[derive(Default)]
-pub(crate) struct PrimitiveBatch {
+pub struct PrimitiveBatch {
     batches: Vec<BatchEntry>,
 }
 
@@ -44,11 +44,31 @@ impl PrimitiveBatch {
             .try_allocate(vert_count, idx_count)
     }
 
+    /// Moves all batch entries out, consuming their geometry.
+    /// Used for ephemeral paths (offscreen rendering) where batch reuse isn't needed
     pub(crate) fn take(&mut self) -> Vec<(Option<usize>, Option<usize>, GeometryBatch)> {
         std::mem::take(&mut self.batches)
             .into_iter()
             .map(|entry| (entry.texture_id, entry.shader_id, entry.geometry))
             .collect()
+    }
+
+    /// Iterates over active batch entries for drawing.
+    /// Returns (texture_id, shader_id, &mut GeometryBatch) for each entry
+    pub(crate) fn iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (Option<usize>, Option<usize>, &mut GeometryBatch)> {
+        self.batches
+            .iter_mut()
+            .map(|e| (e.texture_id, e.shader_id, &mut e.geometry))
+    }
+
+    /// Clears CPU-side vertex/index data from all batches but retains the
+    /// `BatchEntry` objects and their GPU buffers for reuse next frame
+    pub(crate) fn reset(&mut self) {
+        for batch in &mut self.batches {
+            batch.geometry.clear();
+        }
     }
 }
 
@@ -92,8 +112,8 @@ impl<'a> RectangleBuilder<'a> {
         self.size = rect.size;
         self
     }
-    /// Sets the anchor point of the rectangle  
-    /// Defaults to [`Anchor::TopLeft`].
+    /// Sets the anchor point of the rectangle.
+    /// Defaults to [`Anchor::TopLeft`]
     pub fn anchor(mut self, anchor: Anchor) -> Self {
         self.anchor = anchor;
         self
@@ -295,7 +315,7 @@ impl<'a> PolylineBuilder<'a> {
         self.rotation = angle;
         self
     }
-    /// Sets the points of the polyline  
+    /// Sets the points of the polyline
     /// At least two points are required to generate geometry
     pub fn points(mut self, pts: &[Vec2]) -> Self {
         self.points.clear();
