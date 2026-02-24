@@ -9,14 +9,14 @@ use egor_app::{
     AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, PhysicalSize, Window, WindowEvent,
     input::Input, time::FrameTimer,
 };
-use egor_render::{Backbuffer, Device, RenderTarget, Renderer};
+use egor_render::{Backbuffer, RenderTarget, Renderer};
 
 type UpdateFn = dyn FnMut(&mut FrameContext);
 
 pub struct AppControl<'a> {
     window: &'a Window,
-    backbuffer: &'a mut Backbuffer,
-    device: &'a Device,
+    requested_size: Option<(u32, u32)>,
+    requested_vsync: Option<bool>,
 }
 
 impl<'a> AppControl<'a> {
@@ -27,8 +27,9 @@ impl<'a> AppControl<'a> {
 
     /// Set the inner size of the window in physical pixels
     /// Returns the new size depending on platform
-    pub fn set_size(&self, w: u32, h: u32) -> Option<PhysicalSize<u32>> {
-        self.window.request_inner_size(PhysicalSize::new(w, h))
+    pub fn set_size(&mut self, w: u32, h: u32) {
+        let _ = self.window.request_inner_size(PhysicalSize::new(w, h));
+        self.requested_size = Some((w, h));
     }
 
     /// Enable or disable borderless fullscreen mode
@@ -41,7 +42,7 @@ impl<'a> AppControl<'a> {
     /// When enabled, frame presentation is synchronized to the display's refresh
     /// rate, preventing screen tearing
     pub fn set_vsync(&mut self, on: bool) {
-        self.backbuffer.set_vsync(self.device, on);
+        self.requested_vsync = Some(on);
     }
 }
 
@@ -254,8 +255,8 @@ impl AppHandler<Renderer> for App {
             events: std::mem::take(&mut self.events),
             app: AppControl {
                 window: _window,
-                backbuffer,
-                device: &device,
+                requested_size: None,
+                requested_vsync: None,
             },
             gfx: Graphics::new(
                 renderer,
@@ -271,6 +272,13 @@ impl AppHandler<Renderer> for App {
             egui_ctx,
         };
         update(&mut ctx);
+
+        let requested_size = ctx.app.requested_size;
+        let requested_vsync = ctx.app.requested_vsync;
+        if let Some((pw, ph)) = requested_size {
+            ctx.gfx.set_target_size(pw, ph);
+        }
+
         ctx.gfx.upload_camera();
 
         text_renderer.prepare(&device, &queue, w, h);
@@ -302,6 +310,14 @@ impl AppHandler<Renderer> for App {
         }
 
         renderer.end_frame(frame);
+
+        if let Some((rw, rh)) = requested_size {
+            self.backbuffer.as_mut().unwrap().resize(&device, rw, rh);
+        }
+        if let Some(vsync) = requested_vsync {
+            self.backbuffer.as_mut().unwrap().set_vsync(&device, vsync);
+            self.vsync = vsync;
+        }
     }
 
     fn resize(&mut self, w: u32, h: u32, renderer: &mut Renderer) {
