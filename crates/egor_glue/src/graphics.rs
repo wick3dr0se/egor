@@ -96,10 +96,6 @@ impl<'a> Graphics<'a> {
         self.renderer.add_offscreen_texture(target)
     }
 
-    pub(crate) fn set_target_size(&mut self, w: u32, h: u32) {
-        self.target_size = (w, h);
-    }
-
     /// Upload camera matrix to the GPU.
     /// Call after user drawing is complete and before the render pass
     pub(crate) fn upload_camera(&mut self) {

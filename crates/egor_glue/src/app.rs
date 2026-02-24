@@ -66,6 +66,7 @@ pub struct App {
     egui: Option<EguiRenderer>,
     backbuffer: Option<Backbuffer>,
     primitive_batch: PrimitiveBatch,
+    pending_resize: Option<(u32, u32)>,
 }
 
 impl Default for App {
@@ -87,6 +88,7 @@ impl App {
             egui: None,
             backbuffer: None,
             primitive_batch: PrimitiveBatch::default(),
+            pending_resize: None,
         }
     }
 
@@ -234,6 +236,16 @@ impl AppHandler<Renderer> for App {
         input: &Input,
         timer: &FrameTimer,
     ) {
+        if let Some((rw, rh)) = self.pending_resize.take() {
+            if let Some(bb) = self.backbuffer.as_mut() {
+                bb.resize(renderer.device(), rw, rh);
+            }
+            self.text_renderer
+                .as_mut()
+                .unwrap()
+                .resize(rw, rh, renderer.queue());
+        }
+
         let Some(update) = &mut self.update else {
             return;
         };
@@ -275,9 +287,6 @@ impl AppHandler<Renderer> for App {
 
         let requested_size = ctx.app.requested_size;
         let requested_vsync = ctx.app.requested_vsync;
-        if let Some((pw, ph)) = requested_size {
-            ctx.gfx.set_target_size(pw, ph);
-        }
 
         ctx.gfx.upload_camera();
 
@@ -312,7 +321,7 @@ impl AppHandler<Renderer> for App {
         renderer.end_frame(frame);
 
         if let Some((rw, rh)) = requested_size {
-            self.backbuffer.as_mut().unwrap().resize(&device, rw, rh);
+            self.pending_resize = Some((rw, rh));
         }
         if let Some(vsync) = requested_vsync {
             self.backbuffer.as_mut().unwrap().set_vsync(&device, vsync);
