@@ -4,12 +4,14 @@ use glam::{Mat2, Vec2, vec2};
 use lyon::{
     geom::euclid::Point2D,
     math::{Box2D, Point, point},
-    path::{Builder, Path, Winding, builder::BorderRadii},
+    path::{Builder, Path, Winding},
     tessellation::{
         FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex,
         geometry_builder::{BuffersBuilder, VertexBuffers},
     },
 };
+
+pub use lyon::path::builder::BorderRadii;
 
 const MIN_THICKNESS: f32 = 0.001;
 
