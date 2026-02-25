@@ -4,7 +4,7 @@ use glam::{Mat2, Vec2, vec2};
 use lyon::{
     geom::euclid::Point2D,
     math::{Box2D, Point, point},
-    path::{Builder, Path, Winding},
+    path::{Builder, Path, Winding, builder::BorderRadii},
     tessellation::{
         FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex,
         geometry_builder::{BuffersBuilder, VertexBuffers},
@@ -498,7 +498,7 @@ impl<'a> PathBuilder<'a> {
         self
     }
 
-    /// Convenience rectangle, just emits path ops internally
+    /// Adds a rectangle to the path
     pub fn rect(mut self, size: Vec2) -> Self {
         self.builder.add_rectangle(
             &Box2D::new(Point2D::new(0.0, 0.0), Point2D::new(size.x, size.y)),
@@ -506,7 +506,23 @@ impl<'a> PathBuilder<'a> {
         );
         self
     }
-    /// Convenience circle, just emits path ops internally
+    /// Adds a rounded rectangle to the path, optionally specifying per-corner radii
+    pub fn round_rect(mut self, size: Vec2, radii: Option<BorderRadii>) -> Self {
+        let rect = Box2D::new(Point2D::new(0.0, 0.0), Point2D::new(size.x, size.y));
+
+        let radii = radii.unwrap_or(BorderRadii {
+            top_left: 0.0,
+            top_right: 0.0,
+            bottom_left: 0.0,
+            bottom_right: 0.0,
+        });
+
+        self.builder
+            .add_rounded_rectangle(&rect, &radii, Winding::Positive);
+
+        self
+    }
+    /// Adds a circle to the path
     pub fn circle(mut self, radius: f32) -> Self {
         self.builder
             .add_circle(Point::new(0.0, 0.0), radius, Winding::Positive);
