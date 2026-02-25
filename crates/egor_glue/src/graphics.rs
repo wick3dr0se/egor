@@ -140,7 +140,7 @@ impl<'a> Graphics<'a> {
     }
     /// Start building a vector path (lines + curves) to be filled or stroked
     pub fn path(&mut self) -> PathBuilder<'_> {
-        PathBuilder::new(&mut self.batch, self.current_shader)
+        PathBuilder::new(self.batch, self.current_shader)
     }
     /// Load a font from disk into the text system.
     pub fn load_font(&mut self, bytes: &[u8]) -> Option<String> {
