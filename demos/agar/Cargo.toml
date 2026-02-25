@@ -1,0 +1,10 @@
+[package]
+name = "demo_egor_agar"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+egor = { path = "../../", features = ["ui"] }
+rand = "0.8"
+getrandom = { version = "0.2", features = ["js"] }

@@ -583,6 +583,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
+name = "demo_egor_agar"
+version = "0.0.0"
+dependencies = [
+ "egor",
+ "getrandom 0.2.17",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "demo_egor_desk_fan"
 version = "0.0.0"
 dependencies = [
