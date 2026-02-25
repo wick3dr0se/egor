@@ -1,7 +1,19 @@
+use crate::{color::Color, math::Rect};
 use egor_render::{GeometryBatch, vertex::Vertex};
 use glam::{Mat2, Vec2, vec2};
+use lyon::{
+    geom::euclid::Point2D,
+    math::{Box2D, Point, point},
+    path::{Builder, Path, Winding},
+    tessellation::{
+        FillTessellator, FillVertex, StrokeOptions, StrokeTessellator, StrokeVertex,
+        geometry_builder::{BuffersBuilder, VertexBuffers},
+    },
+};
 
-use crate::{color::Color, math::Rect};
+pub use lyon::path::builder::BorderRadii;
+
+const MIN_THICKNESS: f32 = 0.001;
 
 #[derive(Default)]
 struct BatchEntry {
@@ -185,7 +197,6 @@ pub struct PolygonBuilder<'a> {
     shader_id: Option<usize>,
     position: Vec2,
     rotation: f32,
-    points: Vec<Vec2>,
     radius: f32,
     segments: usize,
     color: Color,
@@ -198,7 +209,6 @@ impl<'a> PolygonBuilder<'a> {
             shader_id,
             position: Vec2::ZERO,
             rotation: 0.0,
-            points: Vec::new(),
             radius: 10.0,
             segments: 3,
             color: Color::WHITE,
@@ -212,12 +222,6 @@ impl<'a> PolygonBuilder<'a> {
     /// Sets rotation in radians around the polygon's origin (default center)
     pub fn rotate(mut self, angle: f32) -> Self {
         self.rotation = angle;
-        self
-    }
-    /// Set explicit points for the polygon
-    pub fn points(mut self, pts: &[Vec2]) -> Self {
-        self.points.clear();
-        self.points.extend_from_slice(pts);
         self
     }
     /// Set radius for a circle or regular n-gon
@@ -239,22 +243,17 @@ impl<'a> PolygonBuilder<'a> {
 
 impl Drop for PolygonBuilder<'_> {
     fn drop(&mut self) {
-        let points: Vec<Vec2> = if !self.points.is_empty() {
-            self.points.clone()
-        } else {
-            let r = self.radius;
-            (0..self.segments)
-                .map(|i| {
-                    let t = i as f32 / self.segments as f32 * std::f32::consts::TAU;
-                    Vec2::new(t.cos(), t.sin()) * r
-                })
-                .collect()
-        };
+        let r = self.radius;
+        let points: Vec<Vec2> = (0..self.segments)
+            .map(|i| {
+                let t = i as f32 / self.segments as f32 * std::f32::consts::TAU;
+                Vec2::new(t.cos(), t.sin()) * r
+            })
+            .collect();
 
         let rot = Mat2::from_angle(self.rotation);
         let center = self.position;
         let color = self.color.components();
-
         let vert_count = points.len();
         let idx_count = (points.len().saturating_sub(2)) * 3;
 
@@ -267,7 +266,6 @@ impl Drop for PolygonBuilder<'_> {
                 verts[i] = Vertex::new(world.into(), color, [0.0, 0.0]);
             }
 
-            // Convex fan triangulation
             for i in 0..points.len().saturating_sub(2) {
                 let offset = i * 3;
                 indices[offset] = base;
@@ -324,7 +322,7 @@ impl<'a> PolylineBuilder<'a> {
     }
     /// Sets the stroke thickness in world units
     pub fn thickness(mut self, t: f32) -> Self {
-        self.thickness = t.max(0.001);
+        self.thickness = t.max(MIN_THICKNESS);
         self
     }
     /// Sets the color of the polyline
@@ -388,6 +386,210 @@ impl Drop for PolylineBuilder<'_> {
                 ]);
                 ii += 6;
                 base += 4;
+            }
+        }
+    }
+}
+
+/// Builder for constructing and submitting a vector path
+///
+/// Internally this wraps a `lyon::path::Builder` and records path commands
+/// (`begin`, `line_to`, `quad_to`, etc). On drop:
+///
+/// - Any open subpath is automatically ended (non-closed).
+/// - The path is tessellated (fill and/or stroke).
+/// - World transform (scale → rotation → translation) is applied.
+/// - Final vertices/indices are written into the batch.
+///
+/// Users must call `begin()` before issuing path commands
+pub struct PathBuilder<'a> {
+    batch: &'a mut PrimitiveBatch,
+    shader_id: Option<usize>,
+    position: Vec2,
+    rotation: f32,
+    scale: Vec2,
+    thickness: f32,
+    stroke_color: Option<Color>,
+    fill_color: Option<Color>,
+    path_open: bool,
+    builder: Builder,
+}
+
+impl<'a> PathBuilder<'a> {
+    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
+        Self {
+            batch,
+            shader_id,
+            position: Vec2::ZERO,
+            rotation: 0.0,
+            scale: Vec2::ONE,
+            thickness: 1.0,
+            stroke_color: None,
+            fill_color: None,
+            path_open: false,
+            builder: Path::builder(),
+        }
+    }
+
+    /// Sets the world-space translation of the path
+    pub fn at(mut self, pos: Vec2) -> Self {
+        self.position = pos;
+        self
+    }
+    /// Sets rotation in radians around the local origin (0,0)
+    pub fn rotate(mut self, angle: f32) -> Self {
+        self.rotation = angle;
+        self
+    }
+    /// Sets the scale of the path
+    pub fn scale(mut self, scale: Vec2) -> Self {
+        self.scale = scale;
+        self
+    }
+    /// Sets the stroke thickness in world units
+    pub fn thickness(mut self, t: f32) -> Self {
+        self.thickness = t.max(MIN_THICKNESS);
+        self
+    }
+    /// Sets the stroke color of the path
+    pub fn stroke_color(mut self, color: Color) -> Self {
+        self.stroke_color = Some(color);
+        self
+    }
+    /// Sets the fill color for the path
+    pub fn fill_color(mut self, color: Color) -> Self {
+        self.fill_color = Some(color);
+        self
+    }
+
+    /// Begins a new subpath at the given local coordinate.
+    /// Must be called before any `line_to`/`quad_to`/`cubic_to` commands.
+    /// Automatically marks `path_open` as true to track subpath state
+    pub fn begin(mut self, p: Vec2) -> Self {
+        self.builder.begin(point(p.x, p.y));
+        self.path_open = true;
+        self
+    }
+    /// Adds a straight line to the current subpath.
+    /// `begin()` must have been called first
+    pub fn line_to(mut self, p: Vec2) -> Self {
+        self.builder.line_to(point(p.x, p.y));
+        self
+    }
+    /// Adds a quadratic bezier curve to the current subpath.
+    /// `ctrl` is the control point, `to` is the end point.
+    /// Requires an open subpath (`begin()` called)
+    pub fn quad_to(mut self, ctrl: Vec2, to: Vec2) -> Self {
+        self.builder
+            .quadratic_bezier_to(point(ctrl.x, ctrl.y), point(to.x, to.y));
+        self
+    }
+    /// Adds a cubic bezier curve to the current subpath.
+    /// `c1` and `c2` are control points, `to` is the end point.
+    /// Requires an open subpath (`begin()` called)
+    pub fn cubic_to(mut self, c1: Vec2, c2: Vec2, to: Vec2) -> Self {
+        self.builder
+            .cubic_bezier_to(point(c1.x, c1.y), point(c2.x, c2.y), point(to.x, to.y));
+        self
+    }
+    /// Closes the current subpath and marks it as closed.
+    /// Internally calls `end(true)` on the lyon builder and updates `path_open`
+    pub fn close(mut self) -> Self {
+        self.builder.end(true);
+        self.path_open = false;
+        self
+    }
+
+    /// Adds a rectangle to the path
+    pub fn rect(mut self, size: Vec2) -> Self {
+        self.builder.add_rectangle(
+            &Box2D::new(Point2D::new(0.0, 0.0), Point2D::new(size.x, size.y)),
+            Winding::Positive,
+        );
+        self
+    }
+    /// Adds a rounded rectangle to the path, optionally specifying per-corner radii
+    pub fn round_rect(mut self, size: Vec2, radii: Option<BorderRadii>) -> Self {
+        let rect = Box2D::new(Point2D::new(0.0, 0.0), Point2D::new(size.x, size.y));
+
+        let radii = radii.unwrap_or(BorderRadii {
+            top_left: 0.0,
+            top_right: 0.0,
+            bottom_left: 0.0,
+            bottom_right: 0.0,
+        });
+
+        self.builder
+            .add_rounded_rectangle(&rect, &radii, Winding::Positive);
+
+        self
+    }
+    /// Adds a circle to the path
+    pub fn circle(mut self, radius: f32) -> Self {
+        self.builder
+            .add_circle(Point::new(0.0, 0.0), radius, Winding::Positive);
+        self
+    }
+}
+
+impl Drop for PathBuilder<'_> {
+    fn drop(&mut self) {
+        if self.path_open {
+            self.builder.end(false);
+        }
+        let path = std::mem::take(&mut self.builder).build();
+        let mut geometry: VertexBuffers<Vertex, u16> = VertexBuffers::new();
+
+        if let Some(fill_color) = self.fill_color {
+            FillTessellator::new()
+                .tessellate_path(
+                    &path,
+                    &Default::default(),
+                    &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
+                        let [x, y] = vertex.position().to_array();
+                        Vertex {
+                            position: [x, y],
+                            color: fill_color.components(),
+                            tex_coords: [0.0, 0.0],
+                        }
+                    }),
+                )
+                .unwrap();
+        }
+
+        if let Some(stroke_color) = self.stroke_color {
+            StrokeTessellator::new()
+                .tessellate_path(
+                    &path,
+                    &StrokeOptions::default().with_line_width(self.thickness),
+                    &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| {
+                        let [x, y] = vertex.position().to_array();
+                        Vertex {
+                            position: [x, y],
+                            color: stroke_color.components(),
+                            tex_coords: [0.0, 0.0],
+                        }
+                    }),
+                )
+                .unwrap();
+        }
+
+        let rot = Mat2::from_angle(self.rotation);
+        let vert_count = geometry.vertices.len();
+        let idx_count = geometry.indices.len();
+
+        if let Some((verts, indices, base)) =
+            self.batch
+                .allocate(vert_count, idx_count, None, self.shader_id)
+        {
+            for (vi, mut vo) in geometry.vertices.into_iter().enumerate() {
+                let mut p: Vec2 = vo.position.into();
+                p = rot * (self.scale * p) + self.position;
+                vo.position = p.to_array();
+                verts[vi] = vo;
+            }
+            for (i, idx) in indices.iter_mut().enumerate().take(idx_count) {
+                *idx = base + geometry.indices[i];
             }
         }
     }
