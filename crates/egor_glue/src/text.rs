@@ -58,10 +58,6 @@ impl TextRenderer {
 
     /// Prepare the text renderer for drawing
     pub(crate) fn prepare(&mut self, device: &Device, queue: &Queue, width: u32, height: u32) {
-        if self.entries.is_empty() {
-            return;
-        }
-
         let text_areas: Vec<TextArea> = self
             .entries
             .iter()
