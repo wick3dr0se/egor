@@ -33,6 +33,8 @@ pub struct AppConfig {
     pub maximized: bool,
     pub fullscreen: bool,
     pub decorations: bool,
+    pub min_size: Option<(u32, u32)>,
+    pub max_size: Option<(u32, u32)>,
 }
 
 impl Default for AppConfig {
@@ -46,6 +48,8 @@ impl Default for AppConfig {
             maximized: false,
             fullscreen: false,
             decorations: true,
+            min_size: None,
+            max_size: None,
         }
     }
 }
@@ -127,6 +131,13 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
 
         let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
         self.window = Some(window.clone());
+
+        if let Some((w, h)) = self.config.min_size {
+            window.set_min_inner_size(Some(PhysicalSize::new(w, h)));
+        }
+        if let Some((w, h)) = self.config.max_size {
+            window.set_max_inner_size(Some(PhysicalSize::new(w, h)));
+        }
 
         let mut handler = self.handler.take().unwrap();
         #[cfg(target_arch = "wasm32")]

@@ -107,6 +107,24 @@ impl App {
         self
     }
 
+    /// Set the minimum allowed window size (width, height in pixels).
+    /// Outside of mobile platforms, the window will not resize below these constraints
+    pub fn min_size(mut self, w: u32, h: u32) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.min_size = Some((w, h));
+        }
+        self
+    }
+
+    /// Set the maximum allowed window size (width, height in pixels).
+    /// Outside of mobile platforms, the window will not resize above these constraints
+    pub fn max_size(mut self, w: u32, h: u32) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.max_size = Some((w, h));
+        }
+        self
+    }
+
     /// Enable or disable window resizing (defaults to true)
     pub fn resizable(mut self, resizable: bool) -> Self {
         if let Some(c) = self.config.as_mut() {
