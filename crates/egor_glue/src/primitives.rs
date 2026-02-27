@@ -1,6 +1,6 @@
 use crate::{color::Color, math::Rect};
 use egor_render::{GeometryBatch, instance::Instance, vertex::Vertex};
-use glam::{Mat2, Mat4, Vec2, vec2};
+use glam::{Mat2, Vec2, vec2};
 use lyon::{
     geom::euclid::Point2D,
     math::{Box2D, Point, point},
@@ -65,9 +65,11 @@ impl PrimitiveBatch {
         texture_id: Option<usize>,
         shader_id: Option<usize>,
     ) {
-        if let Some(i) = self.batches.iter().position(|e| {
-            e.texture_id == texture_id && e.shader_id == shader_id && !e.geometry.instances_full()
-        }) {
+        if let Some(i) = self
+            .batches
+            .iter()
+            .position(|e| e.texture_id == texture_id && e.shader_id == shader_id)
+        {
             self.batches[i].geometry.push_instance(instance);
             return;
         }
@@ -196,17 +198,14 @@ impl Drop for RectangleBuilder<'_> {
             Anchor::Center => -self.size / 2.0,
         };
         let center = self.position + offset + self.size / 2.0;
-        let model = Mat4::from_translation(center.extend(0.0))
-            * Mat4::from_rotation_z(self.rotation)
-            * Mat4::from_scale(self.size.extend(1.0));
+        let rot = Mat2::from_angle(self.rotation);
+        let (col0, col1) = (rot.x_axis * self.size.x, rot.y_axis * self.size.y);
         let color = self.color.components();
 
         self.batch.push_instance(
             Instance {
-                model_0: model.x_axis.into(),
-                model_1: model.y_axis.into(),
-                model_2: model.z_axis.into(),
-                model_3: model.w_axis.into(),
+                affine: [col0.x, col0.y, col1.x, col1.y],
+                translate: [center.x, center.y],
                 color,
                 uv: self.uvs,
             },

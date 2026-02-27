@@ -1,4 +1,7 @@
-use wgpu::{Buffer, BufferUsages, Device, IndexFormat, Queue, RenderPass};
+use wgpu::{
+    Buffer, BufferDescriptor, BufferUsages, COPY_BUFFER_ALIGNMENT, Device, IndexFormat, Queue,
+    RenderPass,
+};
 
 use crate::{instance::Instance, vertex::Vertex};
 
@@ -39,17 +42,12 @@ impl Default for GeometryBatch {
 impl GeometryBatch {
     const MAX_VERTICES: usize = u16::MAX as usize;
     const MAX_INDICES: usize = Self::MAX_VERTICES * 6;
-    const MAX_INSTANCES: usize = 10_000;
+    const INITIAL_INSTANCE_CAPACITY: usize = 1_024;
 
     // Returns true if adding verts/indices would exceed max allowed
     pub fn would_overflow(&self, vert_count: usize, idx_count: usize) -> bool {
         self.vertices.len() + vert_count > Self::MAX_VERTICES
             || self.indices.len() + idx_count > Self::MAX_INDICES
-    }
-
-    // Returns true if an instance is full
-    pub fn instances_full(&self) -> bool {
-        self.instances.len() >= Self::MAX_INSTANCES
     }
 
     /// Reserves space for `vert_count` + `idx_count`
@@ -100,10 +98,8 @@ impl GeometryBatch {
 
     /// Pushes an instance for instanced drawing
     pub fn push_instance(&mut self, instance: Instance) {
-        if self.instances.len() < Self::MAX_INSTANCES {
-            self.instances.push(instance);
-            self.instances_dirty = true;
-        }
+        self.instances.push(instance);
+        self.instances_dirty = true;
     }
 
     /// Returns true if there is nothing to draw in either path
@@ -129,7 +125,7 @@ impl GeometryBatch {
 
         if self.vertices_dirty && !self.vertices.is_empty() {
             if self.vertex_buffer.is_none() {
-                self.vertex_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                self.vertex_buffer = Some(device.create_buffer(&BufferDescriptor {
                     label: Some("GeometryBatch Vertex Buffer"),
                     size: (Self::MAX_VERTICES * std::mem::size_of::<Vertex>()) as u64,
                     usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
@@ -146,7 +142,7 @@ impl GeometryBatch {
 
         if self.indices_dirty && !self.indices.is_empty() {
             if self.index_buffer.is_none() {
-                self.index_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+                self.index_buffer = Some(device.create_buffer(&BufferDescriptor {
                     label: Some("GeometryBatch Index Buffer"),
                     size: (Self::MAX_INDICES * std::mem::size_of::<u16>()) as u64,
                     usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
@@ -154,24 +150,36 @@ impl GeometryBatch {
                 }));
             }
 
-            let mut indices_bytes = bytemuck::cast_slice(&self.indices).to_vec();
-            let remainder = indices_bytes.len() % wgpu::COPY_BUFFER_ALIGNMENT as usize;
-            if remainder != 0 {
-                indices_bytes.extend_from_slice(&vec![
-                    0u8;
-                    wgpu::COPY_BUFFER_ALIGNMENT as usize
-                        - remainder
-                ]);
+            // pad to COPY_BUFFER_ALIGNMENT in-place (avoids heap alloc)
+            let byte_len = self.indices.len() * std::mem::size_of::<u16>();
+            let needs_padding = !byte_len.is_multiple_of(COPY_BUFFER_ALIGNMENT as usize);
+            if needs_padding {
+                self.indices.push(0);
             }
-            queue.write_buffer(self.index_buffer.as_ref().unwrap(), 0, &indices_bytes);
+            queue.write_buffer(
+                self.index_buffer.as_ref().unwrap(),
+                0,
+                bytemuck::cast_slice(&self.indices),
+            );
+            if needs_padding {
+                self.indices.pop();
+            }
             self.indices_dirty = false;
         }
 
         if self.instances_dirty && !self.instances.is_empty() {
-            if self.instance_buffer.is_none() {
-                self.instance_buffer = Some(device.create_buffer(&wgpu::BufferDescriptor {
+            let required_bytes = (self.instances.len() * std::mem::size_of::<Instance>()) as u64;
+            let needs_recreate = self
+                .instance_buffer
+                .as_ref()
+                .is_none_or(|b| b.size() < required_bytes);
+            if needs_recreate {
+                let alloc = required_bytes.next_power_of_two().max(
+                    (Self::INITIAL_INSTANCE_CAPACITY * std::mem::size_of::<Instance>()) as u64,
+                );
+                self.instance_buffer = Some(device.create_buffer(&BufferDescriptor {
                     label: Some("GeometryBatch Instance Buffer"),
-                    size: (Self::MAX_INSTANCES * std::mem::size_of::<Instance>()) as u64,
+                    size: alloc,
                     usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));
@@ -193,22 +201,21 @@ impl GeometryBatch {
         quad_ib: &Buffer,
         dummy_instance: &Buffer,
     ) {
-        if !self.instances.is_empty() {
-            if let Some(instance_buf) = &self.instance_buffer {
-                r_pass.set_vertex_buffer(0, quad_vb.slice(..));
-                r_pass.set_vertex_buffer(1, instance_buf.slice(..));
-                r_pass.set_index_buffer(quad_ib.slice(..), IndexFormat::Uint16);
-                r_pass.draw_indexed(0..6, 0, 0..self.instances.len() as u32);
-            }
+        if !self.instances.is_empty()
+            && let Some(instance_buf) = &self.instance_buffer
+        {
+            r_pass.set_vertex_buffer(0, quad_vb.slice(..));
+            r_pass.set_vertex_buffer(1, instance_buf.slice(..));
+            r_pass.set_index_buffer(quad_ib.slice(..), IndexFormat::Uint16);
+            r_pass.draw_indexed(0..6, 0, 0..self.instances.len() as u32);
         }
-
-        if !self.indices.is_empty() {
-            if let (Some(vb), Some(ib)) = (&self.vertex_buffer, &self.index_buffer) {
-                r_pass.set_vertex_buffer(0, vb.slice(..));
-                r_pass.set_vertex_buffer(1, dummy_instance.slice(..));
-                r_pass.set_index_buffer(ib.slice(..), IndexFormat::Uint16);
-                r_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
-            }
+        if !self.indices.is_empty()
+            && let (Some(vb), Some(ib)) = (&self.vertex_buffer, &self.index_buffer)
+        {
+            r_pass.set_vertex_buffer(0, vb.slice(..));
+            r_pass.set_vertex_buffer(1, dummy_instance.slice(..));
+            r_pass.set_index_buffer(ib.slice(..), IndexFormat::Uint16);
+            r_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
         }
     }
 }
