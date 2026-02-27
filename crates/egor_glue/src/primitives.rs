@@ -28,7 +28,8 @@ pub struct PrimitiveBatch {
 }
 
 impl PrimitiveBatch {
-    /// Allocates space for vertices & indices in the correct batch for `texture_id` + `shader_id`
+    /// Allocates space for vertices & indices in the current batch if it matches
+    /// `texture_id` + `shader_id`, otherwise starts a new batch.
     /// Used by paths, polygons, and other baked geometry primitives
     pub(crate) fn allocate(
         &mut self,
@@ -37,12 +38,18 @@ impl PrimitiveBatch {
         texture_id: Option<usize>,
         shader_id: Option<usize>,
     ) -> Option<(&mut [Vertex], &mut [u16], u16)> {
-        if let Some(i) = self.batches.iter().position(|e| {
-            e.texture_id == texture_id
-                && e.shader_id == shader_id
-                && !e.geometry.would_overflow(vert_count, idx_count)
-        }) {
-            return self.batches[i].geometry.try_allocate(vert_count, idx_count);
+        // only reuse last batch if it matches and won't overflow
+        if let Some(last) = self.batches.last()
+            && last.texture_id == texture_id
+            && last.shader_id == shader_id
+            && !last.geometry.would_overflow(vert_count, idx_count)
+        {
+            return self
+                .batches
+                .last_mut()
+                .unwrap()
+                .geometry
+                .try_allocate(vert_count, idx_count);
         }
 
         self.batches.push(BatchEntry {
@@ -57,20 +64,19 @@ impl PrimitiveBatch {
             .try_allocate(vert_count, idx_count)
     }
 
-    /// Pushes an instance into the correct batch for `texture_id` + `shader_id`.
-    /// Used by RectangleBuilder and other quad-based primitives
+    /// Pushes an instance into the current batch if it matches `texture_id` + `shader_id`,
+    /// otherwise starts a new batch. Preserves insertion order for correct draw ordering.
     pub(crate) fn push_instance(
         &mut self,
         instance: Instance,
         texture_id: Option<usize>,
         shader_id: Option<usize>,
     ) {
-        if let Some(i) = self
-            .batches
-            .iter()
-            .position(|e| e.texture_id == texture_id && e.shader_id == shader_id)
+        if let Some(last) = self.batches.last_mut()
+            && last.texture_id == texture_id
+            && last.shader_id == shader_id
         {
-            self.batches[i].geometry.push_instance(instance);
+            last.geometry.push_instance(instance);
             return;
         }
 
@@ -102,12 +108,9 @@ impl PrimitiveBatch {
             .map(|e| (e.texture_id, e.shader_id, &mut e.geometry))
     }
 
-    /// Clears CPU-side vertex/index data from all batches but retains the
-    /// `BatchEntry` objects and their GPU buffers for reuse next frame
+    /// Clears all batches, dropping their geometry. Called at the end of each frame
     pub(crate) fn reset(&mut self) {
-        for batch in &mut self.batches {
-            batch.geometry.clear();
-        }
+        self.batches.clear();
     }
 }
 
