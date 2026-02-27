@@ -15,7 +15,32 @@ use crate::{
     pipeline::Pipelines,
     target::{OffscreenTarget, RenderTarget},
     texture::Texture,
+    vertex::Vertex,
 };
+
+const QUAD_VERTICES: &[Vertex] = &[
+    Vertex {
+        position: [-0.5, -0.5],
+        color: [1.0; 4],
+        tex_coords: [0.0, 0.0],
+    },
+    Vertex {
+        position: [0.5, -0.5],
+        color: [1.0; 4],
+        tex_coords: [1.0, 0.0],
+    },
+    Vertex {
+        position: [0.5, 0.5],
+        color: [1.0; 4],
+        tex_coords: [1.0, 1.0],
+    },
+    Vertex {
+        position: [-0.5, 0.5],
+        color: [1.0; 4],
+        tex_coords: [0.0, 1.0],
+    },
+];
+const QUAD_INDICES: &[u16] = &[0, 1, 2, 2, 3, 0];
 
 pub(crate) struct Gpu {
     pub instance: Instance,
@@ -35,6 +60,9 @@ pub(crate) struct UniformEntry {
 pub struct Renderer {
     pub(crate) gpu: Gpu,
     pipelines: Pipelines,
+    quad_vertex_buffer: Buffer,
+    quad_index_buffer: Buffer,
+    dummy_instance_buffer: Buffer,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
     textures: Vec<Texture>,
@@ -76,6 +104,21 @@ impl Renderer {
         let surface_format = surface_config.format;
         let pipelines = Pipelines::new(&device, surface_format);
 
+        let quad_vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Static Unit Quad VB"),
+            contents: bytemuck::cast_slice(QUAD_VERTICES),
+            usage: BufferUsages::VERTEX,
+        });
+        let quad_index_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Static Unit Quad IB"),
+            contents: bytemuck::cast_slice(QUAD_INDICES),
+            usage: BufferUsages::INDEX,
+        });
+        let dummy_instance_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Dummy Instance Buffer"),
+            contents: bytemuck::bytes_of(&crate::instance::Instance::identity()),
+            usage: BufferUsages::VERTEX,
+        });
         let camera_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: None,
             contents: bytemuck::bytes_of(&CameraUniform {
@@ -132,6 +175,9 @@ impl Renderer {
                 queue,
             },
             pipelines,
+            quad_vertex_buffer,
+            quad_index_buffer,
+            dummy_instance_buffer,
             camera_bind_group,
             camera_buffer,
             textures: Vec::new(),
@@ -241,7 +287,12 @@ impl Renderer {
             }
         }
 
-        batch.draw(r_pass);
+        batch.draw(
+            r_pass,
+            &self.quad_vertex_buffer,
+            &self.quad_index_buffer,
+            &self.dummy_instance_buffer,
+        );
         batch.clear();
     }
 

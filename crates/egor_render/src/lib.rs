@@ -1,6 +1,7 @@
 pub mod camera;
 pub mod frame;
 pub mod geometry_batch;
+pub mod instance;
 pub mod pipeline;
 mod renderer;
 pub mod target;

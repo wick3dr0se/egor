@@ -175,7 +175,7 @@ impl EgorMap {
     }
 
     // gid → (tileset, uv‑quad)
-    fn lookup_gid(&self, gid: u32) -> Option<(&TilesetInfo, [[f32; 2]; 4])> {
+    fn lookup_gid(&self, gid: u32) -> Option<(&TilesetInfo, [f32; 4])> {
         let (_, info) = self
             .sets
             .iter()
@@ -194,6 +194,6 @@ impl EgorMap {
         let u1 = (tx + info.tile_w) as f32 / aw;
         let v1 = (ty + info.tile_h) as f32 / ah;
 
-        Some((info, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]))
+        Some((info, [u0, v0, u1, v1]))
     }
 }
