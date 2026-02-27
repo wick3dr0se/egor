@@ -311,7 +311,7 @@ fn draw_circle(gfx: &mut Graphics, center: Vec2, radius: f32, color: Color) {
 fn main() {
     let mut game = Game::new();
 
-    App::new().title("Egor Agar Demo").run(
+    App::new().vsync(false).title("Egor Agar Demo").run(
         move |FrameContext {
                   gfx,
                   input,

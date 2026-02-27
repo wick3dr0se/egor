@@ -5,7 +5,7 @@ use wgpu::{
     TextureViewDimension, VertexState, include_wgsl,
 };
 
-use crate::vertex::Vertex;
+use crate::{instance::Instance, vertex::Vertex};
 
 /// Contains all render pipelines and bind group layouts for [`crate::Renderer`]
 ///
@@ -139,7 +139,7 @@ fn create_primitive_pipeline(
         vertex: VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Vertex::desc()],
+            buffers: &[Vertex::desc(), Instance::desc()],
             compilation_options: Default::default(),
         },
         primitive: Default::default(),
@@ -195,7 +195,7 @@ fn create_custom_pipeline(
         vertex: VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Vertex::desc()],
+            buffers: &[Vertex::desc(), Instance::desc()],
             compilation_options: Default::default(),
         },
         primitive: Default::default(),

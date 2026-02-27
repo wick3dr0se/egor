@@ -1,6 +1,6 @@
 use crate::{color::Color, math::Rect};
-use egor_render::{GeometryBatch, vertex::Vertex};
-use glam::{Mat2, Vec2, vec2};
+use egor_render::{GeometryBatch, instance::Instance, vertex::Vertex};
+use glam::{Mat2, Mat4, Vec2, vec2};
 use lyon::{
     geom::euclid::Point2D,
     math::{Box2D, Point, point},
@@ -29,6 +29,7 @@ pub struct PrimitiveBatch {
 
 impl PrimitiveBatch {
     /// Allocates space for vertices & indices in the correct batch for `texture_id` + `shader_id`
+    /// Used by paths, polygons, and other baked geometry primitives
     pub(crate) fn allocate(
         &mut self,
         vert_count: usize,
@@ -54,6 +55,30 @@ impl PrimitiveBatch {
             .unwrap()
             .geometry
             .try_allocate(vert_count, idx_count)
+    }
+
+    /// Pushes an instance into the correct batch for `texture_id` + `shader_id`.
+    /// Used by RectangleBuilder and other quad-based primitives
+    pub(crate) fn push_instance(
+        &mut self,
+        instance: Instance,
+        texture_id: Option<usize>,
+        shader_id: Option<usize>,
+    ) {
+        if let Some(i) = self.batches.iter().position(|e| {
+            e.texture_id == texture_id && e.shader_id == shader_id && !e.geometry.instances_full()
+        }) {
+            self.batches[i].geometry.push_instance(instance);
+            return;
+        }
+
+        let mut entry = BatchEntry {
+            texture_id,
+            shader_id,
+            geometry: GeometryBatch::default(),
+        };
+        entry.geometry.push_instance(instance);
+        self.batches.push(entry);
     }
 
     /// Moves all batch entries out, consuming their geometry.
@@ -99,7 +124,7 @@ pub struct RectangleBuilder<'a> {
     size: Vec2,
     rotation: f32,
     color: Color,
-    uvs: [[f32; 2]; 4],
+    uvs: [f32; 4],
     tex_id: Option<usize>,
 }
 
@@ -114,7 +139,7 @@ impl<'a> RectangleBuilder<'a> {
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
-            uvs: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]],
+            uvs: [0.0, 0.0, 1.0, 1.0],
             tex_id: None,
         }
     }
@@ -156,9 +181,9 @@ impl<'a> RectangleBuilder<'a> {
         self.tex_id = Some(id);
         self
     }
-    /// Custom UV coordinates
-    /// Defaults to covering the full texture ((0,0) - (1,1))
-    pub fn uv(mut self, coords: [[f32; 2]; 4]) -> Self {
+    /// Custom UV coordinates as (u0, v0, u1, v1).
+    /// Defaults to full texture coverage [0, 0, 1, 1]
+    pub fn uv(mut self, coords: [f32; 4]) -> Self {
         self.uvs = coords;
         self
     }
@@ -170,24 +195,24 @@ impl Drop for RectangleBuilder<'_> {
             Anchor::TopLeft => Vec2::ZERO,
             Anchor::Center => -self.size / 2.0,
         };
-
-        let top_left = self.position + offset;
-        let rect = Rect::new(top_left, self.size);
-        let rot = Mat2::from_angle(self.rotation);
-
-        let corners = rect.corners();
-        let center = rect.center();
+        let center = self.position + offset + self.size / 2.0;
+        let model = Mat4::from_translation(center.extend(0.0))
+            * Mat4::from_rotation_z(self.rotation)
+            * Mat4::from_scale(self.size.extend(1.0));
         let color = self.color.components();
 
-        if let Some((verts, indices, base)) = self.batch.allocate(4, 6, self.tex_id, self.shader_id)
-        {
-            for i in 0..4 {
-                let world = rot * (corners[i] - center) + center;
-                verts[i] = Vertex::new(world.into(), color, self.uvs[i]);
-            }
-
-            indices.copy_from_slice(&[base, base + 1, base + 2, base + 2, base + 3, base]);
-        }
+        self.batch.push_instance(
+            Instance {
+                model_0: model.x_axis.into(),
+                model_1: model.y_axis.into(),
+                model_2: model.z_axis.into(),
+                model_3: model.w_axis.into(),
+                color,
+                uv: self.uvs,
+            },
+            self.tex_id,
+            self.shader_id,
+        );
     }
 }
 
