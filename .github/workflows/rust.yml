@@ -1,14 +1,23 @@
 name: rust
 
 on:
+  workflow_dispatch:
   push:
     branches: ["main"]
     paths-ignore:
-      - "README.md"
+      - "LICENSE"
+      - "**/*.md"
+      - "media/**"
+      - "demos/**"
+      - "xtask/**"
   pull_request:
     branches: ["main"]
     paths-ignore:
-      - "README.md"
+      - "LICENSE"
+      - "**/*.md"
+      - "media/**"
+      - "demos/**"
+      - "xtask/**"
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: "-D warnings"
@@ -20,8 +29,10 @@ concurrency:
 jobs:
   test-matrix:
     name: Test ${{ matrix.os }}
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
@@ -59,6 +70,7 @@ jobs:
       - run: cargo doc --workspace --exclude xtask --no-deps --locked
   wasm:
     name: Build wasm
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,6 +81,7 @@ jobs:
       - run: cargo build --target wasm32-unknown-unknown --features "log ui" --locked
   miri:
     name: Test for undefined behavior
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
