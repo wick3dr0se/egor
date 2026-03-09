@@ -1,8 +1,8 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use egor_render::{Backbuffer, RenderTarget};
-use egor_render::{GeometryBatch, Renderer, vertex::Vertex};
+use egor_render::target::{Backbuffer, RenderTarget};
+use egor_render::{Renderer, batch::GeometryBatch, vertex::Vertex};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};

@@ -1,11 +1,17 @@
 use wgpu::{
     BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, BlendState,
-    ColorTargetState, ColorWrites, Device, FragmentState, PipelineLayoutDescriptor, RenderPipeline,
-    RenderPipelineDescriptor, SamplerBindingType, ShaderStages, TextureFormat, TextureSampleType,
+    BufferBindingType, ColorTargetState, ColorWrites, Device, FragmentState,
+    PipelineLayoutDescriptor, RenderPipeline, RenderPipelineDescriptor, SamplerBindingType,
+    ShaderModuleDescriptor, ShaderSource, ShaderStages, TextureFormat, TextureSampleType,
     TextureViewDimension, VertexState, include_wgsl,
 };
 
 use crate::{instance::Instance, vertex::Vertex};
+
+pub(crate) struct CustomPipeline {
+    pipeline: RenderPipeline,
+    uniform_ids: Vec<usize>,
+}
 
 /// Contains all render pipelines and bind group layouts for [`crate::Renderer`]
 ///
@@ -13,10 +19,10 @@ use crate::{instance::Instance, vertex::Vertex};
 /// - The main primitive rendering pipeline (textured quads, sprites, shapes)
 /// - Texture bind group layout (for sampling textures in shaders)
 /// - Camera bind group layout (for view/projection transforms)
-pub struct Pipelines {
-    pub primitive: RenderPipeline,
-    pub custom: Vec<RenderPipeline>,
-    pub texture_layout: BindGroupLayout,
+pub(crate) struct Pipelines {
+    primitive: RenderPipeline,
+    custom: Vec<CustomPipeline>,
+    texture_layout: BindGroupLayout,
     pub camera_layout: BindGroupLayout,
 }
 
@@ -37,13 +43,14 @@ impl Pipelines {
         }
     }
 
-    /// Creates a custom shader pipeline from WGSL source code
-    pub fn add_custom_pipeline(
+    /// Creates a custom shader pipeline from WGSL source
+    pub fn add_custom(
         &mut self,
         device: &Device,
         surface_format: TextureFormat,
         wgsl_source: &str,
         uniform_layouts: &[&BindGroupLayout],
+        uniform_ids: &[usize],
     ) -> usize {
         let pipeline = create_custom_pipeline(
             device,
@@ -53,13 +60,20 @@ impl Pipelines {
             uniform_layouts,
             wgsl_source,
         );
-        self.custom.push(pipeline);
+
+        self.custom.push(CustomPipeline {
+            pipeline,
+            uniform_ids: uniform_ids.to_vec(),
+        });
         self.custom.len() - 1
     }
 
-    /// Get a custom pipeline by index
-    pub fn get_custom_pipeline(&self, index: usize) -> Option<&RenderPipeline> {
-        self.custom.get(index)
+    pub fn resolve(&self, shader_id: Option<usize>) -> (&RenderPipeline, &[usize]) {
+        if let Some(custom) = shader_id.and_then(|id| self.custom.get(id)) {
+            (&custom.pipeline, &custom.uniform_ids)
+        } else {
+            (&self.primitive, &[])
+        }
     }
 }
 
@@ -103,7 +117,7 @@ fn create_camera_bind_group_layout(device: &Device) -> BindGroupLayout {
             binding: 0,
             visibility: ShaderStages::VERTEX,
             ty: BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
+                ty: BufferBindingType::Uniform,
                 has_dynamic_offset: false,
                 min_binding_size: None,
             },
@@ -175,9 +189,9 @@ fn create_custom_pipeline(
     extra_layouts: &[&BindGroupLayout],
     wgsl_source: &str,
 ) -> RenderPipeline {
-    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+    let shader = device.create_shader_module(ShaderModuleDescriptor {
         label: Some("Custom Shader"),
-        source: wgpu::ShaderSource::Wgsl(wgsl_source.into()),
+        source: ShaderSource::Wgsl(wgsl_source.into()),
     });
 
     let mut layouts: Vec<&BindGroupLayout> = vec![texture_layout, camera_layout];

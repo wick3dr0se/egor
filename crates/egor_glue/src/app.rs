@@ -9,7 +9,10 @@ use egor_app::{
     AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, PhysicalSize, Window, WindowEvent,
     input::Input, time::FrameTimer,
 };
-use egor_render::{Backbuffer, RenderTarget, Renderer};
+use egor_render::{
+    Renderer,
+    target::{Backbuffer, RenderTarget},
+};
 
 type UpdateFn = dyn FnMut(&mut FrameContext);
 

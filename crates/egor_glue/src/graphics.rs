@@ -1,4 +1,7 @@
-use egor_render::{RenderTarget, Renderer, TextureFormat, target::OffscreenTarget};
+use egor_render::{
+    Renderer, TextureFormat,
+    target::{OffscreenTarget, RenderTarget},
+};
 use glam::Vec2;
 
 use crate::primitives::PathBuilder;

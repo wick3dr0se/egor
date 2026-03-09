@@ -15,7 +15,16 @@ pub struct Instance {
 }
 
 impl Instance {
-    pub fn desc() -> VertexBufferLayout<'static> {
+    pub fn new(affine: [f32; 4], translate: [f32; 2], color: [f32; 4], uv: [f32; 4]) -> Self {
+        Self {
+            affine,
+            translate,
+            color,
+            uv,
+        }
+    }
+
+    pub(crate) fn desc() -> VertexBufferLayout<'static> {
         use std::mem;
         VertexBufferLayout {
             array_stride: mem::size_of::<Instance>() as BufferAddress,
@@ -49,7 +58,7 @@ impl Instance {
         }
     }
 
-    pub fn identity() -> Self {
+    pub(crate) fn identity() -> Self {
         Self {
             affine: [1.0, 0.0, 0.0, 1.0],
             translate: [0.0, 0.0],

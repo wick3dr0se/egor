@@ -1,5 +1,5 @@
 use crate::{color::Color, math::Rect};
-use egor_render::{GeometryBatch, instance::Instance, vertex::Vertex};
+use egor_render::{batch::GeometryBatch, instance::Instance, vertex::Vertex};
 use glam::{Mat2, Vec2, vec2};
 use lyon::{
     geom::euclid::Point2D,
@@ -206,12 +206,12 @@ impl Drop for RectangleBuilder<'_> {
         let color = self.color.components();
 
         self.batch.push_instance(
-            Instance {
-                affine: [col0.x, col0.y, col1.x, col1.y],
-                translate: [center.x, center.y],
+            Instance::new(
+                [col0.x, col0.y, col1.x, col1.y],
+                [center.x, center.y],
                 color,
-                uv: self.uvs,
-            },
+                self.uvs,
+            ),
             self.tex_id,
             self.shader_id,
         );
@@ -574,11 +574,7 @@ impl Drop for PathBuilder<'_> {
                     &Default::default(),
                     &mut BuffersBuilder::new(&mut geometry, |vertex: FillVertex| {
                         let [x, y] = vertex.position().to_array();
-                        Vertex {
-                            position: [x, y],
-                            color: fill_color.components(),
-                            tex_coords: [0.0, 0.0],
-                        }
+                        Vertex::new([x, y], fill_color.components(), [0.0, 0.0])
                     }),
                 )
                 .unwrap();
@@ -591,11 +587,7 @@ impl Drop for PathBuilder<'_> {
                     &StrokeOptions::default().with_line_width(self.thickness),
                     &mut BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| {
                         let [x, y] = vertex.position().to_array();
-                        Vertex {
-                            position: [x, y],
-                            color: stroke_color.components(),
-                            tex_coords: [0.0, 0.0],
-                        }
+                        Vertex::new([x, y], stroke_color.components(), [0.0, 0.0])
                     }),
                 )
                 .unwrap();

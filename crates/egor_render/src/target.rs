@@ -1,10 +1,10 @@
 use wgpu::{
-    Adapter, BindGroupLayout, Device, Extent3d, Instance, PresentMode, Surface,
-    SurfaceConfiguration, SurfaceTarget, TextureDescriptor, TextureDimension, TextureFormat,
-    TextureUsages, TextureView, WindowHandle,
+    Adapter, CommandEncoder, Device, Extent3d, Instance, PresentMode, Surface,
+    SurfaceConfiguration, SurfaceError, SurfaceTarget, Texture, TextureDescriptor,
+    TextureDimension, TextureFormat, TextureUsages, TextureView, WindowHandle,
 };
 
-use crate::{frame::Presentable, texture::Texture};
+use crate::frame::Presentable;
 
 /// Trait for render targets (backbuffers, offscreen textures, etc.)
 pub trait RenderTarget {
@@ -55,7 +55,7 @@ impl RenderTarget for Backbuffer {
                 let view = surface_texture.texture.create_view(&Default::default());
                 Some((view, Some(Box::new(surface_texture))))
             }
-            Err(wgpu::SurfaceError::Outdated) => {
+            Err(SurfaceError::Outdated) => {
                 self.resize(device, self.config.width, self.config.height);
                 None
             }
@@ -83,14 +83,13 @@ impl RenderTarget for Backbuffer {
 
 /// Renders to an offscreen texture that can be read back or used as a texture
 pub struct OffscreenTarget {
-    render_texture: wgpu::Texture,
+    render_texture: Texture,
     render_view: TextureView,
-    sample_texture: wgpu::Texture,
+    sample_texture: Texture,
     sample_view: TextureView,
     format: TextureFormat,
     width: u32,
     height: u32,
-    texture_id: Option<usize>,
 }
 
 impl OffscreenTarget {
@@ -136,20 +135,10 @@ impl OffscreenTarget {
             format,
             width,
             height,
-            texture_id: None,
         }
     }
 
-    pub fn as_texture(
-        &self,
-        device: &Device,
-        layout: &BindGroupLayout,
-        sampler: &wgpu::Sampler,
-    ) -> Texture {
-        Texture::from_view(&self.sample_view, device, layout, sampler)
-    }
-
-    pub fn texture(&self) -> &wgpu::Texture {
+    pub fn texture(&self) -> &Texture {
         &self.sample_texture
     }
 
@@ -162,7 +151,7 @@ impl OffscreenTarget {
     }
 
     /// Copy render texture into sample texture so it can be sampled
-    pub fn copy_to_sample(&self, encoder: &mut wgpu::CommandEncoder) {
+    pub fn copy_to_sample(&self, encoder: &mut CommandEncoder) {
         encoder.copy_texture_to_texture(
             self.render_texture.as_image_copy(),
             self.sample_texture.as_image_copy(),
@@ -172,14 +161,6 @@ impl OffscreenTarget {
                 depth_or_array_layers: 1,
             },
         );
-    }
-
-    pub fn texture_id(&self) -> Option<usize> {
-        self.texture_id
-    }
-
-    pub fn set_texture_id(&mut self, id: usize) {
-        self.texture_id = Some(id);
     }
 }
 
