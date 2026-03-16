@@ -34,7 +34,8 @@ impl Default for GeometryBatch {
 impl GeometryBatch {
     pub const DEFAULT_INDICES_PER_VERT: usize = 6;
     pub const DEFAULT_MAX_VERTICES: usize = u16::MAX as usize;
-    pub const DEFAULT_MAX_INDICES: usize = Self::DEFAULT_MAX_VERTICES * Self::DEFAULT_INDICES_PER_VERT;
+    pub const DEFAULT_MAX_INDICES: usize =
+        Self::DEFAULT_MAX_VERTICES * Self::DEFAULT_INDICES_PER_VERT;
 
     // Creates a new batch with specified max vert/idx counts
     pub fn new(max_verticies: usize, max_indices: usize) -> Self {

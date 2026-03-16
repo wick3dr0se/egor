@@ -94,7 +94,13 @@ pub struct OffscreenTarget {
 }
 
 impl OffscreenTarget {
-    pub fn new(device: &Device, width: u32, height: u32, format: TextureFormat, memory_hints: crate::MemoryHints) -> Self {
+    pub fn new(
+        device: &Device,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+        memory_hints: crate::MemoryHints,
+    ) -> Self {
         let render_texture = device.create_texture(&TextureDescriptor {
             label: Some("Offscreen Render Texture"),
             size: Extent3d {
