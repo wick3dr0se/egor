@@ -14,6 +14,8 @@ use egor_render::{
     target::{Backbuffer, RenderTarget},
 };
 
+pub use egor_render::MemoryHints;
+
 type UpdateFn = dyn FnMut(&mut FrameContext);
 
 pub struct AppControl<'a> {
@@ -69,6 +71,7 @@ pub struct App {
     egui: Option<EguiRenderer>,
     backbuffer: Option<Backbuffer>,
     primitive_batch: PrimitiveBatch,
+    memory_hints: MemoryHints,
 }
 
 impl Default for App {
@@ -89,7 +92,8 @@ impl App {
             #[cfg(feature = "ui")]
             egui: None,
             backbuffer: None,
-            primitive_batch: PrimitiveBatch::default(),
+            memory_hints: MemoryHints::Performance,
+            primitive_batch: PrimitiveBatch::new(MemoryHints::Performance),
         }
     }
 
@@ -180,6 +184,14 @@ impl App {
         self
     }
 
+    /// Set memory hints for both egor batches and wgpu buffers
+    /// This can be used to optimize memory usage for specific platforms or use cases.
+    pub fn memory_hints(mut self, hints: MemoryHints) -> Self {
+        self.primitive_batch = PrimitiveBatch::new(hints.clone());
+        self.memory_hints = hints;
+        self
+    }
+
     /// Run the app with a per-frame update closure
     pub fn run(mut self, #[allow(unused_mut)] mut update: impl FnMut(&mut FrameContext) + 'static) {
         #[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
@@ -214,7 +226,7 @@ impl AppHandler<Renderer> for App {
             if size.width == 0 { 800 } else { size.width },
             if size.height == 0 { 600 } else { size.height },
         );
-        let renderer = Renderer::new(window.clone()).await;
+        let renderer = Renderer::new(window.clone(), self.memory_hints.clone()).await;
         self.backbuffer = Some(Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),

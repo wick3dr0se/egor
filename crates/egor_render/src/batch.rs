@@ -21,13 +21,26 @@ pub struct GeometryBatch {
     instances: Vec<Instance>,
     instance_buffer: Option<Buffer>,
     instances_dirty: bool,
+    max_verticies: usize,
+    max_indices: usize,
 }
 
 impl Default for GeometryBatch {
     fn default() -> Self {
+        Self::new(Self::DEFAULT_MAX_VERTICES, Self::DEFAULT_MAX_INDICES)
+    }
+}
+
+impl GeometryBatch {
+    pub const DEFAULT_INDICES_PER_VERT: usize = 6;
+    pub const DEFAULT_MAX_VERTICES: usize = u16::MAX as usize;
+    pub const DEFAULT_MAX_INDICES: usize = Self::DEFAULT_MAX_VERTICES * Self::DEFAULT_INDICES_PER_VERT;
+
+    // Creates a new batch with specified max vert/idx counts
+    pub fn new(max_verticies: usize, max_indices: usize) -> Self {
         Self {
-            vertices: Vec::with_capacity(Self::MAX_VERTICES),
-            indices: Vec::with_capacity(Self::MAX_INDICES),
+            vertices: Vec::with_capacity(max_verticies),
+            indices: Vec::with_capacity(max_indices),
             vertex_buffer: None,
             index_buffer: None,
             vertices_dirty: false,
@@ -35,19 +48,17 @@ impl Default for GeometryBatch {
             instances: Vec::new(),
             instance_buffer: None,
             instances_dirty: false,
+            max_verticies,
+            max_indices,
         }
     }
-}
 
-impl GeometryBatch {
-    const MAX_VERTICES: usize = u16::MAX as usize;
-    const MAX_INDICES: usize = Self::MAX_VERTICES * 6;
     const INITIAL_INSTANCE_CAPACITY: usize = 1_024;
 
     // Returns true if adding verts/indices would exceed max allowed
     pub fn would_overflow(&self, vert_count: usize, idx_count: usize) -> bool {
-        self.vertices.len() + vert_count > Self::MAX_VERTICES
-            || self.indices.len() + idx_count > Self::MAX_INDICES
+        self.vertices.len() + vert_count > self.max_verticies
+            || self.indices.len() + idx_count > self.max_indices
     }
 
     /// Reserves space for `vert_count` + `idx_count`
@@ -127,7 +138,7 @@ impl GeometryBatch {
             if self.vertex_buffer.is_none() {
                 self.vertex_buffer = Some(device.create_buffer(&BufferDescriptor {
                     label: Some("GeometryBatch Vertex Buffer"),
-                    size: (Self::MAX_VERTICES * std::mem::size_of::<Vertex>()) as u64,
+                    size: (self.max_verticies * std::mem::size_of::<Vertex>()) as u64,
                     usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));
@@ -144,7 +155,7 @@ impl GeometryBatch {
             if self.index_buffer.is_none() {
                 self.index_buffer = Some(device.create_buffer(&BufferDescriptor {
                     label: Some("GeometryBatch Index Buffer"),
-                    size: (Self::MAX_INDICES * std::mem::size_of::<u16>()) as u64,
+                    size: (self.max_indices * std::mem::size_of::<u16>()) as u64,
                     usage: BufferUsages::INDEX | BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));

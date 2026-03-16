@@ -169,7 +169,7 @@ fn main() {
                 );
                 state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
                 state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
-                let mut minimap = gfx.create_offscreen(200, 200);
+                let mut minimap = gfx.create_offscreen(200, 200, None);
                 state.minimap_tex = gfx.offscreen_as_texture(&mut minimap);
                 state.minimap = Some(minimap);
                 return;

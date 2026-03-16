@@ -56,7 +56,7 @@ pub mod app {
     pub use egor_app::WindowEvent;
     #[cfg(target_os = "android")]
     pub use egor_app::{ANDROID_APP, AndroidApp};
-    pub use egor_glue::app::{App, FrameContext};
+    pub use egor_glue::app::{App, FrameContext, MemoryHints};
     #[cfg(feature = "ui")]
     pub use egor_glue::ui::egui;
 }
