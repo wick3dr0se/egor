@@ -195,15 +195,23 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             }
             WindowEvent::KeyboardInput { event, .. } => self.input.update_key(event),
             WindowEvent::MouseInput { button, state, .. } => {
-                self.input.update_mouse_button(button, state)
+                self.input.update_mouse_button(button, state);
+                self.input.simulate_touch_from_mouse(button, state);
             }
-            WindowEvent::CursorMoved { position, .. } => self.input.update_cursor(position),
+            WindowEvent::CursorMoved { position, .. } => {
+                self.input.update_cursor(position);
+                self.input.simulate_touch_move_from_mouse();
+            }
             WindowEvent::MouseWheel { delta, .. } => {
                 let wheel_delta = match delta {
                     MouseScrollDelta::LineDelta(_, y) => y,
                     MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
                 };
                 self.input.update_scroll(wheel_delta);
+            }
+            WindowEvent::Touch(touch) => {
+                self.input
+                    .update_touch(touch.id, touch.phase.into(), touch.location);
             }
             _ => {}
         }
