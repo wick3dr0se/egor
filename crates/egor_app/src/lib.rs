@@ -35,6 +35,8 @@ pub struct AppConfig {
     pub decorations: bool,
     pub min_size: Option<(u32, u32)>,
     pub max_size: Option<(u32, u32)>,
+    pub simulate_touch_with_mouse: bool,
+    pub simulate_mouse_with_touch: bool,
 }
 
 impl Default for AppConfig {
@@ -50,6 +52,8 @@ impl Default for AppConfig {
             decorations: true,
             min_size: None,
             max_size: None,
+            simulate_touch_with_mouse: false,
+            simulate_mouse_with_touch: false,
         }
     }
 }
@@ -234,12 +238,15 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
 impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
     /// Creates a new runner with the given handler & configuration
     pub fn new(handler: H, config: AppConfig) -> Self {
+        let mut input = Input::default();
+        input.set_simulate_touch_with_mouse(config.simulate_touch_with_mouse);
+        input.set_simulate_mouse_with_touch(config.simulate_mouse_with_touch);
         Self {
             handler: Some(handler),
             resource: None,
             window: None,
             proxy: None,
-            input: Input::default(),
+            input,
             timer: FrameTimer::default(),
             config,
         }

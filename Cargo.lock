@@ -623,6 +623,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo_egor_multi_touch"
+version = "0.0.0"
+dependencies = [
+ "egor",
+]
+
+[[package]]
 name = "demo_egor_secs_particles"
 version = "0.0.0"
 dependencies = [

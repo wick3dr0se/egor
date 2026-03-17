@@ -192,6 +192,24 @@ impl App {
         self
     }
 
+    /// When enabled, left mouse button presses/moves/releases generate touch events with id 0.
+    /// Useful for testing touch logic on desktop.
+    pub fn simulate_touch_with_mouse(mut self, enabled: bool) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.simulate_touch_with_mouse = enabled;
+        }
+        self
+    }
+
+    /// When enabled, the first active touch generates mouse position, delta, and left-button events.
+    /// Useful on mobile to make existing mouse-based code work with touch.
+    pub fn simulate_mouse_with_touch(mut self, enabled: bool) -> Self {
+        if let Some(c) = self.config.as_mut() {
+            c.simulate_mouse_with_touch = enabled;
+        }
+        self
+    }
+
     /// Run the app with a per-frame update closure
     pub fn run(mut self, #[allow(unused_mut)] mut update: impl FnMut(&mut FrameContext) + 'static) {
         #[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
