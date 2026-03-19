@@ -330,8 +330,7 @@ impl Renderer {
         height: u32,
         format: TextureFormat,
     ) -> OffscreenTarget {
-        OffscreenTarget::new(
-            &self.gpu.device,
+        self.create_offscreen_target_with_memory_hints(
             width,
             height,
             format,
