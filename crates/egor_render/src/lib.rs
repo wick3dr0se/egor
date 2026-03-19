@@ -228,6 +228,11 @@ impl Renderer {
         &self.gpu.queue
     }
 
+    /// Returns the memory hints used for this renderer's device and batch allocations
+    pub fn memory_hints(&self) -> &MemoryHints {
+        &self.memory_hints
+    }
+
     /// Sets the clear color for future render passes
     pub fn set_clear_color(&mut self, color: [f64; 4]) {
         self.clear_color = Color {
@@ -324,9 +329,24 @@ impl Renderer {
         width: u32,
         height: u32,
         format: TextureFormat,
-        memory_hints: Option<MemoryHints>,
     ) -> OffscreenTarget {
-        let memory_hints = memory_hints.unwrap_or(self.memory_hints.clone());
+        OffscreenTarget::new(
+            &self.gpu.device,
+            width,
+            height,
+            format,
+            self.memory_hints.clone(),
+        )
+    }
+
+    /// Create an offscreen render target with custom memory hints for its texture allocation
+    pub fn create_offscreen_target_with_memory_hints(
+        &self,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+        memory_hints: MemoryHints,
+    ) -> OffscreenTarget {
         OffscreenTarget::new(&self.gpu.device, width, height, format, memory_hints)
     }
 

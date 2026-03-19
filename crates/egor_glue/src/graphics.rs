@@ -45,14 +45,24 @@ impl<'a> Graphics<'a> {
     }
 
     /// Create a new offscreen render target
-    pub fn create_offscreen(
+    pub fn create_offscreen(&self, width: u32, height: u32) -> OffscreenTarget {
+        let memory_hints = self.renderer.memory_hints();
+        self.create_offscreen_with_memory_hints(width, height, memory_hints.clone())
+    }
+
+    /// Create a new offscreen render target with custom memory hints
+    pub fn create_offscreen_with_memory_hints(
         &self,
         width: u32,
         height: u32,
-        memory_hints: Option<MemoryHints>,
+        memory_hints: MemoryHints,
     ) -> OffscreenTarget {
-        self.renderer
-            .create_offscreen_target(width, height, self.target_format, memory_hints)
+        self.renderer.create_offscreen_target_with_memory_hints(
+            width,
+            height,
+            self.target_format,
+            memory_hints,
+        )
     }
 
     /// Render to an offscreen target
