@@ -56,7 +56,7 @@ pub mod app {
     pub use egor_app::WindowEvent;
     #[cfg(target_os = "android")]
     pub use egor_app::{ANDROID_APP, AndroidApp};
-    pub use egor_glue::app::{App, FrameContext, MemoryHints};
+    pub use egor_glue::app::{App, FrameContext};
     #[cfg(feature = "ui")]
     pub use egor_glue::ui::egui;
 }
@@ -76,7 +76,10 @@ pub mod render {
         primitives::{Anchor, BorderRadii},
         text::Align,
     };
-    pub use egor_render::target::{OffscreenTarget, RenderTarget};
+    pub use egor_render::{
+        MemoryHints,
+        target::{OffscreenTarget, RenderTarget},
+    };
 }
 
 pub mod math {
