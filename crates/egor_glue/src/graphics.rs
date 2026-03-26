@@ -1,5 +1,5 @@
 use egor_render::{
-    Renderer, TextureFormat,
+    MemoryHints, Renderer, TextureFormat,
     target::{OffscreenTarget, RenderTarget},
 };
 use glam::Vec2;
@@ -46,8 +46,23 @@ impl<'a> Graphics<'a> {
 
     /// Create a new offscreen render target
     pub fn create_offscreen(&self, width: u32, height: u32) -> OffscreenTarget {
-        self.renderer
-            .create_offscreen_target(width, height, self.target_format)
+        let memory_hints = self.renderer.memory_hints();
+        self.create_offscreen_with_memory_hints(width, height, memory_hints.clone())
+    }
+
+    /// Create a new offscreen render target with custom memory hints
+    pub fn create_offscreen_with_memory_hints(
+        &self,
+        width: u32,
+        height: u32,
+        memory_hints: MemoryHints,
+    ) -> OffscreenTarget {
+        self.renderer.create_offscreen_target_with_memory_hints(
+            width,
+            height,
+            self.target_format,
+            memory_hints,
+        )
     }
 
     /// Render to an offscreen target
@@ -59,7 +74,8 @@ impl<'a> Graphics<'a> {
         let (w, h) = target.size();
         let format = target.format();
 
-        let mut offscreen_batch = PrimitiveBatch::default();
+        let offscreen_memory_hints = target.memory_hints();
+        let mut offscreen_batch = PrimitiveBatch::new(offscreen_memory_hints.clone());
         let mut offscreen_gfx = Graphics {
             renderer: self.renderer,
             batch: &mut offscreen_batch,

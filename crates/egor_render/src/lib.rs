@@ -16,6 +16,80 @@ use wgpu::{
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
+/// Controls the memory/performance tradeoff for `wgpu` device allocation and egor's batch vertex buffers.
+///
+/// Roughly based on <https://wgpu.rs/doc/wgpu/enum.MemoryHints.html> with an
+/// extra knob for egor's batch vertex memory usage.
+#[derive(Clone)]
+pub enum MemoryHints {
+    /// Uses higher memory (larger buffers) for better performance; default
+    Performance,
+    /// Uses less memory (smaller buffers) for better compatibility on low-end
+    /// devices. Good for small UI libraries or low-res games
+    MemoryUsage,
+    /// Manual control over both wgpu sub-allocation block sizes and egor batch
+    /// vertex limits
+    Manual {
+        max_verticies_per_batch: usize,
+        max_indices_per_batch: Option<usize>,
+        suballocated_device_memory_block_size: Option<std::ops::Range<u64>>,
+    },
+}
+
+impl MemoryHints {
+    pub fn max_verticies_per_batch(&self) -> usize {
+        match self {
+            MemoryHints::Performance => GeometryBatch::DEFAULT_MAX_VERTICES,
+            MemoryHints::MemoryUsage => GeometryBatch::DEFAULT_MAX_VERTICES / 4,
+            MemoryHints::Manual {
+                max_verticies_per_batch,
+                ..
+            } => *max_verticies_per_batch,
+        }
+    }
+
+    pub fn max_indices_per_batch(&self) -> usize {
+        match self {
+            MemoryHints::Performance => GeometryBatch::DEFAULT_MAX_INDICES,
+            MemoryHints::MemoryUsage => GeometryBatch::DEFAULT_MAX_INDICES / 4,
+            MemoryHints::Manual {
+                max_verticies_per_batch,
+                max_indices_per_batch,
+                ..
+            } => max_indices_per_batch
+                .unwrap_or(max_verticies_per_batch * GeometryBatch::DEFAULT_INDICES_PER_VERT),
+        }
+    }
+}
+
+impl From<&MemoryHints> for wgpu::MemoryHints {
+    fn from(hints: &MemoryHints) -> Self {
+        match hints {
+            MemoryHints::Performance => wgpu::MemoryHints::Performance,
+            MemoryHints::MemoryUsage => wgpu::MemoryHints::MemoryUsage,
+            MemoryHints::Manual {
+                suballocated_device_memory_block_size,
+                ..
+            } => {
+                let mb = 1024 * 1024;
+
+                // Same as wgpu defaults, but exposed here for manual configuration or reference
+                let perf_cfg = (128 * mb)..(512 * mb);
+                let _mem_usage_cfg = (8 * mb)..(64 * mb);
+
+                let suballocated_device_memory_block_size = suballocated_device_memory_block_size
+                    .as_ref()
+                    .unwrap_or(&perf_cfg)
+                    .clone();
+
+                wgpu::MemoryHints::Manual {
+                    suballocated_device_memory_block_size,
+                }
+            }
+        }
+    }
+}
+
 use crate::{
     batch::GeometryBatch,
     frame::Frame,
@@ -48,13 +122,17 @@ pub struct Renderer {
     uniforms: Uniforms,
     textures: Textures,
     clear_color: Color,
+    memory_hints: MemoryHints,
 }
 
 impl Renderer {
     /// Creates a renderer & initializes GPU state using the window's surface
     ///
     /// Sets up wgpu, pipelines, default texture & camera resources
-    pub async fn new(window: impl Into<SurfaceTarget<'static>> + WindowHandle) -> Self {
+    pub async fn new(
+        window: impl Into<SurfaceTarget<'static>> + WindowHandle,
+        memory_hints: MemoryHints,
+    ) -> Self {
         let instance = new_instance_with_webgpu_detection(&Default::default()).await;
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
@@ -69,6 +147,7 @@ impl Renderer {
             .request_device(&DeviceDescriptor {
                 #[cfg(target_arch = "wasm32")]
                 required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                memory_hints: wgpu::MemoryHints::from(&memory_hints),
                 ..Default::default()
             })
             .await
@@ -128,6 +207,7 @@ impl Renderer {
             uniforms,
             textures,
             clear_color: Color::BLACK,
+            memory_hints,
         }
     }
 
@@ -146,6 +226,11 @@ impl Renderer {
     /// Returns a reference to the underlying wgpu `Queue`
     pub fn queue(&self) -> &Queue {
         &self.gpu.queue
+    }
+
+    /// Returns the memory hints used for this renderer's device and batch allocations
+    pub fn memory_hints(&self) -> &MemoryHints {
+        &self.memory_hints
     }
 
     /// Sets the clear color for future render passes
@@ -245,7 +330,23 @@ impl Renderer {
         height: u32,
         format: TextureFormat,
     ) -> OffscreenTarget {
-        OffscreenTarget::new(&self.gpu.device, width, height, format)
+        self.create_offscreen_target_with_memory_hints(
+            width,
+            height,
+            format,
+            self.memory_hints.clone(),
+        )
+    }
+
+    /// Create an offscreen render target with custom memory hints for its texture allocation
+    pub fn create_offscreen_target_with_memory_hints(
+        &self,
+        width: u32,
+        height: u32,
+        format: TextureFormat,
+        memory_hints: MemoryHints,
+    ) -> OffscreenTarget {
+        OffscreenTarget::new(&self.gpu.device, width, height, format, memory_hints)
     }
 
     /// Adds an offscreen target texture & returns its id
