@@ -15,19 +15,25 @@ pub use lyon::path::builder::BorderRadii;
 
 const MIN_THICKNESS: f32 = 0.001;
 
-#[derive(Default)]
 struct BatchEntry {
     texture_id: Option<usize>,
     shader_id: Option<usize>,
     geometry: GeometryBatch,
 }
 
-#[derive(Default)]
 pub struct PrimitiveBatch {
     batches: Vec<BatchEntry>,
+    memory_hints: egor_render::MemoryHints,
 }
 
 impl PrimitiveBatch {
+    pub fn new(memory_hints: egor_render::MemoryHints) -> Self {
+        Self {
+            batches: Vec::new(),
+            memory_hints,
+        }
+    }
+
     /// Allocates space for vertices & indices in the current batch if it matches
     /// `texture_id` + `shader_id`, otherwise starts a new batch.
     /// Used by paths, polygons, and other baked geometry primitives
@@ -55,7 +61,10 @@ impl PrimitiveBatch {
         self.batches.push(BatchEntry {
             texture_id,
             shader_id,
-            geometry: GeometryBatch::default(),
+            geometry: GeometryBatch::new(
+                self.memory_hints.max_verticies_per_batch(),
+                self.memory_hints.max_indices_per_batch(),
+            ),
         });
         self.batches
             .last_mut()
@@ -83,7 +92,10 @@ impl PrimitiveBatch {
         let mut entry = BatchEntry {
             texture_id,
             shader_id,
-            geometry: GeometryBatch::default(),
+            geometry: GeometryBatch::new(
+                self.memory_hints.max_verticies_per_batch(),
+                self.memory_hints.max_indices_per_batch(),
+            ),
         };
         entry.geometry.push_instance(instance);
         self.batches.push(entry);

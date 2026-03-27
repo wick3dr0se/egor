@@ -1,0 +1,17 @@
+[package]
+name = "demo_egor_multi_touch"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# for android, `x run` expects package name to match generated lib so
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# renamed to avoid conflict with generated lib so
+[[bin]]
+name = "multi_touch"
+path = "src/main.rs"
+
+[dependencies]
+egor = { path = "../../" }
