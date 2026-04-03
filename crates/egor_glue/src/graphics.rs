@@ -1,5 +1,6 @@
 use egor_render::{
-    MemoryHints, Renderer, TextureFormat,
+    Renderer, TextureFormat,
+    batch::GeometryBatch,
     target::{OffscreenTarget, RenderTarget},
 };
 use glam::Vec2;
@@ -45,27 +46,40 @@ impl<'a> Graphics<'a> {
     }
 
     /// Create a new offscreen render target
-    pub fn create_offscreen(
-        &self,
-        width: u32,
-        height: u32,
-        memory_hints: Option<MemoryHints>,
-    ) -> OffscreenTarget {
+    pub fn create_offscreen(&self, width: u32, height: u32) -> OffscreenTarget {
         self.renderer
-            .create_offscreen_target(width, height, self.target_format, memory_hints)
+            .create_offscreen_target(width, height, self.target_format)
     }
 
     /// Render to an offscreen target
     pub fn render_offscreen(
         &mut self,
         target: &mut OffscreenTarget,
+        render_fn: impl FnMut(&mut Graphics),
+    ) {
+        self.render_offscreen_with_limits(
+            target,
+            GeometryBatch::DEFAULT_MAX_VERTICES,
+            GeometryBatch::DEFAULT_MAX_INDICES,
+            render_fn,
+        );
+    }
+
+    /// Render to an offscreen target using a temporary batch with custom vertex/index buffer limits.
+    /// Use this when the default limits are too large for memory-constrained platforms,
+    /// or too small for complex offscreen scenes.
+    /// For most cases, prefer [`render_offscreen`] which uses sensible defaults
+    pub fn render_offscreen_with_limits(
+        &mut self,
+        target: &mut OffscreenTarget,
+        max_verts: usize,
+        max_indices: usize,
         mut render_fn: impl FnMut(&mut Graphics),
     ) {
         let (w, h) = target.size();
         let format = target.format();
 
-        let offscreen_memory_hints = target.memory_hints();
-        let mut offscreen_batch = PrimitiveBatch::new(offscreen_memory_hints.clone());
+        let mut offscreen_batch = PrimitiveBatch::new(max_verts, max_indices);
         let mut offscreen_gfx = Graphics {
             renderer: self.renderer,
             batch: &mut offscreen_batch,

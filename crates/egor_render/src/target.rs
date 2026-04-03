@@ -88,19 +88,12 @@ pub struct OffscreenTarget {
     sample_texture: Texture,
     sample_view: TextureView,
     format: TextureFormat,
-    memory_hints: crate::MemoryHints,
     width: u32,
     height: u32,
 }
 
 impl OffscreenTarget {
-    pub fn new(
-        device: &Device,
-        width: u32,
-        height: u32,
-        format: TextureFormat,
-        memory_hints: crate::MemoryHints,
-    ) -> Self {
+    pub fn new(device: &Device, width: u32, height: u32, format: TextureFormat) -> Self {
         let render_texture = device.create_texture(&TextureDescriptor {
             label: Some("Offscreen Render Texture"),
             size: Extent3d {
@@ -142,7 +135,6 @@ impl OffscreenTarget {
             format,
             width,
             height,
-            memory_hints,
         }
     }
 
@@ -156,10 +148,6 @@ impl OffscreenTarget {
 
     pub fn render_view(&self) -> &TextureView {
         &self.render_view
-    }
-
-    pub fn memory_hints(&self) -> &crate::MemoryHints {
-        &self.memory_hints
     }
 
     /// Copy render texture into sample texture so it can be sampled
@@ -195,6 +183,6 @@ impl RenderTarget for OffscreenTarget {
             return;
         }
         // recreate the texture with new dimensions
-        *self = Self::new(device, w, h, self.format, self.memory_hints.clone());
+        *self = Self::new(device, w, h, self.format);
     }
 }

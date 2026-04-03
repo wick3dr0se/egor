@@ -21,16 +21,27 @@ struct BatchEntry {
     geometry: GeometryBatch,
 }
 
+#[derive(Default)]
 pub struct PrimitiveBatch {
     batches: Vec<BatchEntry>,
-    memory_hints: egor_render::MemoryHints,
+    max_vertices: usize,
+    max_indices: usize,
 }
 
 impl PrimitiveBatch {
-    pub fn new(memory_hints: egor_render::MemoryHints) -> Self {
+    pub fn new(max_vertices: usize, max_indices: usize) -> Self {
         Self {
             batches: Vec::new(),
-            memory_hints,
+            max_vertices,
+            max_indices,
+        }
+    }
+
+    fn new_entry(&self, texture_id: Option<usize>, shader_id: Option<usize>) -> BatchEntry {
+        BatchEntry {
+            texture_id,
+            shader_id,
+            geometry: GeometryBatch::new(self.max_vertices, self.max_indices),
         }
     }
 
@@ -58,14 +69,7 @@ impl PrimitiveBatch {
                 .try_allocate(vert_count, idx_count);
         }
 
-        self.batches.push(BatchEntry {
-            texture_id,
-            shader_id,
-            geometry: GeometryBatch::new(
-                self.memory_hints.max_verticies_per_batch(),
-                self.memory_hints.max_indices_per_batch(),
-            ),
-        });
+        self.batches.push(self.new_entry(texture_id, shader_id));
         self.batches
             .last_mut()
             .unwrap()
@@ -89,14 +93,7 @@ impl PrimitiveBatch {
             return;
         }
 
-        let mut entry = BatchEntry {
-            texture_id,
-            shader_id,
-            geometry: GeometryBatch::new(
-                self.memory_hints.max_verticies_per_batch(),
-                self.memory_hints.max_indices_per_batch(),
-            ),
-        };
+        let mut entry = self.new_entry(texture_id, shader_id);
         entry.geometry.push_instance(instance);
         self.batches.push(entry);
     }

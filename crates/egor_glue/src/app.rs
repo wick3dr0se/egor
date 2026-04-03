@@ -10,11 +10,9 @@ use egor_app::{
     input::Input, time::FrameTimer,
 };
 use egor_render::{
-    Renderer,
+    MemoryHints, Renderer,
     target::{Backbuffer, RenderTarget},
 };
-
-pub use egor_render::MemoryHints;
 
 type UpdateFn = dyn FnMut(&mut FrameContext);
 
@@ -93,7 +91,7 @@ impl App {
             egui: None,
             backbuffer: None,
             memory_hints: MemoryHints::Performance,
-            primitive_batch: PrimitiveBatch::new(MemoryHints::Performance),
+            primitive_batch: PrimitiveBatch::default(),
         }
     }
 
@@ -184,11 +182,19 @@ impl App {
         self
     }
 
-    /// Set memory hints for both egor batches and wgpu buffers
-    /// This can be used to optimize memory usage for specific platforms or use cases.
+    /// Configure wgpu device memory allocation strategy.
+    /// Affects GPU sub-allocation block sizes, useful for mobile or low end devices.
+    /// See [`wgpu::MemoryHints`] for more
     pub fn memory_hints(mut self, hints: MemoryHints) -> Self {
-        self.primitive_batch = PrimitiveBatch::new(hints.clone());
         self.memory_hints = hints;
+        self
+    }
+
+    /// Set the vertex and index buffer limits for the main frame batch.
+    /// Defaults to [`GeometryBatch::DEFAULT_MAX_VERTICES`] and [`GeometryBatch::DEFAULT_MAX_INDICES`].
+    /// Reduce these on memory-constrained platforms, or increase for scenes with dense geometry.
+    pub fn batch_limits(mut self, max_verts: usize, max_indices: usize) -> Self {
+        self.primitive_batch = PrimitiveBatch::new(max_verts, max_indices);
         self
     }
 
@@ -244,7 +250,7 @@ impl AppHandler<Renderer> for App {
             if size.width == 0 { 800 } else { size.width },
             if size.height == 0 { 600 } else { size.height },
         );
-        let renderer = Renderer::new(window.clone(), self.memory_hints.clone()).await;
+        let renderer = Renderer::new(window.clone(), &self.memory_hints).await;
         self.backbuffer = Some(Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),
