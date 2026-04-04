@@ -184,14 +184,14 @@ impl App {
 
     /// Configure wgpu device memory allocation strategy.
     /// Affects GPU sub-allocation block sizes, useful for mobile or low end devices.
-    /// See [`wgpu::MemoryHints`] for more
+    /// See [`MemoryHints`] for more
     pub fn memory_hints(mut self, hints: MemoryHints) -> Self {
         self.memory_hints = hints;
         self
     }
 
     /// Set the vertex and index buffer limits for the main frame batch.
-    /// Defaults to [`GeometryBatch::DEFAULT_MAX_VERTICES`] and [`GeometryBatch::DEFAULT_MAX_INDICES`].
+    /// Defaults to [`egor_render::batch::GeometryBatch::DEFAULT_MAX_VERTICES`] and [`egor_render::batch::GeometryBatch::DEFAULT_MAX_INDICES`].
     /// Reduce these on memory-constrained platforms, or increase for scenes with dense geometry.
     pub fn batch_limits(mut self, max_verts: usize, max_indices: usize) -> Self {
         self.primitive_batch = PrimitiveBatch::new(max_verts, max_indices);

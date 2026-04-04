@@ -68,7 +68,7 @@ impl<'a> Graphics<'a> {
     /// Render to an offscreen target using a temporary batch with custom vertex/index buffer limits.
     /// Use this when the default limits are too large for memory-constrained platforms,
     /// or too small for complex offscreen scenes.
-    /// For most cases, prefer [`render_offscreen`] which uses sensible defaults
+    /// For most cases, prefer [`Self::render_offscreen`] which uses sensible defaults
     pub fn render_offscreen_with_limits(
         &mut self,
         target: &mut OffscreenTarget,
