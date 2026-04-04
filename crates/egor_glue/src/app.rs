@@ -184,7 +184,7 @@ impl App {
 
     /// Configure wgpu device memory allocation strategy.
     /// Affects GPU sub-allocation block sizes, useful for mobile or low end devices.
-    /// See [`wgpu::MemoryHints`] for more
+    /// See [`MemoryHints`] for more
     pub fn memory_hints(mut self, hints: MemoryHints) -> Self {
         self.memory_hints = hints;
         self
