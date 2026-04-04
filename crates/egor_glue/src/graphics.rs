@@ -1,5 +1,6 @@
 use egor_render::{
     Renderer, TextureFormat,
+    batch::GeometryBatch,
     target::{OffscreenTarget, RenderTarget},
 };
 use glam::Vec2;
@@ -54,12 +55,31 @@ impl<'a> Graphics<'a> {
     pub fn render_offscreen(
         &mut self,
         target: &mut OffscreenTarget,
+        render_fn: impl FnMut(&mut Graphics),
+    ) {
+        self.render_offscreen_with_limits(
+            target,
+            GeometryBatch::DEFAULT_MAX_VERTICES,
+            GeometryBatch::DEFAULT_MAX_INDICES,
+            render_fn,
+        );
+    }
+
+    /// Render to an offscreen target using a temporary batch with custom vertex/index buffer limits.
+    /// Use this when the default limits are too large for memory-constrained platforms,
+    /// or too small for complex offscreen scenes.
+    /// For most cases, prefer [`Self::render_offscreen`] which uses sensible defaults
+    pub fn render_offscreen_with_limits(
+        &mut self,
+        target: &mut OffscreenTarget,
+        max_verts: usize,
+        max_indices: usize,
         mut render_fn: impl FnMut(&mut Graphics),
     ) {
         let (w, h) = target.size();
         let format = target.format();
 
-        let mut offscreen_batch = PrimitiveBatch::default();
+        let mut offscreen_batch = PrimitiveBatch::new(max_verts, max_indices);
         let mut offscreen_gfx = Graphics {
             renderer: self.renderer,
             batch: &mut offscreen_batch,

@@ -7,7 +7,7 @@ mod texture;
 mod uniforms;
 pub mod vertex;
 
-pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
+pub use wgpu::{Device, MemoryHints, Queue, RenderPass, TextureFormat};
 
 use wgpu::{
     Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
@@ -54,7 +54,10 @@ impl Renderer {
     /// Creates a renderer & initializes GPU state using the window's surface
     ///
     /// Sets up wgpu, pipelines, default texture & camera resources
-    pub async fn new(window: impl Into<SurfaceTarget<'static>> + WindowHandle) -> Self {
+    pub async fn new(
+        window: impl Into<SurfaceTarget<'static>> + WindowHandle,
+        memory_hints: &MemoryHints,
+    ) -> Self {
         let instance = new_instance_with_webgpu_detection(&Default::default()).await;
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
@@ -69,6 +72,7 @@ impl Renderer {
             .request_device(&DeviceDescriptor {
                 #[cfg(target_arch = "wasm32")]
                 required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                memory_hints: memory_hints.clone(),
                 ..Default::default()
             })
             .await

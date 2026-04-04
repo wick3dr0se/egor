@@ -76,7 +76,10 @@ pub mod render {
         primitives::{Anchor, BorderRadii},
         text::Align,
     };
-    pub use egor_render::target::{OffscreenTarget, RenderTarget};
+    pub use egor_render::{
+        MemoryHints,
+        target::{OffscreenTarget, RenderTarget},
+    };
 }
 
 pub mod math {

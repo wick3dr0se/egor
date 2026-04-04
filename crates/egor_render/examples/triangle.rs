@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use egor_render::target::{Backbuffer, RenderTarget};
 use egor_render::{Renderer, batch::GeometryBatch, vertex::Vertex};
+use wgpu::MemoryHints;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
@@ -27,7 +28,7 @@ impl ApplicationHandler for MinimalApp {
         let window = Arc::new(event_loop.create_window(Default::default()).unwrap());
         let size = window.inner_size();
 
-        let renderer = pollster::block_on(Renderer::new(window.clone()));
+        let renderer = pollster::block_on(Renderer::new(window.clone(), &MemoryHints::Performance));
         let backbuffer = Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),

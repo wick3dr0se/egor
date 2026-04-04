@@ -10,7 +10,7 @@ use egor_app::{
     input::Input, time::FrameTimer,
 };
 use egor_render::{
-    Renderer,
+    MemoryHints, Renderer,
     target::{Backbuffer, RenderTarget},
 };
 
@@ -69,6 +69,7 @@ pub struct App {
     egui: Option<EguiRenderer>,
     backbuffer: Option<Backbuffer>,
     primitive_batch: PrimitiveBatch,
+    memory_hints: MemoryHints,
 }
 
 impl Default for App {
@@ -89,6 +90,7 @@ impl App {
             #[cfg(feature = "ui")]
             egui: None,
             backbuffer: None,
+            memory_hints: MemoryHints::Performance,
             primitive_batch: PrimitiveBatch::default(),
         }
     }
@@ -180,6 +182,22 @@ impl App {
         self
     }
 
+    /// Configure wgpu device memory allocation strategy.
+    /// Affects GPU sub-allocation block sizes, useful for mobile or low end devices.
+    /// See [`MemoryHints`] for more
+    pub fn memory_hints(mut self, hints: MemoryHints) -> Self {
+        self.memory_hints = hints;
+        self
+    }
+
+    /// Set the vertex and index buffer limits for the main frame batch.
+    /// Defaults to [`egor_render::batch::GeometryBatch::DEFAULT_MAX_VERTICES`] and [`egor_render::batch::GeometryBatch::DEFAULT_MAX_INDICES`].
+    /// Reduce these on memory-constrained platforms, or increase for scenes with dense geometry.
+    pub fn batch_limits(mut self, max_verts: usize, max_indices: usize) -> Self {
+        self.primitive_batch = PrimitiveBatch::new(max_verts, max_indices);
+        self
+    }
+
     /// Run the app with a per-frame update closure
     pub fn run(mut self, #[allow(unused_mut)] mut update: impl FnMut(&mut FrameContext) + 'static) {
         #[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
@@ -214,7 +232,7 @@ impl AppHandler<Renderer> for App {
             if size.width == 0 { 800 } else { size.width },
             if size.height == 0 { 600 } else { size.height },
         );
-        let renderer = Renderer::new(window.clone()).await;
+        let renderer = Renderer::new(window.clone(), &self.memory_hints).await;
         self.backbuffer = Some(Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),
