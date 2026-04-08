@@ -38,7 +38,7 @@ impl<'a> AppControl<'a> {
     /// Enable or disable borderless fullscreen mode
     pub fn set_fullscreen(&self, enabled: bool) {
         self.window
-            .set_fullscreen(enabled.then(|| Fullscreen::Borderless(None)));
+            .set_fullscreen(enabled.then_some(Fullscreen::Borderless(None)));
     }
 
     /// Enable or disable vertical sync

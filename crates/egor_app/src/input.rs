@@ -199,18 +199,18 @@ impl Input {
             return;
         }
         // Only generate a move if the simulated touch is already active
-        if let Some(touch) = self.touches.get(&0) {
-            if matches!(touch.phase, TouchPhase::Started | TouchPhase::Moved) {
-                let pos = self.mouse_position;
-                self.touches.insert(
-                    0,
-                    Touch {
-                        id: 0,
-                        phase: TouchPhase::Moved,
-                        position: pos,
-                    },
-                );
-            }
+        if let Some(touch) = self.touches.get(&0)
+            && matches!(touch.phase, TouchPhase::Started | TouchPhase::Moved)
+        {
+            let pos = self.mouse_position;
+            self.touches.insert(
+                0,
+                Touch {
+                    id: 0,
+                    phase: TouchPhase::Moved,
+                    position: pos,
+                },
+            );
         }
     }
 
