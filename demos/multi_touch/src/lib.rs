@@ -35,7 +35,7 @@ pub fn main() {
                 for touch in input.touches() {
                     let world_pos = gfx
                         .camera()
-                        .screen_to_world(vec2(touch.position.0, touch.position.1));
+                        .screen_to_world(vec2(touch.location.x as f32, touch.location.y as f32));
                     match touch.phase {
                         TouchPhase::Started => {
                             touch_paths.insert(touch.id, vec![world_pos]);

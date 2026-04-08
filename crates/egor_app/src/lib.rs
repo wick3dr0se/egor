@@ -214,8 +214,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                 self.input.update_scroll(wheel_delta);
             }
             WindowEvent::Touch(touch) => {
-                self.input
-                    .update_touch(touch.id, touch.phase.into(), touch.location);
+                self.input.update_touch(touch);
             }
             _ => {}
         }

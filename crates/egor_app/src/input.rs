@@ -1,47 +1,12 @@
-pub use winit::{event::MouseButton, keyboard::KeyCode};
+pub use winit::{event::MouseButton, event::Touch, event::TouchPhase, keyboard::KeyCode};
 
 use std::collections::HashMap;
 
 use winit::{
     dpi::PhysicalPosition,
-    event::{ElementState, KeyEvent},
+    event::{DeviceId, ElementState, KeyEvent},
     keyboard::PhysicalKey,
 };
-
-/// Describes the phase of a touch event
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum TouchPhase {
-    /// A finger just touched the screen
-    Started,
-    /// A finger moved on the screen
-    Moved,
-    /// A finger was lifted from the screen
-    Ended,
-    /// The system cancelled tracking this touch
-    Cancelled,
-}
-
-impl From<winit::event::TouchPhase> for TouchPhase {
-    fn from(phase: winit::event::TouchPhase) -> Self {
-        match phase {
-            winit::event::TouchPhase::Started => TouchPhase::Started,
-            winit::event::TouchPhase::Moved => TouchPhase::Moved,
-            winit::event::TouchPhase::Ended => TouchPhase::Ended,
-            winit::event::TouchPhase::Cancelled => TouchPhase::Cancelled,
-        }
-    }
-}
-
-/// Represents a single touch point (finger) on the screen
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Touch {
-    /// Unique identifier for this finger/touch point
-    pub id: u64,
-    /// Current phase of this touch
-    pub phase: TouchPhase,
-    /// Position of the touch in window coordinates
-    pub position: (f32, f32),
-}
 
 pub struct Input {
     keyboard: HashMap<KeyCode, (ElementState, ElementState)>, // (current, previous) state
@@ -131,21 +96,12 @@ impl Input {
     }
 
     /// Update touch state from a winit Touch event
-    pub(crate) fn update_touch(
-        &mut self,
-        id: u64,
-        phase: TouchPhase,
-        location: PhysicalPosition<f64>,
-    ) {
-        let position: (f32, f32) = location.into();
-        self.touches.insert(
-            id,
-            Touch {
-                id,
-                phase,
-                position,
-            },
-        );
+    pub(crate) fn update_touch(&mut self, touch: Touch) {
+        let id = touch.id;
+        let phase = touch.phase;
+        let location = touch.location;
+
+        self.touches.insert(id, touch);
 
         if self.simulate_mouse_with_touch {
             match phase {
@@ -186,9 +142,11 @@ impl Input {
         self.touches.insert(
             0,
             Touch {
+                device_id: DeviceId::dummy(),
                 id: 0,
                 phase,
-                position: pos,
+                location: PhysicalPosition::new(pos.0 as f64, pos.1 as f64),
+                force: None,
             },
         );
     }
@@ -206,9 +164,11 @@ impl Input {
             self.touches.insert(
                 0,
                 Touch {
+                    device_id: DeviceId::dummy(),
                     id: 0,
                     phase: TouchPhase::Moved,
-                    position: pos,
+                    location: PhysicalPosition::new(pos.0 as f64, pos.1 as f64),
+                    force: None,
                 },
             );
         }
