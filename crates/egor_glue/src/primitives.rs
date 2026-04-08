@@ -21,11 +21,19 @@ struct BatchEntry {
     geometry: GeometryBatch,
 }
 
-#[derive(Default)]
 pub struct PrimitiveBatch {
     batches: Vec<BatchEntry>,
     max_vertices: usize,
     max_indices: usize,
+}
+
+impl Default for PrimitiveBatch {
+    fn default() -> Self {
+        Self::new(
+            GeometryBatch::DEFAULT_MAX_VERTICES,
+            GeometryBatch::DEFAULT_MAX_INDICES,
+        )
+    }
 }
 
 impl PrimitiveBatch {
