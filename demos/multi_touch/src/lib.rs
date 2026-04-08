@@ -24,69 +24,69 @@ pub fn main() {
     App::new()
         .title("Egor Multi-Touch Demo")
         .simulate_touch_with_mouse(true)
-        .run(move |FrameContext { gfx, input, timer, .. }| {
-            let screen = gfx.screen_size();
-            gfx.camera().center(Vec2::ZERO, screen);
+        .run(
+            move |FrameContext {
+                      gfx, input, timer, ..
+                  }| {
+                let screen = gfx.screen_size();
+                gfx.camera().center(Vec2::ZERO, screen);
 
-            // Track touch paths
-            for touch in input.touches() {
-                let world_pos =
-                    gfx.camera()
+                // Track touch paths
+                for touch in input.touches() {
+                    let world_pos = gfx
+                        .camera()
                         .screen_to_world(vec2(touch.position.0, touch.position.1));
-                match touch.phase {
-                    TouchPhase::Started => {
-                        touch_paths.insert(touch.id, vec![world_pos]);
-                    }
-                    TouchPhase::Moved => {
-                        touch_paths.entry(touch.id).or_default().push(world_pos);
-                    }
-                    TouchPhase::Ended | TouchPhase::Cancelled => {
-                        touch_paths.remove(&touch.id);
-                    }
-                }
-            }
-
-            // Draw touch paths and dots
-            for (idx, (id, path)) in touch_paths.iter().enumerate() {
-                let c = TOUCH_COLORS[idx % TOUCH_COLORS.len()];
-                let color = Color::new(c);
-                let trail_color = Color::new([c[0], c[1], c[2], 0.5]);
-
-                if path.len() >= 2 {
-                    let mut builder = gfx
-                        .path()
-                        .thickness(3.0)
-                        .stroke_color(trail_color)
-                        .begin(path[0]);
-                    for &pt in &path[1..] {
-                        builder = builder.line_to(pt);
+                    match touch.phase {
+                        TouchPhase::Started => {
+                            touch_paths.insert(touch.id, vec![world_pos]);
+                        }
+                        TouchPhase::Moved => {
+                            touch_paths.entry(touch.id).or_default().push(world_pos);
+                        }
+                        TouchPhase::Ended | TouchPhase::Cancelled => {
+                            touch_paths.remove(&touch.id);
+                        }
                     }
                 }
 
-                if let Some(&pos) = path.last() {
-                    gfx.polygon()
-                        .segments(16)
-                        .at(pos)
-                        .radius(12.0)
-                        .color(color);
-                    gfx.polygon()
-                        .segments(16)
-                        .at(pos)
-                        .radius(6.0)
-                        .color(Color::WHITE);
+                // Draw touch paths and dots
+                for (idx, (id, path)) in touch_paths.iter().enumerate() {
+                    let c = TOUCH_COLORS[idx % TOUCH_COLORS.len()];
+                    let color = Color::new(c);
+                    let trail_color = Color::new([c[0], c[1], c[2], 0.5]);
 
-                    let screen_pos = gfx.camera().world_to_screen(pos);
-                    gfx.text(&format!("touch {}", id))
-                        .at(screen_pos + vec2(16.0, -16.0))
-                        .color(color);
+                    if path.len() >= 2 {
+                        let mut builder = gfx
+                            .path()
+                            .thickness(3.0)
+                            .stroke_color(trail_color)
+                            .begin(path[0]);
+                        for &pt in &path[1..] {
+                            builder = builder.line_to(pt);
+                        }
+                    }
+
+                    if let Some(&pos) = path.last() {
+                        gfx.polygon().segments(16).at(pos).radius(12.0).color(color);
+                        gfx.polygon()
+                            .segments(16)
+                            .at(pos)
+                            .radius(6.0)
+                            .color(Color::WHITE);
+
+                        let screen_pos = gfx.camera().world_to_screen(pos);
+                        gfx.text(&format!("touch {}", id))
+                            .at(screen_pos + vec2(16.0, -16.0))
+                            .color(color);
+                    }
                 }
-            }
 
-            gfx.text(&format!(
-                "touches: {} | fps: {:.0}",
-                input.touch_count(),
-                timer.fps
-            ))
-            .color(Color::WHITE);
-        });
+                gfx.text(&format!(
+                    "touches: {} | fps: {:.0}",
+                    input.touch_count(),
+                    timer.fps
+                ))
+                .color(Color::WHITE);
+            },
+        );
 }

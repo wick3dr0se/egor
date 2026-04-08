@@ -131,9 +131,21 @@ impl Input {
     }
 
     /// Update touch state from a winit Touch event
-    pub(crate) fn update_touch(&mut self, id: u64, phase: TouchPhase, location: PhysicalPosition<f64>) {
+    pub(crate) fn update_touch(
+        &mut self,
+        id: u64,
+        phase: TouchPhase,
+        location: PhysicalPosition<f64>,
+    ) {
         let position: (f32, f32) = location.into();
-        self.touches.insert(id, Touch { id, phase, position });
+        self.touches.insert(
+            id,
+            Touch {
+                id,
+                phase,
+                position,
+            },
+        );
 
         if self.simulate_mouse_with_touch {
             match phase {
@@ -161,11 +173,7 @@ impl Input {
     }
 
     /// Simulate a touch event from mouse input (called internally when simulation is enabled)
-    pub(crate) fn simulate_touch_from_mouse(
-        &mut self,
-        button: MouseButton,
-        state: ElementState,
-    ) {
+    pub(crate) fn simulate_touch_from_mouse(&mut self, button: MouseButton, state: ElementState) {
         if !self.simulate_touch_with_mouse || button != MouseButton::Left {
             return;
         }
@@ -175,7 +183,14 @@ impl Input {
             ElementState::Released => TouchPhase::Ended,
         };
         // Use id 0 for mouse-simulated touch
-        self.touches.insert(0, Touch { id: 0, phase, position: pos });
+        self.touches.insert(
+            0,
+            Touch {
+                id: 0,
+                phase,
+                position: pos,
+            },
+        );
     }
 
     /// Simulate a touch move from mouse cursor movement (called internally when simulation is enabled)
@@ -187,7 +202,14 @@ impl Input {
         if let Some(touch) = self.touches.get(&0) {
             if matches!(touch.phase, TouchPhase::Started | TouchPhase::Moved) {
                 let pos = self.mouse_position;
-                self.touches.insert(0, Touch { id: 0, phase: TouchPhase::Moved, position: pos });
+                self.touches.insert(
+                    0,
+                    Touch {
+                        id: 0,
+                        phase: TouchPhase::Moved,
+                        position: pos,
+                    },
+                );
             }
         }
     }
