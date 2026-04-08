@@ -240,7 +240,7 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         let mut input = Input::default();
         input.set_simulate_touch_with_mouse(config.simulate_touch_with_mouse);
         input.set_simulate_mouse_with_touch(config.simulate_mouse_with_touch);
-        
+
         Self {
             handler: Some(handler),
             resource: None,
