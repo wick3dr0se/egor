@@ -194,7 +194,8 @@ fn create_custom_pipeline(
         source: ShaderSource::Wgsl(wgsl_source.into()),
     });
 
-    let mut layouts: Vec<Option<&BindGroupLayout>> = vec![Some(texture_layout), Some(camera_layout)];
+    let mut layouts: Vec<Option<&BindGroupLayout>> =
+        vec![Some(texture_layout), Some(camera_layout)];
     layouts.extend(extra_layouts.iter().map(|l| Some(*l)));
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {

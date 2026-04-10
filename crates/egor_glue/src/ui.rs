@@ -26,8 +26,7 @@ impl EguiRenderer {
         let ctx = Context::default();
         let viewport_id = ctx.viewport_id();
         let state = State::new(ctx.clone(), viewport_id, window, None, None, None);
-        let renderer =
-            egui_wgpu::Renderer::new(device, surface_format, Default::default());
+        let renderer = egui_wgpu::Renderer::new(device, surface_format, Default::default());
 
         Self {
             ctx,

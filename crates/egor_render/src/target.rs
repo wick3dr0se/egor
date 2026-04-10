@@ -1,8 +1,7 @@
 use wgpu::{
-    Adapter, CommandEncoder, Device, Extent3d, Instance, PresentMode, Surface,
-    SurfaceConfiguration, SurfaceTarget, Texture, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, TextureView, WindowHandle,
-    CurrentSurfaceTexture::{*}
+    Adapter, CommandEncoder, CurrentSurfaceTexture::*, Device, Extent3d, Instance, PresentMode,
+    Surface, SurfaceConfiguration, SurfaceTarget, Texture, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureView, WindowHandle,
 };
 
 use crate::frame::Presentable;
