@@ -58,7 +58,10 @@ impl Renderer {
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
         memory_hints: &MemoryHints,
     ) -> Self {
-        let instance = new_instance_with_webgpu_detection(&Default::default()).await;
+        let instance = new_instance_with_webgpu_detection(
+            wgpu::InstanceDescriptor::new_without_display_handle_from_env(),
+        )
+        .await;
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
@@ -193,6 +196,7 @@ impl Renderer {
                     load: LoadOp::Clear(self.clear_color),
                     store: StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             ..Default::default()
         })
