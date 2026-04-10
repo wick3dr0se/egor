@@ -21,22 +21,22 @@ image = { version = "0.25.6", default-features = false, features = ["png"] }
 
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = [
+wgpu = { version = "29.0.1", default-features = false, features = [
     "wgsl",
     "vulkan",
 ] }
 [target.'cfg(target_os = "windows")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = [
+wgpu = { version = "29.0.1", default-features = false, features = [
     "wgsl",
     "dx12",
 ] }
 [target.'cfg(target_os = "macos")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = [
+wgpu = { version = "29.0.1", default-features = false, features = [
     "wgsl",
     "metal",
 ] }
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wgpu = { version = "25.0.0", default-features = false, features = [
+wgpu = { version = "29.0.1", default-features = false, features = [
     "wgsl",
     "webgpu",
 ] }

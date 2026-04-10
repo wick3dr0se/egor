@@ -1,7 +1,8 @@
 use wgpu::{
     Adapter, CommandEncoder, Device, Extent3d, Instance, PresentMode, Surface,
-    SurfaceConfiguration, SurfaceError, SurfaceTarget, Texture, TextureDescriptor,
+    SurfaceConfiguration, SurfaceTarget, Texture, TextureDescriptor,
     TextureDimension, TextureFormat, TextureUsages, TextureView, WindowHandle,
+    CurrentSurfaceTexture::{*}
 };
 
 use crate::frame::Presentable;
@@ -50,17 +51,23 @@ impl RenderTarget for Backbuffer {
     }
 
     fn acquire(&mut self, device: &Device) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
-        match self.surface.get_current_texture() {
-            Ok(surface_texture) => {
+        let current_surface_texture = self.surface.get_current_texture();
+        match current_surface_texture {
+            Success(surface_texture) => {
                 let view = surface_texture.texture.create_view(&Default::default());
                 Some((view, Some(Box::new(surface_texture))))
             }
-            Err(SurfaceError::Outdated) => {
+            Suboptimal(_) => {
+                // still presentable, but reconfigure the surface for optimal performance
+                self.surface.configure(device, &self.config);
+                None
+            }
+            Outdated => {
                 self.resize(device, self.config.width, self.config.height);
                 None
             }
-            Err(e) => {
-                eprintln!("Surface error: {:?}", e);
+            _ => {
+                eprintln!("Surface error: {:?}", current_surface_texture);
                 None
             }
         }
