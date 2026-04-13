@@ -259,6 +259,7 @@ impl Drop for TextBuilder<'_> {
                 .weight(self.weight)
                 .style(self.style),
             Shaping::Basic,
+            None,
         );
 
         // compute final position, applying alignment within rect if set
