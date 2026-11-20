@@ -55,10 +55,14 @@ impl RenderTarget for Backbuffer {
                 let view = surface_texture.texture.create_view(&Default::default());
                 Some((view, Some(Box::new(surface_texture))))
             }
-            Err(SurfaceError::Outdated) => {
+            // `Lost` cannot recover on its own; configure recreates the swapchain
+            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
                 self.resize(device, self.config.width, self.config.height);
                 None
             }
+            // `Timeout` is transient, try again next frame
+            Err(SurfaceError::Timeout) => None,
+            // `OutOfMemory` has nowhere to report to, so it stays logged
             Err(e) => {
                 eprintln!("Surface error: {:?}", e);
                 None
