@@ -233,12 +233,18 @@ impl<'a> Graphics<'a> {
         .clip(clip)
     }
 
-    /// Load a texture from raw image data (e.g., PNG bytes)
+    /// Load a texture from encoded image bytes, such as a PNG
     ///
     /// Returns a texture ID that can be used with `.texture(id)` on primitives.
     /// Typically called once during initialization (when `timer.frame == 0`).
     pub fn load_texture(&mut self, data: &[u8]) -> usize {
         self.renderer.add_texture(data)
+    }
+    /// Load a texture from raw RGBA pixels, with no decoding
+    ///
+    /// Use this for an atlas slice or pixels generated at runtime.
+    pub fn load_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
+        self.renderer.add_texture_raw(w, h, data)
     }
     /// Update texture data by index
     pub fn update_texture(&mut self, index: usize, data: &[u8]) {
