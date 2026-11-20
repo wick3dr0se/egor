@@ -325,10 +325,13 @@ impl AppHandler<Renderer> for App {
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
 
-            for (tex_id, shader_id, batch) in self.primitive_batch.iter_mut() {
-                renderer.draw_batch(&mut r_pass, batch, tex_id, shader_id);
+            // Submission order: the batch key only decides what can be merged.
+            for (key, batch) in self.primitive_batch.iter_mut() {
+                renderer.draw_batch(&mut r_pass, batch, key);
             }
 
+            // Glyphs carry their own clip bounds, so don't inherit the last batch's
+            renderer.set_scissor(&mut r_pass, None);
             text_renderer.render(&mut r_pass);
         }
 

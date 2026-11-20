@@ -3,7 +3,16 @@ use wgpu::{
     RenderPass,
 };
 
-use crate::{instance::Instance, vertex::Vertex};
+use crate::{ClipRect, Space, instance::Instance, vertex::Vertex};
+
+/// What separates one batch from another: draws sharing all of it merge
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct BatchKey {
+    pub texture: Option<usize>,
+    pub shader: Option<usize>,
+    pub clip: Option<ClipRect>,
+    pub space: Space,
+}
 
 /// A batch of geometry (vertices + indices) that can be drawn in a single GPU call
 ///
@@ -21,7 +30,7 @@ pub struct GeometryBatch {
     instances: Vec<Instance>,
     instance_buffer: Option<Buffer>,
     instances_dirty: bool,
-    max_verticies: usize,
+    max_vertices: usize,
     max_indices: usize,
 }
 
@@ -38,9 +47,9 @@ impl GeometryBatch {
         Self::DEFAULT_MAX_VERTICES * Self::DEFAULT_INDICES_PER_VERT;
 
     // Creates a new batch with specified max vert/idx counts
-    pub fn new(max_verticies: usize, max_indices: usize) -> Self {
+    pub fn new(max_vertices: usize, max_indices: usize) -> Self {
         Self {
-            vertices: Vec::with_capacity(max_verticies),
+            vertices: Vec::with_capacity(max_vertices),
             indices: Vec::with_capacity(max_indices),
             vertex_buffer: None,
             index_buffer: None,
@@ -49,7 +58,7 @@ impl GeometryBatch {
             instances: Vec::new(),
             instance_buffer: None,
             instances_dirty: false,
-            max_verticies,
+            max_vertices,
             max_indices,
         }
     }
@@ -58,7 +67,7 @@ impl GeometryBatch {
 
     // Returns true if adding verts/indices would exceed max allowed
     pub fn would_overflow(&self, vert_count: usize, idx_count: usize) -> bool {
-        self.vertices.len() + vert_count > self.max_verticies
+        self.vertices.len() + vert_count > self.max_vertices
             || self.indices.len() + idx_count > self.max_indices
     }
 
@@ -139,7 +148,7 @@ impl GeometryBatch {
             if self.vertex_buffer.is_none() {
                 self.vertex_buffer = Some(device.create_buffer(&BufferDescriptor {
                     label: Some("GeometryBatch Vertex Buffer"),
-                    size: (self.max_verticies * std::mem::size_of::<Vertex>()) as u64,
+                    size: (self.max_vertices * std::mem::size_of::<Vertex>()) as u64,
                     usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));

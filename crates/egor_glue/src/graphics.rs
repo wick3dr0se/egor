@@ -1,5 +1,5 @@
 use egor_render::{
-    Renderer, TextureFormat,
+    ClipRect, Renderer, TextureFormat,
     batch::GeometryBatch,
     target::{OffscreenTarget, RenderTarget},
 };
@@ -9,9 +9,27 @@ use crate::primitives::PathBuilder;
 use crate::{
     camera::Camera,
     color::Color,
+    math::Rect,
     primitives::{PolygonBuilder, PolylineBuilder, PrimitiveBatch, RectangleBuilder},
     text::{TextBuilder, TextRenderer},
 };
+
+/// Converts a screen-space [`Rect`] into an integer [`ClipRect`]
+///
+/// The origin is floored & the far edge is ceiled so antialiased edges aren't
+/// clipped by rounding. A zero-area result means fully clipped.
+fn to_clip_rect(rect: Rect) -> ClipRect {
+    let x = rect.position.x.max(0.0).floor();
+    let y = rect.position.y.max(0.0).floor();
+    let right = (rect.position.x + rect.size.x).max(0.0).ceil();
+    let bottom = (rect.position.y + rect.size.y).max(0.0).ceil();
+    ClipRect::new(
+        x as u32,
+        y as u32,
+        (right - x).max(0.0) as u32,
+        (bottom - y).max(0.0) as u32,
+    )
+}
 
 /// High-level 2D drawing interface that simplifies the [`Renderer`]
 pub struct Graphics<'a> {
@@ -22,6 +40,7 @@ pub struct Graphics<'a> {
     target_format: TextureFormat,
     target_size: (u32, u32),
     current_shader: Option<usize>,
+    clip: Option<Rect>,
 }
 
 impl<'a> Graphics<'a> {
@@ -34,6 +53,7 @@ impl<'a> Graphics<'a> {
         w: u32,
         h: u32,
     ) -> Self {
+        renderer.set_target_size(w, h);
         Self {
             renderer,
             batch,
@@ -42,7 +62,21 @@ impl<'a> Graphics<'a> {
             target_format: format,
             target_size: (w, h),
             current_shader: None,
+            clip: None,
         }
+    }
+
+    /// Restricts drawing inside `render_fn` to `rect` (screen space)
+    pub fn with_clip(&mut self, rect: Rect, mut render_fn: impl FnMut(&mut Self)) {
+        let previous = self.clip;
+        self.clip = Some(rect);
+        render_fn(self);
+        self.clip = previous;
+    }
+
+    /// Current clip as an integer [`ClipRect`], if a clip is active
+    fn current_clip(&self) -> Option<ClipRect> {
+        self.clip.map(to_clip_rect)
     }
 
     /// Create a new offscreen render target
@@ -80,18 +114,25 @@ impl<'a> Graphics<'a> {
         let format = target.format();
 
         let mut offscreen_batch = PrimitiveBatch::new(max_verts, max_indices);
-        let mut offscreen_gfx = Graphics {
-            renderer: self.renderer,
-            batch: &mut offscreen_batch,
-            camera: Camera::default(),
-            text_renderer: self.text_renderer,
-            target_size: (w, h),
-            target_format: format,
-            current_shader: None,
-        };
+        {
+            let mut offscreen_gfx = Graphics {
+                renderer: self.renderer,
+                batch: &mut offscreen_batch,
+                camera: Camera::default(),
+                text_renderer: self.text_renderer,
+                target_size: (w, h),
+                target_format: format,
+                current_shader: None,
+                clip: None,
+            };
 
-        render_fn(&mut offscreen_gfx);
-        offscreen_gfx.upload_camera();
+            // The offscreen pass has its own target dimensions; scissor resets use them
+            offscreen_gfx.renderer.set_target_size(w, h);
+
+            render_fn(&mut offscreen_gfx);
+            offscreen_gfx.upload_camera();
+        }
+
         let mut geometry = offscreen_batch.take();
 
         let mut encoder = self
@@ -104,15 +145,18 @@ impl<'a> Graphics<'a> {
                 .renderer
                 .begin_render_pass(&mut encoder, target.render_view());
 
-            for (tex_id, shader_id, batch) in &mut geometry {
-                self.renderer
-                    .draw_batch(&mut r_pass, batch, *tex_id, *shader_id);
+            for (key, batch) in &mut geometry {
+                self.renderer.draw_batch(&mut r_pass, batch, *key);
             }
         }
 
         target.copy_to_sample(&mut encoder);
 
         let _ = self.renderer.queue().submit(Some(encoder.finish()));
+
+        // Restore the main target size for the remainder of the frame
+        let (mw, mh) = self.target_size;
+        self.renderer.set_target_size(mw, mh);
     }
 
     /// Use an offscreen target as a texture
@@ -122,17 +166,21 @@ impl<'a> Graphics<'a> {
 
     pub(crate) fn set_target_size(&mut self, w: u32, h: u32) {
         self.target_size = (w, h);
+        self.renderer.set_target_size(w, h);
     }
 
     /// Upload camera matrix to the GPU.
     /// Call after user drawing is complete and before the render pass
     pub(crate) fn upload_camera(&mut self) {
         let (w, h) = self.target_size;
-        self.renderer.upload_camera_matrix(
-            self.camera
-                .view_proj((w as f32, h as f32).into())
-                .to_cols_array_2d(),
-        );
+        let size = (w as f32, h as f32).into();
+        self.renderer
+            .upload_camera_matrix(self.camera.view_proj(size).to_cols_array_2d());
+        // Screen-space batches ignore the camera & map pixels directly:
+        // a default camera at the same size is exactly the orthographic
+        // identity projection we want for UI.
+        self.renderer
+            .upload_screen_matrix(Camera::default().view_proj(size).to_cols_array_2d());
     }
 
     /// Clear the screen to a color
@@ -151,27 +199,31 @@ impl<'a> Graphics<'a> {
 
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(self.batch, self.current_shader)
+        RectangleBuilder::new(self.batch, self.current_shader, self.current_clip())
     }
     /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
     pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        PolygonBuilder::new(self.batch, self.current_shader)
+        PolygonBuilder::new(self.batch, self.current_shader, self.current_clip())
     }
     /// Start building a polyline (stroked path) primitive
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
-        PolylineBuilder::new(self.batch, self.current_shader)
+        PolylineBuilder::new(self.batch, self.current_shader, self.current_clip())
     }
     /// Start building a vector path (lines + curves) to be filled or stroked
     pub fn path(&mut self) -> PathBuilder<'_> {
-        PathBuilder::new(self.batch, self.current_shader)
+        PathBuilder::new(self.batch, self.current_shader, self.current_clip())
     }
     /// Load a font from disk into the text system.
     pub fn load_font(&mut self, bytes: &[u8]) -> Option<String> {
         self.text_renderer.load_font_bytes(bytes)
     }
     /// Draw a line of text
+    ///
+    /// Text is drawn in screen space (it does not follow the camera) & respects
+    /// the active clip, so callers don't need to pass one explicitly.
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
-        TextBuilder::new(self.text_renderer, text.to_string())
+        let clip = self.clip;
+        TextBuilder::new(self.text_renderer, text.to_string()).clip(clip)
     }
 
     /// Load a texture from raw image data (e.g., PNG bytes)

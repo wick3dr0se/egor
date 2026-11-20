@@ -6,5 +6,7 @@ pub mod math;
 pub mod primitives;
 pub mod text;
 
+pub use egor_render::{ClipRect, Space};
+
 #[cfg(feature = "ui")]
 pub mod ui;

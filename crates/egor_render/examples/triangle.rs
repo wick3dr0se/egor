@@ -75,7 +75,16 @@ impl ApplicationHandler for MinimalApp {
 
                     {
                         let mut r_pass = r.begin_render_pass(&mut frame.encoder, &frame.view);
-                        r.draw_batch(&mut r_pass, &mut self.batch, None, None);
+                        r.draw_batch(
+                            &mut r_pass,
+                            &mut self.batch,
+                            egor_render::batch::BatchKey {
+                                texture: None,
+                                shader: None,
+                                clip: None,
+                                space: egor_render::Space::World,
+                            },
+                        );
                     }
                     r.end_frame(frame);
                 }

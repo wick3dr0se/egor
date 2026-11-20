@@ -1,5 +1,10 @@
 use crate::{color::Color, math::Rect};
-use egor_render::{batch::GeometryBatch, instance::Instance, vertex::Vertex};
+use egor_render::{
+    ClipRect, Space,
+    batch::{BatchKey, GeometryBatch},
+    instance::Instance,
+    vertex::Vertex,
+};
 use glam::{Mat2, Vec2, vec2};
 use lyon::{
     geom::euclid::Point2D,
@@ -15,9 +20,12 @@ pub use lyon::path::builder::BorderRadii;
 
 const MIN_THICKNESS: f32 = 0.001;
 
+/// One flushed geometry batch, tagged with how it must be drawn:
+/// texture, shader, clip rectangle, coordinate space, & geometry.
+pub(crate) type FlushedBatch = (BatchKey, GeometryBatch);
+
 struct BatchEntry {
-    texture_id: Option<usize>,
-    shader_id: Option<usize>,
+    key: BatchKey,
     geometry: GeometryBatch,
 }
 
@@ -45,28 +53,25 @@ impl PrimitiveBatch {
         }
     }
 
-    fn new_entry(&self, texture_id: Option<usize>, shader_id: Option<usize>) -> BatchEntry {
+    fn new_entry(&self, key: BatchKey) -> BatchEntry {
         BatchEntry {
-            texture_id,
-            shader_id,
+            key,
             geometry: GeometryBatch::new(self.max_vertices, self.max_indices),
         }
     }
 
     /// Allocates space for vertices & indices in the current batch if it matches
-    /// `texture_id` + `shader_id`, otherwise starts a new batch.
+    /// `texture_id` + `shader_id` + clip + space, otherwise starts a new batch.
     /// Used by paths, polygons, and other baked geometry primitives
     pub(crate) fn allocate(
         &mut self,
         vert_count: usize,
         idx_count: usize,
-        texture_id: Option<usize>,
-        shader_id: Option<usize>,
+        key: BatchKey,
     ) -> Option<(&mut [Vertex], &mut [u16], u16)> {
         // only reuse last batch if it matches and won't overflow
         if let Some(last) = self.batches.last()
-            && last.texture_id == texture_id
-            && last.shader_id == shader_id
+            && last.key == key
             && !last.geometry.would_overflow(vert_count, idx_count)
         {
             return self
@@ -77,7 +82,7 @@ impl PrimitiveBatch {
                 .try_allocate(vert_count, idx_count);
         }
 
-        self.batches.push(self.new_entry(texture_id, shader_id));
+        self.batches.push(self.new_entry(key));
         self.batches
             .last_mut()
             .unwrap()
@@ -85,44 +90,34 @@ impl PrimitiveBatch {
             .try_allocate(vert_count, idx_count)
     }
 
-    /// Pushes an instance into the current batch if it matches `texture_id` + `shader_id`,
-    /// otherwise starts a new batch. Preserves insertion order for correct draw ordering.
-    pub(crate) fn push_instance(
-        &mut self,
-        instance: Instance,
-        texture_id: Option<usize>,
-        shader_id: Option<usize>,
-    ) {
+    /// Pushes an instance into the current batch if it matches the key,
+    /// otherwise starts a new batch. Preserves insertion order.
+    pub(crate) fn push_instance(&mut self, instance: Instance, key: BatchKey) {
         if let Some(last) = self.batches.last_mut()
-            && last.texture_id == texture_id
-            && last.shader_id == shader_id
+            && last.key == key
         {
             last.geometry.push_instance(instance);
             return;
         }
 
-        let mut entry = self.new_entry(texture_id, shader_id);
+        let mut entry = self.new_entry(key);
         entry.geometry.push_instance(instance);
         self.batches.push(entry);
     }
 
     /// Moves all batch entries out, consuming their geometry.
     /// Used for ephemeral paths (offscreen rendering) where batch reuse isn't needed
-    pub(crate) fn take(&mut self) -> Vec<(Option<usize>, Option<usize>, GeometryBatch)> {
+    pub(crate) fn take(&mut self) -> Vec<FlushedBatch> {
         std::mem::take(&mut self.batches)
             .into_iter()
-            .map(|entry| (entry.texture_id, entry.shader_id, entry.geometry))
+            .map(|entry| (entry.key, entry.geometry))
             .collect()
     }
 
     /// Iterates over active batch entries for drawing.
-    /// Returns (texture_id, shader_id, &mut GeometryBatch) for each entry
-    pub(crate) fn iter_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (Option<usize>, Option<usize>, &mut GeometryBatch)> {
-        self.batches
-            .iter_mut()
-            .map(|e| (e.texture_id, e.shader_id, &mut e.geometry))
+    /// Returns (texture_id, shader_id, clip, space, &mut GeometryBatch) for each entry
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = (BatchKey, &mut GeometryBatch)> {
+        self.batches.iter_mut().map(|e| (e.key, &mut e.geometry))
     }
 
     /// Clears all batches, dropping their geometry. Called at the end of each frame
@@ -140,29 +135,48 @@ pub enum Anchor {
 /// Builder for (textured) rectangles, drawn on `Drop`
 pub struct RectangleBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: Option<usize>,
+    key: BatchKey,
     anchor: Anchor,
     position: Vec2,
     size: Vec2,
     rotation: f32,
     color: Color,
     uvs: [f32; 4],
-    tex_id: Option<usize>,
 }
 
 /// Builds a rectangle with configurable position, size, color, anchor, rotation, & texture
 impl<'a> RectangleBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
+    /// Draw in screen space, ignoring the camera
+    pub fn screen(mut self) -> Self {
+        self.key.space = Space::Screen;
+        self
+    }
+
+    /// Draw in world space, following the camera (the default)
+    pub fn world(mut self) -> Self {
+        self.key.space = Space::World;
+        self
+    }
+
+    pub(crate) fn new(
+        batch: &'a mut PrimitiveBatch,
+        shader_id: Option<usize>,
+        clip: Option<ClipRect>,
+    ) -> Self {
         Self {
             batch,
-            shader_id,
+            key: BatchKey {
+                texture: None,
+                shader: shader_id,
+                clip,
+                space: Space::World,
+            },
             anchor: Anchor::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
             rotation: 0.0,
             color: Color::WHITE,
             uvs: [0.0, 0.0, 1.0, 1.0],
-            tex_id: None,
         }
     }
     /// Sets the position & size from a [`Rect`].
@@ -200,7 +214,7 @@ impl<'a> RectangleBuilder<'a> {
     }
     /// Sets the texture ID for the rectangle
     pub fn texture(mut self, id: usize) -> Self {
-        self.tex_id = Some(id);
+        self.key.texture = Some(id);
         self
     }
     /// Custom UV coordinates as (u0, v0, u1, v1).
@@ -229,8 +243,7 @@ impl Drop for RectangleBuilder<'_> {
                 color,
                 self.uvs,
             ),
-            self.tex_id,
-            self.shader_id,
+            self.key,
         );
     }
 }
@@ -238,7 +251,7 @@ impl Drop for RectangleBuilder<'_> {
 /// Builder for polygons, triangles, circles, n-gons. Drawn on `Drop`
 pub struct PolygonBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: Option<usize>,
+    key: BatchKey,
     position: Vec2,
     rotation: f32,
     radius: f32,
@@ -247,10 +260,31 @@ pub struct PolygonBuilder<'a> {
 }
 
 impl<'a> PolygonBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
+    /// Draw in screen space, ignoring the camera
+    pub fn screen(mut self) -> Self {
+        self.key.space = Space::Screen;
+        self
+    }
+
+    /// Draw in world space, following the camera (the default)
+    pub fn world(mut self) -> Self {
+        self.key.space = Space::World;
+        self
+    }
+
+    pub(crate) fn new(
+        batch: &'a mut PrimitiveBatch,
+        shader_id: Option<usize>,
+        clip: Option<ClipRect>,
+    ) -> Self {
         Self {
             batch,
-            shader_id,
+            key: BatchKey {
+                texture: None,
+                shader: shader_id,
+                clip,
+                space: Space::World,
+            },
             position: Vec2::ZERO,
             rotation: 0.0,
             radius: 10.0,
@@ -301,10 +335,7 @@ impl Drop for PolygonBuilder<'_> {
         let vert_count = points.len();
         let idx_count = (points.len().saturating_sub(2)) * 3;
 
-        if let Some((verts, indices, base)) =
-            self.batch
-                .allocate(vert_count, idx_count, None, self.shader_id)
-        {
+        if let Some((verts, indices, base)) = self.batch.allocate(vert_count, idx_count, self.key) {
             for (i, p) in points.iter().enumerate() {
                 let world = rot * *p + center;
                 verts[i] = Vertex::new(world.into(), color, [0.0, 0.0]);
@@ -325,7 +356,7 @@ impl Drop for PolygonBuilder<'_> {
 /// Expands each line segment into quad (triangle) geometry on `Drop`
 pub struct PolylineBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: Option<usize>,
+    key: BatchKey,
     position: Vec2,
     rotation: f32,
     points: Vec<Vec2>,
@@ -335,10 +366,31 @@ pub struct PolylineBuilder<'a> {
 }
 
 impl<'a> PolylineBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
+    /// Draw in screen space, ignoring the camera
+    pub fn screen(mut self) -> Self {
+        self.key.space = Space::Screen;
+        self
+    }
+
+    /// Draw in world space, following the camera (the default)
+    pub fn world(mut self) -> Self {
+        self.key.space = Space::World;
+        self
+    }
+
+    pub(crate) fn new(
+        batch: &'a mut PrimitiveBatch,
+        shader_id: Option<usize>,
+        clip: Option<ClipRect>,
+    ) -> Self {
         Self {
             batch,
-            shader_id,
+            key: BatchKey {
+                texture: None,
+                shader: shader_id,
+                clip,
+                space: Space::World,
+            },
             position: Vec2::ZERO,
             rotation: 0.0,
             points: vec![vec2(0.0, 0.0), vec2(10.0, 0.0)],
@@ -395,8 +447,7 @@ impl Drop for PolylineBuilder<'_> {
         let idx_count = segments * 6;
 
         if let Some((verts, indices, mut base)) =
-            self.batch
-                .allocate(vert_count, idx_count, None, self.shader_id)
+            self.batch.allocate(vert_count, idx_count, self.key)
         {
             let mut vi = 0;
             let mut ii = 0;
@@ -448,7 +499,7 @@ impl Drop for PolylineBuilder<'_> {
 /// Users must call `begin()` before issuing path commands
 pub struct PathBuilder<'a> {
     batch: &'a mut PrimitiveBatch,
-    shader_id: Option<usize>,
+    key: BatchKey,
     position: Vec2,
     rotation: f32,
     scale: Vec2,
@@ -460,10 +511,31 @@ pub struct PathBuilder<'a> {
 }
 
 impl<'a> PathBuilder<'a> {
-    pub(crate) fn new(batch: &'a mut PrimitiveBatch, shader_id: Option<usize>) -> Self {
+    /// Draw in screen space, ignoring the camera
+    pub fn screen(mut self) -> Self {
+        self.key.space = Space::Screen;
+        self
+    }
+
+    /// Draw in world space, following the camera (the default)
+    pub fn world(mut self) -> Self {
+        self.key.space = Space::World;
+        self
+    }
+
+    pub(crate) fn new(
+        batch: &'a mut PrimitiveBatch,
+        shader_id: Option<usize>,
+        clip: Option<ClipRect>,
+    ) -> Self {
         Self {
             batch,
-            shader_id,
+            key: BatchKey {
+                texture: None,
+                shader: shader_id,
+                clip,
+                space: Space::World,
+            },
             position: Vec2::ZERO,
             rotation: 0.0,
             scale: Vec2::ONE,
@@ -614,10 +686,7 @@ impl Drop for PathBuilder<'_> {
         let vert_count = geometry.vertices.len();
         let idx_count = geometry.indices.len();
 
-        if let Some((verts, indices, base)) =
-            self.batch
-                .allocate(vert_count, idx_count, None, self.shader_id)
-        {
+        if let Some((verts, indices, base)) = self.batch.allocate(vert_count, idx_count, self.key) {
             for (vi, mut vo) in geometry.vertices.into_iter().enumerate() {
                 let mut p: Vec2 = vo.position.into();
                 p = rot * (self.scale * p) + self.position;

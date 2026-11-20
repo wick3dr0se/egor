@@ -11,6 +11,7 @@ use crate::{color::Color, math::Rect};
 struct TextEntry {
     buffer: Buffer,
     position: Vec2,
+    clip: Option<Rect>,
 }
 
 pub struct TextRenderer {
@@ -65,10 +66,20 @@ impl TextRenderer {
                 buffer: &entry.buffer,
                 left: entry.position.x,
                 top: entry.position.y,
-                bounds: TextBounds {
-                    right: width as i32,
-                    bottom: height as i32,
-                    ..Default::default()
+                bounds: match entry.clip {
+                    // Clip to the caller's rect (glyphs outside are culled)
+                    Some(clip) => TextBounds {
+                        left: clip.position.x as i32,
+                        top: clip.position.y as i32,
+                        right: (clip.position.x + clip.size.x) as i32,
+                        bottom: (clip.position.y + clip.size.y) as i32,
+                    },
+                    // Default: don't clip past the target edges
+                    None => TextBounds {
+                        right: width as i32,
+                        bottom: height as i32,
+                        ..Default::default()
+                    },
                 },
                 scale: 1.0,
                 default_color: GlyphonColor::rgb(255, 255, 255),
@@ -117,6 +128,7 @@ impl TextRenderer {
 }
 
 /// Alignment of text (for use with and) relative to a rectangle
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Align {
     TopLeft,
     TopCenter,
@@ -154,6 +166,8 @@ pub struct TextBuilder<'a> {
     weight: Weight,
     style: Style,
     align: Align,
+    /// Screen-space rect the text is clipped to (glyphs outside are culled)
+    clip: Option<Rect>,
 }
 
 impl<'a> TextBuilder<'a> {
@@ -173,6 +187,7 @@ impl<'a> TextBuilder<'a> {
             weight: Weight::NORMAL,
             style: Style::Normal,
             align: Align::TopLeft,
+            clip: None,
         }
     }
 
@@ -200,6 +215,15 @@ impl<'a> TextBuilder<'a> {
     pub fn in_rect(mut self, rect: Rect, align: Align) -> Self {
         self.rect = Some(rect);
         self.align = align;
+        self
+    }
+
+    /// Restricts the text to the given screen-space rectangle
+    ///
+    /// Glyphs outside the rect are culled, so this behaves like a clip. Pass
+    /// `None` to disable clipping.
+    pub fn clip(mut self, clip: Option<Rect>) -> Self {
+        self.clip = clip;
         self
     }
 
@@ -294,6 +318,10 @@ impl Drop for TextBuilder<'_> {
             self.position
         };
 
-        self.renderer.entries.push(TextEntry { buffer, position });
+        self.renderer.entries.push(TextEntry {
+            buffer,
+            position,
+            clip: self.clip,
+        });
     }
 }

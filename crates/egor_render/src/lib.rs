@@ -17,7 +17,7 @@ use wgpu::{
 };
 
 use crate::{
-    batch::GeometryBatch,
+    batch::{BatchKey, GeometryBatch},
     frame::Frame,
     pipeline::Pipelines,
     target::{OffscreenTarget, RenderTarget},
@@ -33,6 +33,43 @@ pub(crate) struct Gpu {
     pub queue: Queue,
 }
 
+/// Axis-aligned clip rectangle in framebuffer pixels, with a top-left origin.
+///
+/// Used to restrict a draw call to a sub-region of the target. Coordinates match
+/// Egor's screen space (y grows downward from the top-left corner), so a value
+/// derived from a screen-space [`crate::Renderer`] draw maps directly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClipRect {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl ClipRect {
+    pub const fn new(x: u32, y: u32, width: u32, height: u32) -> Self {
+        Self {
+            x,
+            y,
+            width,
+            height,
+        }
+    }
+}
+
+/// The coordinate space a batch is drawn in.
+///
+/// - [`Space::World`] applies the frame's camera view-projection, so geometry
+///   participates in camera panning & zooming.
+/// - [`Space::Screen`] ignores the camera & maps pixels directly to the target,
+///   which is what UI and overlays need so they stay put while the world moves.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Space {
+    #[default]
+    World,
+    Screen,
+}
+
 /// Low-level GPU renderer built on `wgpu`
 ///
 /// Handles rendering pipelines, surface configuration, resources (textures, buffers), & drawing
@@ -44,6 +81,9 @@ pub struct Renderer {
     dummy_instance_buffer: Buffer,
     camera_bind_group: BindGroup,
     camera_buffer: Buffer,
+    screen_bind_group: BindGroup,
+    screen_buffer: Buffer,
+    target_size: std::cell::Cell<(u32, u32)>,
     surface_format: TextureFormat,
     uniforms: Uniforms,
     textures: Textures,
@@ -112,6 +152,23 @@ impl Renderer {
             }],
         });
 
+        // Screen-space counterpart to the world camera. Holds an identity-space
+        // orthographic matrix (re-uploaded on resize) so UI/overlay batches can
+        // draw in raw pixels while world batches keep the camera transform.
+        let screen_buffer = device.create_buffer_init(&BufferInitDescriptor {
+            label: Some("Screen Space Uniform"),
+            contents: bytemuck::bytes_of(&CameraUniform::default()),
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+        });
+        let screen_bind_group = device.create_bind_group(&BindGroupDescriptor {
+            label: Some("Screen Space Bind Group"),
+            layout: &pipelines.camera_layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: screen_buffer.as_entire_binding(),
+            }],
+        });
+
         let uniforms = Uniforms::new(&device);
         let textures = Textures::new(&device, &queue);
 
@@ -128,6 +185,9 @@ impl Renderer {
             dummy_instance_buffer,
             camera_bind_group,
             camera_buffer,
+            screen_bind_group,
+            screen_buffer,
+            target_size: std::cell::Cell::new((1, 1)),
             surface_format,
             uniforms,
             textures,
@@ -199,12 +259,15 @@ impl Renderer {
     }
 
     /// Draws a geometry batch within an existing render pass
+    ///
+    /// `clip` restricts drawing to a sub-region of the target (scissor test); pass
+    /// `None` to draw to the full target. `space` selects the transform the batch
+    /// is drawn with (world camera vs. raw screen pixels).
     pub fn draw_batch(
         &self,
         r_pass: &mut RenderPass<'_>,
         batch: &mut GeometryBatch,
-        texture_id: Option<usize>,
-        shader_id: Option<usize>,
+        key: BatchKey,
     ) {
         if batch.is_empty() {
             return;
@@ -212,17 +275,24 @@ impl Renderer {
 
         batch.upload(&self.gpu.device, &self.gpu.queue);
 
-        let texture = self.textures.get(texture_id);
+        let texture = self.textures.get(key.texture);
         texture.bind(r_pass, 0);
 
-        let (pipeline, uniform_ids) = self.pipelines.resolve(shader_id);
+        let (pipeline, uniform_ids) = self.pipelines.resolve(key.shader);
 
         r_pass.set_pipeline(pipeline);
-        r_pass.set_bind_group(1, &self.camera_bind_group, &[]);
+
+        let camera = match key.space {
+            Space::World => &self.camera_bind_group,
+            Space::Screen => &self.screen_bind_group,
+        };
+        r_pass.set_bind_group(1, camera, &[]);
 
         for (i, &uid) in uniform_ids.iter().enumerate() {
             r_pass.set_bind_group((2 + i) as u32, self.uniforms.bind_group(uid), &[]);
         }
+
+        self.set_scissor(r_pass, key.clip);
 
         batch.draw(
             r_pass,
@@ -233,10 +303,38 @@ impl Renderer {
         batch.clear();
     }
 
+    /// Sets the scissor rect for subsequent draws in the pass.
+    ///
+    /// `None` resets it to the full target size (tracked via [`Self::set_target_size`]).
+    pub fn set_scissor(&self, r_pass: &mut RenderPass<'_>, clip: Option<ClipRect>) {
+        let (tw, th) = self.target_size.get();
+        let rect = clip.unwrap_or(ClipRect::new(0, 0, tw.max(1), th.max(1)));
+        // Clamp into the target; a zero-area scissor is invalid so keep at least 1px
+        let x = rect.x.min(tw);
+        let y = rect.y.min(th);
+        let width = rect.width.min(tw.saturating_sub(x)).max(1);
+        let height = rect.height.min(th.saturating_sub(y)).max(1);
+        r_pass.set_scissor_rect(x, y, width, height);
+    }
+
+    /// Records the current target size so [`Self::set_scissor`] can reset to full
+    pub fn set_target_size(&self, width: u32, height: u32) {
+        self.target_size.set((width, height));
+    }
+
     /// Uploads the given view-projection matrix to the GPU for use in vertex transforms
     pub fn upload_camera_matrix(&mut self, view_proj: [[f32; 4]; 4]) {
         self.gpu.queue.write_buffer(
             &self.camera_buffer,
+            0,
+            bytemuck::bytes_of(&CameraUniform { view_proj }),
+        );
+    }
+
+    /// Uploads the screen-space (pixel-aligned) matrix used by [`Space::Screen`] batches
+    pub fn upload_screen_matrix(&mut self, view_proj: [[f32; 4]; 4]) {
+        self.gpu.queue.write_buffer(
+            &self.screen_buffer,
             0,
             bytemuck::bytes_of(&CameraUniform { view_proj }),
         );
