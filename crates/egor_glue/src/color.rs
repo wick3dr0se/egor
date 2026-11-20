@@ -1,5 +1,5 @@
 use color::{AlphaColor, LinearSrgb};
-use glyphon::cosmic_text;
+use cosmic_text;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {

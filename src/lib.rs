@@ -77,7 +77,7 @@ pub mod render {
         text::Align,
     };
     pub use egor_render::{
-        MemoryHints,
+        ClipRect, MemoryHints, Space,
         target::{OffscreenTarget, RenderTarget},
     };
 }

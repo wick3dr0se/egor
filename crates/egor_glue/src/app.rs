@@ -245,17 +245,18 @@ impl AppHandler<Renderer> for App {
     }
 
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
-        let (device, format) = (
-            renderer.device(),
-            self.backbuffer.as_ref().unwrap().format(),
-        );
+        // the atlas claims its texture here, before anything borrows the device
+        self.text_renderer = Some(TextRenderer::new(renderer));
+
+        let device = renderer.device();
         self.backbuffer
             .as_mut()
             .unwrap()
             .set_vsync(device, self.vsync);
-        self.text_renderer = Some(TextRenderer::new(device, renderer.queue(), format));
+        // egui is the only thing that needs the format
         #[cfg(feature = "ui")]
         {
+            let format = self.backbuffer.as_ref().unwrap().format();
             self.egui = Some(EguiRenderer::new(device, format, window));
         }
 
@@ -284,7 +285,10 @@ impl AppHandler<Renderer> for App {
         };
 
         let (w, h) = backbuffer.size();
-        let (device, queue) = (renderer.device().clone(), renderer.queue().clone());
+        let device = renderer.device().clone();
+        // the queue is only touched by egui's own pass
+        #[cfg(feature = "ui")]
+        let queue = renderer.queue().clone();
         let format = backbuffer.format();
         let text_renderer = self.text_renderer.as_mut().unwrap();
 
@@ -320,19 +324,17 @@ impl AppHandler<Renderer> for App {
 
         ctx.gfx.upload_camera();
 
-        text_renderer.prepare(&device, &queue, w, h);
+        // glyphs queued this frame go up in one upload before the pass
+        text_renderer.flush(renderer);
 
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
 
-            // Submission order: the batch key only decides what can be merged.
+            // Lower layers first; the key only decides what can be merged.
+            self.primitive_batch.sort_layers();
             for (key, batch) in self.primitive_batch.iter_mut() {
                 renderer.draw_batch(&mut r_pass, batch, key);
             }
-
-            // Glyphs carry their own clip bounds, so don't inherit the last batch's
-            renderer.set_scissor(&mut r_pass, None);
-            text_renderer.render(&mut r_pass);
         }
 
         self.primitive_batch.reset();
@@ -367,10 +369,6 @@ impl AppHandler<Renderer> for App {
             .as_mut()
             .unwrap()
             .resize(renderer.device(), w, h);
-        self.text_renderer
-            .as_mut()
-            .unwrap()
-            .resize(w, h, renderer.queue());
     }
 
     fn suspended(&mut self) {

@@ -18,7 +18,7 @@ use crate::{
 ///
 /// The origin is floored & the far edge is ceiled so antialiased edges aren't
 /// clipped by rounding. A zero-area result means fully clipped.
-fn to_clip_rect(rect: Rect) -> ClipRect {
+pub(crate) fn to_clip_rect(rect: Rect) -> ClipRect {
     let x = rect.position.x.max(0.0).floor();
     let y = rect.position.y.max(0.0).floor();
     let right = (rect.position.x + rect.size.x).max(0.0).ceil();
@@ -114,6 +114,7 @@ impl<'a> Graphics<'a> {
         let format = target.format();
 
         let mut offscreen_batch = PrimitiveBatch::new(max_verts, max_indices);
+
         {
             let mut offscreen_gfx = Graphics {
                 renderer: self.renderer,
@@ -219,11 +220,17 @@ impl<'a> Graphics<'a> {
     }
     /// Draw a line of text
     ///
-    /// Text is drawn in screen space (it does not follow the camera) & respects
-    /// the active clip, so callers don't need to pass one explicitly.
+    /// Text is screen-space by default and clipped by the active clip. Use
+    /// [`TextBuilder::world`] for world space.
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         let clip = self.clip;
-        TextBuilder::new(self.text_renderer, text.to_string()).clip(clip)
+        TextBuilder::new(
+            self.text_renderer,
+            self.batch,
+            text.to_string(),
+            self.camera,
+        )
+        .clip(clip)
     }
 
     /// Load a texture from raw image data (e.g., PNG bytes)

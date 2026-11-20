@@ -12,6 +12,8 @@ pub struct BatchKey {
     pub shader: Option<usize>,
     pub clip: Option<ClipRect>,
     pub space: Space,
+    /// Lower layers draw first; the key decides what can merge, not the order
+    pub layer: i16,
 }
 
 /// A batch of geometry (vertices + indices) that can be drawn in a single GPU call

@@ -83,6 +83,7 @@ impl ApplicationHandler for MinimalApp {
                                 shader: None,
                                 clip: None,
                                 space: egor_render::Space::World,
+                                layer: 0,
                             },
                         );
                     }

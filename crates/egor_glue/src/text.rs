@@ -1,51 +1,167 @@
-use egor_render::{Device, Queue, RenderPass, TextureFormat};
+use std::collections::HashMap;
+
+use cosmic_text::{
+    Attrs, Buffer, CacheKey, Family, FontSystem, Metrics, Shaping, Style, SwashCache, SwashContent,
+    SwashImage, Weight,
+};
+use egor_render::{Renderer, Space, batch::BatchKey, instance::Instance};
 use glam::Vec2;
-use glyphon::{
-    Attrs, Buffer, Cache, Color as GlyphonColor, Family, FontSystem, Metrics, Resolution, Shaping,
-    Style, SwashCache, TextArea, TextAtlas, TextBounds, TextRenderer as GlyphonRenderer, Viewport,
-    Weight,
+
+use crate::{
+    camera::Camera, color::Color, graphics::to_clip_rect, math::Rect, primitives::PrimitiveBatch,
 };
 
-use crate::{color::Color, math::Rect};
+/// Side length of the square glyph atlas, in pixels
+const ATLAS_SIZE: u32 = 2048;
+/// Keeps neighbours from bleeding into each other when the atlas is filtered
+const ATLAS_PAD: u32 = 1;
+const MAX_POOLED_BUFFERS: usize = 64;
 
-struct TextEntry {
-    buffer: Buffer,
-    position: Vec2,
-    clip: Option<Rect>,
+/// Where a glyph sits in the atlas, & the pixels it covers around the pen
+#[derive(Clone, Copy)]
+struct GlyphSlot {
+    left: i32,
+    top: i32,
+    width: u32,
+    height: u32,
+    uv: [f32; 4],
 }
 
+/// Glyphs live in one RGBA texture: white pixels, coverage in alpha, so text
+/// draws through the same pipeline & shader as any other textured quad
+struct GlyphAtlas {
+    texture: usize,
+    pixels: Vec<u8>,
+    /// Shelf packer: current pen & the height of the shelf it is filling
+    x: u32,
+    y: u32,
+    row: u32,
+    slots: HashMap<CacheKey, GlyphSlot>,
+    dirty: bool,
+}
+
+impl GlyphAtlas {
+    fn new(renderer: &mut Renderer) -> Self {
+        let pixels = vec![0; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize];
+        // the texture exists from the start, so queued glyphs can name it
+        let texture = renderer.add_texture_raw(ATLAS_SIZE, ATLAS_SIZE, &pixels);
+
+        Self {
+            texture,
+            pixels,
+            x: 0,
+            y: 0,
+            row: 0,
+            slots: HashMap::new(),
+            dirty: false,
+        }
+    }
+
+    /// Reserve a spot, dropping down a shelf when the row is full
+    fn allocate(&mut self, width: u32, height: u32) -> Option<(u32, u32)> {
+        if width > ATLAS_SIZE || height > ATLAS_SIZE {
+            return None;
+        }
+
+        if self.x + width > ATLAS_SIZE {
+            self.x = 0;
+            self.y += self.row + ATLAS_PAD;
+            self.row = 0;
+        }
+
+        if self.y + height > ATLAS_SIZE {
+            // out of room: start over, the cache refills as text is queued
+            self.slots.clear();
+            self.x = 0;
+            self.y = 0;
+            self.row = 0;
+        }
+
+        let origin = (self.x, self.y);
+        self.x += width + ATLAS_PAD;
+        self.row = self.row.max(height);
+        Some(origin)
+    }
+
+    /// Rasterize a glyph into the atlas, returning where it landed
+    fn insert(&mut self, cache_key: CacheKey, image: &SwashImage) -> Option<GlyphSlot> {
+        let (width, height) = (image.placement.width, image.placement.height);
+        if width == 0 || height == 0 {
+            return None;
+        }
+
+        let (x, y) = self.allocate(width, height)?;
+        let channels = match image.content {
+            SwashContent::Color => 4,
+            _ => 1,
+        };
+
+        for row in 0..height {
+            for col in 0..width {
+                let src = ((row * width + col) as usize) * channels;
+                let dst = ((((y + row) * ATLAS_SIZE) + x + col) * 4) as usize;
+
+                if image.content == SwashContent::Color {
+                    self.pixels[dst..dst + 4].copy_from_slice(&image.data[src..src + 4]);
+                    continue;
+                }
+
+                // a subpixel mask carries a channel per subpixel, green reads best
+                let coverage = match image.content {
+                    SwashContent::SubpixelMask => image.data[src + 1],
+                    _ => image.data[src],
+                };
+                self.pixels[dst..dst + 4].copy_from_slice(&[255, 255, 255, coverage]);
+            }
+        }
+
+        self.dirty = true;
+
+        let slot = GlyphSlot {
+            left: image.placement.left,
+            top: image.placement.top,
+            width,
+            height,
+            uv: [
+                x as f32 / ATLAS_SIZE as f32,
+                y as f32 / ATLAS_SIZE as f32,
+                (x + width) as f32 / ATLAS_SIZE as f32,
+                (y + height) as f32 / ATLAS_SIZE as f32,
+            ],
+        };
+        self.slots.insert(cache_key, slot);
+        Some(slot)
+    }
+
+    /// Upload new glyphs once per frame, only when something changed
+    fn flush(&mut self, renderer: &mut Renderer) {
+        if self.dirty {
+            renderer.update_texture_raw(self.texture, ATLAS_SIZE, ATLAS_SIZE, &self.pixels);
+            self.dirty = false;
+        }
+    }
+}
+
+/// Shapes text & turns it into glyph quads in the caller's batch
 pub struct TextRenderer {
     font_system: FontSystem,
     swash_cache: SwashCache,
-    atlas: TextAtlas,
-    renderer: GlyphonRenderer,
-    viewport: Viewport,
-    entries: Vec<TextEntry>,
+    atlas: GlyphAtlas,
     buffer_pool: Vec<Buffer>,
 }
 
-const MAX_POOLED_BUFFERS: usize = 64;
-
 impl TextRenderer {
-    pub(crate) fn new(device: &Device, queue: &Queue, format: TextureFormat) -> Self {
+    pub(crate) fn new(renderer: &mut Renderer) -> Self {
         let mut font_system = FontSystem::new();
-        // Glyphon will use sytstem font but we embed one for wasm + consistency
+        // system fonts vary by machine & are absent on wasm, so embed one
         font_system
             .db_mut()
             .load_font_data(include_bytes!("../inter-v19-latin-regular.ttf").to_vec());
-        let swash_cache = SwashCache::new();
-        let cache = Cache::new(device);
-        let viewport = Viewport::new(device, &cache);
-        let mut atlas = TextAtlas::new(device, queue, &cache, format);
-        let renderer = GlyphonRenderer::new(&mut atlas, device, Default::default(), None);
 
         Self {
             font_system,
-            swash_cache,
-            atlas,
-            renderer,
-            viewport,
-            entries: Vec::new(),
+            swash_cache: SwashCache::new(),
+            atlas: GlyphAtlas::new(renderer),
             buffer_pool: Vec::new(),
         }
     }
@@ -57,70 +173,16 @@ impl TextRenderer {
         Some(family)
     }
 
-    /// Prepare the text renderer for drawing
-    pub(crate) fn prepare(&mut self, device: &Device, queue: &Queue, width: u32, height: u32) {
-        let text_areas: Vec<TextArea> = self
-            .entries
-            .iter()
-            .map(|entry| TextArea {
-                buffer: &entry.buffer,
-                left: entry.position.x,
-                top: entry.position.y,
-                bounds: match entry.clip {
-                    // Clip to the caller's rect (glyphs outside are culled)
-                    Some(clip) => TextBounds {
-                        left: clip.position.x as i32,
-                        top: clip.position.y as i32,
-                        right: (clip.position.x + clip.size.x) as i32,
-                        bottom: (clip.position.y + clip.size.y) as i32,
-                    },
-                    // Default: don't clip past the target edges
-                    None => TextBounds {
-                        right: width as i32,
-                        bottom: height as i32,
-                        ..Default::default()
-                    },
-                },
-                scale: 1.0,
-                default_color: GlyphonColor::rgb(255, 255, 255),
-                custom_glyphs: &[],
-            })
-            .collect();
-        self.renderer
-            .prepare(
-                device,
-                queue,
-                &mut self.font_system,
-                &mut self.atlas,
-                &self.viewport,
-                text_areas,
-                &mut self.swash_cache,
-            )
-            .unwrap();
-
-        // Return buffers to the pool for reuse next frame
-        for entry in self.entries.drain(..) {
-            if self.buffer_pool.len() < MAX_POOLED_BUFFERS {
-                self.buffer_pool.push(entry.buffer);
-            }
-        }
-    }
-
-    pub(crate) fn render<'a>(&'a self, pass: &mut RenderPass<'a>) {
-        self.renderer
-            .render(&self.atlas, &self.viewport, pass)
-            .unwrap();
-    }
-
-    pub(crate) fn resize(&mut self, width: u32, height: u32, queue: &Queue) {
-        self.viewport.update(queue, Resolution { width, height });
+    /// Upload any glyphs rasterized since the last call
+    pub(crate) fn flush(&mut self, renderer: &mut Renderer) {
+        self.atlas.flush(renderer);
     }
 
     /// Takes a buffer from the pool, or creates a new one with the given metrics
     fn take_buffer(&mut self, metrics: Metrics) -> Buffer {
-        if let Some(mut buf) = self.buffer_pool.pop() {
-            buf.set_metrics(&mut self.font_system, metrics);
-            buf
+        if let Some(mut buffer) = self.buffer_pool.pop() {
+            buffer.set_metrics(&mut self.font_system, metrics);
+            buffer
         } else {
             Buffer::new(&mut self.font_system, metrics)
         }
@@ -151,6 +213,8 @@ pub enum Align {
 pub struct TextBuilder<'a> {
     /// Reference to the renderer that will draw this text
     renderer: &'a mut TextRenderer,
+    /// Batch the glyphs are queued into, in draw order with everything else
+    batch: &'a mut PrimitiveBatch,
     /// The string content to render
     text: String,
     /// Top-left anchor position; may be offset by alignment
@@ -166,17 +230,31 @@ pub struct TextBuilder<'a> {
     weight: Weight,
     style: Style,
     align: Align,
-    /// Screen-space rect the text is clipped to (glyphs outside are culled)
+    /// Screen-space rect the text is clipped to
     clip: Option<Rect>,
+    /// Space the position and rect are given in
+    space: Space,
+    /// Camera used to project world positions into pixels
+    camera: Camera,
+    /// Whether world text grows and shrinks with the camera zoom
+    scale_with_zoom: bool,
+    /// Draw layer, lower layers are drawn first
+    layer: i16,
 }
 
 impl<'a> TextBuilder<'a> {
     /// Create a new text builder that will push text to the renderer
     ///
     /// A default font family is selected automatically. Use [`Self::font`] to override it
-    pub fn new(renderer: &'a mut TextRenderer, text: String) -> Self {
+    pub fn new(
+        renderer: &'a mut TextRenderer,
+        batch: &'a mut PrimitiveBatch,
+        text: String,
+        camera: Camera,
+    ) -> Self {
         Self {
             renderer,
+            batch,
             text,
             position: Vec2::new(10.0, 10.0),
             rect: None,
@@ -188,6 +266,10 @@ impl<'a> TextBuilder<'a> {
             style: Style::Normal,
             align: Align::TopLeft,
             clip: None,
+            space: Space::Screen,
+            camera,
+            scale_with_zoom: false,
+            layer: 0,
         }
     }
 
@@ -200,7 +282,7 @@ impl<'a> TextBuilder<'a> {
         self
     }
 
-    /// Set the screen-space position of the text (top-left corner)
+    /// Set the position of the text (top-left corner, or the anchor if one is set)
     pub fn at(mut self, position: impl Into<Vec2>) -> Self {
         self.position = position.into();
         self
@@ -224,6 +306,39 @@ impl<'a> TextBuilder<'a> {
     /// `None` to disable clipping.
     pub fn clip(mut self, clip: Option<Rect>) -> Self {
         self.clip = clip;
+        self
+    }
+
+    /// Anchor the text around [`Self::at`] instead of treating it as the top-left.
+    /// Ignored when [`Self::in_rect`] is set.
+    pub fn anchor(mut self, align: Align) -> Self {
+        self.align = align;
+        self
+    }
+
+    /// Draw the text in world space, following the camera
+    ///
+    /// Size stays constant in pixels unless [`Self::scale_with_zoom`] is set.
+    pub fn world(mut self) -> Self {
+        self.space = Space::World;
+        self
+    }
+
+    /// Draw the text in screen space, the default
+    pub fn screen(mut self) -> Self {
+        self.space = Space::Screen;
+        self
+    }
+
+    /// Scale world text with the camera zoom, so it keeps its size in world units
+    pub fn scale_with_zoom(mut self) -> Self {
+        self.scale_with_zoom = true;
+        self
+    }
+
+    /// Set the draw layer, lower layers are drawn first
+    pub fn layer(mut self, layer: i16) -> Self {
+        self.layer = layer;
         self
     }
 
@@ -270,10 +385,37 @@ impl<'a> TextBuilder<'a> {
 
 impl Drop for TextBuilder<'_> {
     fn drop(&mut self) {
-        let line_height = self.line_height.unwrap_or(self.size * 1.2);
-        let mut buffer = self
-            .renderer
-            .take_buffer(Metrics::new(self.size, line_height));
+        // glyphs are laid out in pixels, so world text is projected here
+        let scale = match (self.space, self.scale_with_zoom) {
+            (Space::World, true) => self.camera.zoom(),
+            _ => 1.0,
+        };
+        let size = self.size * scale;
+        let line_height = self.line_height.unwrap_or(self.size * 1.2) * scale;
+
+        let (position, rect) = match self.space {
+            Space::Screen => (self.position, self.rect),
+            Space::World => (
+                self.camera.world_to_screen(self.position),
+                self.rect.map(|rect| {
+                    Rect::new(
+                        self.camera.world_to_screen(rect.position),
+                        rect.size * self.camera.zoom(),
+                    )
+                }),
+            ),
+        };
+
+        let key = BatchKey {
+            texture: Some(self.renderer.atlas.texture),
+            shader: None,
+            clip: self.clip.map(to_clip_rect),
+            // glyphs are already in pixels, whatever space they came from
+            space: Space::Screen,
+            layer: self.layer,
+        };
+
+        let mut buffer = self.renderer.take_buffer(Metrics::new(size, line_height));
         buffer.set_text(
             &mut self.renderer.font_system,
             &self.text,
@@ -284,16 +426,17 @@ impl Drop for TextBuilder<'_> {
                 .style(self.style),
             Shaping::Basic,
         );
+        buffer.shape_until_scroll(&mut self.renderer.font_system, false);
 
-        // compute final position, applying alignment within rect if set
-        let position = if let Some(rect) = self.rect {
-            buffer.shape_until_scroll(&mut self.renderer.font_system, false);
-            let text_w = buffer
-                .layout_runs()
-                .map(|r| r.line_w)
-                .fold(0.0_f32, f32::max);
-            let text_h = buffer.layout_runs().count() as f32 * line_height;
+        let mut text_w: f32 = 0.0;
+        let mut lines = 0.0;
+        for run in buffer.layout_runs() {
+            text_w = text_w.max(run.line_w);
+            lines += 1.0;
+        }
+        let text_h = lines * line_height;
 
+        let position = if let Some(rect) = rect {
             let x = match self.align {
                 Align::TopLeft | Align::MiddleLeft | Align::BottomLeft => rect.position.x,
                 Align::TopCenter | Align::MiddleCenter | Align::BottomCenter => {
@@ -315,13 +458,63 @@ impl Drop for TextBuilder<'_> {
 
             Vec2::new(x, y)
         } else {
-            self.position
+            // anchor the text around the point instead of starting at it
+            let dx = match self.align {
+                Align::TopLeft | Align::MiddleLeft | Align::BottomLeft => 0.0,
+                Align::TopCenter | Align::MiddleCenter | Align::BottomCenter => -text_w * 0.5,
+                Align::TopRight | Align::MiddleRight | Align::BottomRight => -text_w,
+            };
+            let dy = match self.align {
+                Align::TopLeft | Align::TopCenter | Align::TopRight => 0.0,
+                Align::MiddleLeft | Align::MiddleCenter | Align::MiddleRight => -text_h * 0.5,
+                Align::BottomLeft | Align::BottomCenter | Align::BottomRight => -text_h,
+            };
+
+            position + Vec2::new(dx, dy)
         };
 
-        self.renderer.entries.push(TextEntry {
-            buffer,
-            position,
-            clip: self.clip,
-        });
+        let color = self.color.components();
+        let TextRenderer {
+            font_system,
+            swash_cache,
+            atlas,
+            ..
+        } = &mut *self.renderer;
+
+        for run in buffer.layout_runs() {
+            for glyph in run.glyphs.iter() {
+                let physical = glyph.physical((position.x, position.y), 1.0);
+
+                let slot = match atlas.slots.get(&physical.cache_key).copied() {
+                    Some(slot) => slot,
+                    None => {
+                        let Some(image) = swash_cache
+                            .get_image(font_system, physical.cache_key)
+                            .as_ref()
+                        else {
+                            continue;
+                        };
+                        match atlas.insert(physical.cache_key, image) {
+                            Some(slot) => slot,
+                            None => continue,
+                        }
+                    }
+                };
+
+                let (w, h) = (slot.width as f32, slot.height as f32);
+                // the glyph's box starts at the pen, offset by its placement
+                let x = (physical.x + slot.left) as f32;
+                let y = run.line_y.round() + physical.y as f32 - slot.top as f32;
+
+                self.batch.push_instance(
+                    Instance::new([w, 0.0, 0.0, h], [x + w * 0.5, y + h * 0.5], color, slot.uv),
+                    key,
+                );
+            }
+        }
+
+        if self.renderer.buffer_pool.len() < MAX_POOLED_BUFFERS {
+            self.renderer.buffer_pool.push(buffer);
+        }
     }
 }

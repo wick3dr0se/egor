@@ -4,7 +4,7 @@ mod tilemap;
 use rand::Rng;
 
 use egor::{
-    app::{App, FrameContext, WindowEvent, egui::Window},
+    app::{App, FrameContext, WindowEvent},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
     render::{Align, Color, OffscreenTarget},
@@ -51,6 +51,7 @@ struct GameState {
     fire_rate: f32,
     spread: usize,
     game_over: bool,
+    ticker: f32,
 }
 
 fn spawn_wave(position: Vec2, count: usize, speed: (f32, f32), hp: f32) -> Vec<Zombie> {
@@ -136,6 +137,7 @@ fn main() {
         fire_rate: 2.0,
         spread: 1,
         game_over: false,
+        ticker: 0.0,
     };
 
     App::new().title("Egor Shooter Demo").run(
@@ -143,7 +145,6 @@ fn main() {
                   gfx,
                   input,
                   timer,
-                  egui_ctx,
                   events,
                   ..
               }| {
@@ -177,8 +178,36 @@ fn main() {
 
             let screen_size = gfx.screen_size();
 
+            // Broadcast style HUD: a clipped ticker, so long text stays in its bar
+            state.ticker += timer.delta * 90.0;
+            let bar = Rect::new(vec2(0.0, screen_size.y - 52.0), vec2(screen_size.x, 52.0));
+            gfx.rect()
+                .at(bar.position)
+                .size(bar.size)
+                .color(Color::new([0.05, 0.06, 0.09, 0.92]))
+                .layer(50)
+                .screen();
+
+            let line = format!(
+                "WAVE {}      KILLS {}      HP {:.0}      FIRE {:.1}/s      SPREAD {}      FPS {}      WASD MOVE      MOUSE AIM      CLICK FIRE      ",
+                state.wave, state.kills, state.player.hp, state.fire_rate, state.spread, timer.fps
+            );
+            let span = 1300.0;
+            let offset = state.ticker % span;
+            gfx.with_clip(bar, |gfx| {
+                for i in 0..2 {
+                    gfx.text(&line)
+                        .at(vec2(i as f32 * span - offset, bar.position.y + 17.0))
+                        .size(18.0)
+                        .color(Color::new([0.72, 0.83, 1.0, 1.0]))
+                        .layer(51)
+                        .screen();
+                }
+            });
+
             if state.game_over {
                 gfx.text("GAME OVER")
+                    .layer(100)
                     .color(Color::RED)
                     .size(32.0)
                     .bold()
@@ -231,6 +260,16 @@ fn main() {
             gfx.camera().center(state.player.rect.position, screen_size);
             gfx.clear(Color::WHITE);
             state.map.render(gfx);
+
+            // World text follows the camera and stays a constant pixel size, anchored
+            // bottom-centre so it sits above the player rather than starting at them.
+            gfx.text("player")
+                .at(state.player.rect.center() - vec2(0.0, 20.0))
+                .anchor(Align::BottomCenter)
+                .size(14.0)
+                .color(Color::BLACK)
+                .layer(10)
+                .world();
 
             state.fire_cd -= timer.delta;
             if input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
@@ -336,14 +375,6 @@ fn main() {
                     .texture(state.minimap_tex);
             }
 
-            Window::new("Debug").show(egui_ctx, |ui| {
-                ui.label(format!("FPS: {}", timer.fps));
-                ui.label(format!("Wave: {}", state.wave));
-                ui.label(format!("Zombies killed: {}", state.kills));
-                ui.label(format!("HP: {:.0}", state.player.hp));
-                ui.label(format!("Fire rate: {:.1}/s", state.fire_rate));
-                ui.label(format!("Bullet Spread: {}", state.spread));
-            });
         },
     );
 }

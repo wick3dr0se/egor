@@ -53,6 +53,13 @@ fn main() {
                     .radius(size.y * 0.1)
                     .segments(32)
                     .color(Color::new([1.0, 0.8, 0.2, 1.0]));
+
+                // Text queued here belongs to this target, so the postfx shader distorts
+                // it with the shapes rather than drawing it crisp over the top.
+                gfx.text("offscreen")
+                    .at(vec2(size.x * 0.1, size.y * 0.2))
+                    .size(48.0)
+                    .color(Color::BLACK);
             });
 
             gfx.with_shader(shader, |gfx| {

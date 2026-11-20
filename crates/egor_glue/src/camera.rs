@@ -5,6 +5,7 @@ use crate::math::Rect;
 /// A basic camera for controlling view & projection
 ///
 /// Useful for culling & rendering transformations
+#[derive(Clone, Copy)]
 pub struct Camera {
     position: Vec2,
     zoom: f32,
@@ -46,6 +47,11 @@ impl Camera {
     /// Set zoom level, clamped between 0.1 & 10.0 to avoid insanity
     pub fn set_zoom(&mut self, zoom: f32) {
         self.zoom = zoom.clamp(0.1, 10.0);
+    }
+
+    /// Current zoom level
+    pub fn zoom(&self) -> f32 {
+        self.zoom
     }
 
     /// Returns the viewport rectangle in world coordinates, factoring in zoom  

@@ -108,14 +108,21 @@ impl PrimitiveBatch {
     /// Moves all batch entries out, consuming their geometry.
     /// Used for ephemeral paths (offscreen rendering) where batch reuse isn't needed
     pub(crate) fn take(&mut self) -> Vec<FlushedBatch> {
-        std::mem::take(&mut self.batches)
+        let mut batches: Vec<FlushedBatch> = std::mem::take(&mut self.batches)
             .into_iter()
             .map(|entry| (entry.key, entry.geometry))
-            .collect()
+            .collect();
+        batches.sort_by_key(|(key, _)| key.layer);
+        batches
     }
 
     /// Iterates over active batch entries for drawing.
     /// Returns (texture_id, shader_id, clip, space, &mut GeometryBatch) for each entry
+    /// Draw lower layers first, keeping submission order inside a layer
+    pub(crate) fn sort_layers(&mut self) {
+        self.batches.sort_by_key(|entry| entry.key.layer);
+    }
+
     pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = (BatchKey, &mut GeometryBatch)> {
         self.batches.iter_mut().map(|e| (e.key, &mut e.geometry))
     }
@@ -158,6 +165,12 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
+    /// Draw on a layer, lower layers first
+    pub fn layer(mut self, layer: i16) -> Self {
+        self.key.layer = layer;
+        self
+    }
+
     pub(crate) fn new(
         batch: &'a mut PrimitiveBatch,
         shader_id: Option<usize>,
@@ -170,6 +183,7 @@ impl<'a> RectangleBuilder<'a> {
                 shader: shader_id,
                 clip,
                 space: Space::World,
+                layer: 0,
             },
             anchor: Anchor::TopLeft,
             position: Vec2::ZERO,
@@ -272,6 +286,12 @@ impl<'a> PolygonBuilder<'a> {
         self
     }
 
+    /// Draw on a layer, lower layers first
+    pub fn layer(mut self, layer: i16) -> Self {
+        self.key.layer = layer;
+        self
+    }
+
     pub(crate) fn new(
         batch: &'a mut PrimitiveBatch,
         shader_id: Option<usize>,
@@ -284,6 +304,7 @@ impl<'a> PolygonBuilder<'a> {
                 shader: shader_id,
                 clip,
                 space: Space::World,
+                layer: 0,
             },
             position: Vec2::ZERO,
             rotation: 0.0,
@@ -378,6 +399,12 @@ impl<'a> PolylineBuilder<'a> {
         self
     }
 
+    /// Draw on a layer, lower layers first
+    pub fn layer(mut self, layer: i16) -> Self {
+        self.key.layer = layer;
+        self
+    }
+
     pub(crate) fn new(
         batch: &'a mut PrimitiveBatch,
         shader_id: Option<usize>,
@@ -390,6 +417,7 @@ impl<'a> PolylineBuilder<'a> {
                 shader: shader_id,
                 clip,
                 space: Space::World,
+                layer: 0,
             },
             position: Vec2::ZERO,
             rotation: 0.0,
@@ -523,6 +551,12 @@ impl<'a> PathBuilder<'a> {
         self
     }
 
+    /// Draw on a layer, lower layers first
+    pub fn layer(mut self, layer: i16) -> Self {
+        self.key.layer = layer;
+        self
+    }
+
     pub(crate) fn new(
         batch: &'a mut PrimitiveBatch,
         shader_id: Option<usize>,
@@ -535,6 +569,7 @@ impl<'a> PathBuilder<'a> {
                 shader: shader_id,
                 clip,
                 space: Space::World,
+                layer: 0,
             },
             position: Vec2::ZERO,
             rotation: 0.0,
