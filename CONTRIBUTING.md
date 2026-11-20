@@ -10,36 +10,6 @@ Changes must:
 
 If a change only makes sense for games, it likely does not belong in egor
 
-### Commit Messages
-
-Egor uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). This helps `git-cliff` parse git history for generating clean release notes
-
-Format:
-type(scope): short description
-
-Examples:
-
-- fix(renderer): handle `begin_frame()` returning `None`
-- refactor(app): move window title into `AppConfig`
-- Avoid vague types/messages (e.g. `chore: stuff`, `fix: misc`)
-- docs(readme): clarify wasm setup
-
-Rules:
-
-- One logical change per commit
-- No unrelated commits in a single PR
-- Squash commits are preferred if history gets messy
-
-### Pull Requests
-
-Before opening a PR:
-
-- [ ] PR addresses **one** issue or feature
-- [ ] Commits are clean and logically separated
-- [ ] No unrelated refactors or formatting changes
-- [ ] Code builds on native **and** wasm (if applicable)
-- [ ] Public API changes are explained in the PR description
-
 Scope check:
 
 - Does this help **any 2D app**, or only a game?
@@ -47,27 +17,38 @@ Scope check:
 - Does this reduce flexibility or lock users into a pattern?
 - Would this make egor harder to use as a general-purpose graphics library?
 
-If unsure, open an issue or ask in [Discord](https://opensourceforce.net/discord) first
+### Commit Messages
 
-Large or architectural changes should be discussed in an issue first
+Egor uses [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/). This helps `git-cliff` parse git history for generating clean release notes
+
+Format:
+
+```
+type(scope): short description
+```
+
+Rules:
+
+- One logical change per commit
+- No unrelated commits in a single PR
+- Squash commits are preferred if history gets messy
 
 PRs that mix unrelated changes may be closed or asked to split
 
-### Pre-PR Checklist
+### Checks
 
-Before submitting, make sure your changes pass these commands:
+CI is the reference: see [`.github/workflows/rust.yml`](.github/workflows/rust.yml). A PR has to pass the same commands:
 
 ```bash
-# check formatting
 cargo fmt --all -- --check
-# check clippy lints
-cargo clippy --workspace --features "log ui hot_reload" --locked
-# verify documentation
-cargo doc --workspace --no-deps --locked
-# test native
-cargo test --workspace --features "log ui hot_reload" --locked
-# build wasm
-cargo build --workspace --target wasm32-unknown-unknown --features "log ui" --locked
-# test for UB (miri requires nightly)
-RUSTFLAGS="-A warnings" cargo +nightly miri test --workspace --lib --locked
+cargo clippy --workspace --exclude xtask --all-targets --features "log ui hot_reload" --locked
+cargo doc --workspace --exclude xtask --no-deps --locked
+cargo test --workspace --exclude xtask --all-targets --features "log ui hot_reload" --locked
+cargo build --target wasm32-unknown-unknown --features "log ui" --locked
 ```
+
+Miri and the three-OS test matrix run in CI only
+
+If unsure, open an issue or ask in [Discord](https://opensourceforce.net/discord) first
+
+Large or architectural changes should be discussed in an issue first

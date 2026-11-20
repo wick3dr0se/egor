@@ -795,9 +795,16 @@ dependencies = [
 name = "egor"
 version = "0.10.0"
 dependencies = [
+ "color",
+ "cosmic-text",
+ "dioxus-devtools",
  "egor_app",
- "egor_glue",
  "egor_render",
+ "egui",
+ "egui-wgpu",
+ "egui-winit",
+ "glam",
+ "lyon",
 ]
 
 [[package]]
@@ -812,22 +819,6 @@ dependencies = [
  "wasm-bindgen-futures",
  "web-sys",
  "winit",
-]
-
-[[package]]
-name = "egor_glue"
-version = "0.10.0"
-dependencies = [
- "color",
- "cosmic-text",
- "dioxus-devtools",
- "egor_app",
- "egor_render",
- "egui",
- "egui-wgpu",
- "egui-winit",
- "glam",
- "lyon",
 ]
 
 [[package]]

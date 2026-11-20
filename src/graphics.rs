@@ -221,7 +221,7 @@ impl<'a> Graphics<'a> {
     /// Draw a line of text
     ///
     /// Text is screen-space by default and clipped by the active clip. Use
-    /// [`TextBuilder::world`] for world space.
+    /// `.world()` for world space.
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         let clip = self.clip;
         TextBuilder::new(

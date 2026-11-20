@@ -32,17 +32,18 @@
 //! ```
 //!
 //! ## Crate Layout
-//! `egor` is a meta crate that re-exports `egor_*` crates for convenience:
+//! `egor` is the API crate: drawing, camera, text and the frame loop live here.
 //! - [`egor_render`] - WGPU-based 2D rendering
 //! - [`egor_app`] - windowing, input, & event loop
-//! - [`egor_glue`] - opinionated layer over egor crates
+//!
+//! `egor_glue` was folded into this crate and stops at 0.10.0
 
 //! ## Cargo Features
 //! Feature | Description | Default
 //! ---|---|---
 //! `log` | Enable logging via `egor_app/log` | opt-in
-//! `hot_reload` | Hot-reload support via `egor_glue/hot_reload` | opt-in
-//! `ui`         | Enable egui integration via `egor_glue/ui` | opt-in
+//! `hot_reload` | Hot-reload support via `hot_reload` | opt-in
+//! `ui`         | Enable egui integration via `ui` | opt-in
 //! `webgl`      | WebGL backend for `egor_render` | opt-in
 //! `angle`      | ANGLE backend for `egor_render` | opt-in
 //! `gles`       | OpenGL ES backend for `egor_render` | opt-in
@@ -52,14 +53,17 @@
 //! - Windows builds use DX12 by default, Linux builds use Vulkan by default, etc
 //! - Optional backends can be enabled to override defaults or for cross-platform targeting
 
-pub mod app {
-    pub use egor_app::WindowEvent;
-    #[cfg(target_os = "android")]
-    pub use egor_app::{ANDROID_APP, AndroidApp};
-    pub use egor_glue::app::{App, FrameContext};
-    #[cfg(feature = "ui")]
-    pub use egor_glue::ui::egui;
-}
+mod camera;
+mod color;
+mod graphics;
+mod primitives;
+mod text;
+
+#[cfg(feature = "ui")]
+mod ui;
+
+pub mod app;
+pub mod math;
 
 pub mod input {
     pub use egor_app::input::{Input, KeyCode, MouseButton};
@@ -70,7 +74,7 @@ pub mod time {
 }
 
 pub mod render {
-    pub use egor_glue::{
+    pub use crate::{
         camera::Camera,
         color::Color,
         graphics::Graphics,
@@ -81,10 +85,6 @@ pub mod render {
         ClipRect, MemoryHints, Space,
         target::{OffscreenTarget, RenderTarget},
     };
-}
-
-pub mod math {
-    pub use egor_glue::math::{IVec2, Rect, Vec2, ivec2, vec2};
 }
 
 #[macro_export]

@@ -17,6 +17,7 @@
 **Egor** gives you the essentials for 2D apps and games:
 
 - Efficient 2D rendering (shapes, textures, text)
+- Clipping, draw layers and world/screen space
 - Keyboard & mouse input
 - Camera & world-space transforms
 - Interactive UIs with optional **egui** integration

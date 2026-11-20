@@ -1,5 +1,4 @@
 use color::{AlphaColor, LinearSrgb};
-use cosmic_text;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Color {

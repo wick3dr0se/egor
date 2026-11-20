@@ -156,7 +156,7 @@ impl TextSystem {
         // system fonts vary by machine & are absent on wasm, so embed one
         font_system
             .db_mut()
-            .load_font_data(include_bytes!("../inter-v19-latin-regular.ttf").to_vec());
+            .load_font_data(include_bytes!("inter-v19-latin-regular.ttf").to_vec());
 
         Self {
             font_system,

@@ -5,9 +5,15 @@ use crate::{graphics::Graphics, primitives::BatchList, text::TextSystem};
 #[cfg(feature = "ui")]
 use crate::ui::EguiRenderer;
 
+#[cfg(feature = "ui")]
+pub use crate::ui::egui;
+pub use egor_app::WindowEvent;
+#[cfg(target_os = "android")]
+pub use egor_app::{ANDROID_APP, AndroidApp};
+
 use egor_app::{
-    AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, PhysicalSize, Window, WindowEvent,
-    input::Input, time::FrameTimer,
+    AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, PhysicalSize, Window, input::Input,
+    time::FrameTimer,
 };
 use egor_render::{
     MemoryHints, Renderer,
