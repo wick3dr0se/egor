@@ -10,8 +10,8 @@ use crate::{
     camera::Camera,
     color::Color,
     math::Rect,
-    primitives::{PolygonBuilder, PolylineBuilder, PrimitiveBatch, RectangleBuilder},
-    text::{TextBuilder, TextRenderer},
+    primitives::{BatchList, PolygonBuilder, PolylineBuilder, RectangleBuilder},
+    text::{TextBuilder, TextSystem},
 };
 
 /// Converts a screen-space [`Rect`] into an integer [`ClipRect`]
@@ -34,9 +34,9 @@ pub(crate) fn to_clip_rect(rect: Rect) -> ClipRect {
 /// High-level 2D drawing interface that simplifies the [`Renderer`]
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
-    batch: &'a mut PrimitiveBatch,
+    batches: &'a mut BatchList,
     camera: Camera,
-    text_renderer: &'a mut TextRenderer,
+    text_system: &'a mut TextSystem,
     target_format: TextureFormat,
     target_size: (u32, u32),
     current_shader: Option<usize>,
@@ -44,11 +44,11 @@ pub struct Graphics<'a> {
 }
 
 impl<'a> Graphics<'a> {
-    /// Create `Graphics` with [`Renderer`], [`TextRenderer`] & `TextureFormat`
-    pub fn new(
+    /// Create `Graphics` with [`Renderer`], [`TextSystem`] & `TextureFormat`
+    pub(crate) fn new(
         renderer: &'a mut Renderer,
-        batch: &'a mut PrimitiveBatch,
-        text_renderer: &'a mut TextRenderer,
+        batches: &'a mut BatchList,
+        text_system: &'a mut TextSystem,
         format: TextureFormat,
         w: u32,
         h: u32,
@@ -56,9 +56,9 @@ impl<'a> Graphics<'a> {
         renderer.set_target_size(w, h);
         Self {
             renderer,
-            batch,
+            batches,
             camera: Camera::default(),
-            text_renderer,
+            text_system,
             target_format: format,
             target_size: (w, h),
             current_shader: None,
@@ -113,14 +113,14 @@ impl<'a> Graphics<'a> {
         let (w, h) = target.size();
         let format = target.format();
 
-        let mut offscreen_batch = PrimitiveBatch::new(max_verts, max_indices);
+        let mut offscreen_batch = BatchList::new(max_verts, max_indices);
 
         {
             let mut offscreen_gfx = Graphics {
                 renderer: self.renderer,
-                batch: &mut offscreen_batch,
+                batches: &mut offscreen_batch,
                 camera: Camera::default(),
-                text_renderer: self.text_renderer,
+                text_system: self.text_system,
                 target_size: (w, h),
                 target_format: format,
                 current_shader: None,
@@ -200,23 +200,23 @@ impl<'a> Graphics<'a> {
 
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(self.batch, self.current_shader, self.current_clip())
+        RectangleBuilder::new(self.batches, self.current_shader, self.current_clip())
     }
     /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
     pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        PolygonBuilder::new(self.batch, self.current_shader, self.current_clip())
+        PolygonBuilder::new(self.batches, self.current_shader, self.current_clip())
     }
     /// Start building a polyline (stroked path) primitive
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
-        PolylineBuilder::new(self.batch, self.current_shader, self.current_clip())
+        PolylineBuilder::new(self.batches, self.current_shader, self.current_clip())
     }
     /// Start building a vector path (lines + curves) to be filled or stroked
     pub fn path(&mut self) -> PathBuilder<'_> {
-        PathBuilder::new(self.batch, self.current_shader, self.current_clip())
+        PathBuilder::new(self.batches, self.current_shader, self.current_clip())
     }
     /// Load a font from disk into the text system.
     pub fn load_font(&mut self, bytes: &[u8]) -> Option<String> {
-        self.text_renderer.load_font_bytes(bytes)
+        self.text_system.load_font_bytes(bytes)
     }
     /// Draw a line of text
     ///
@@ -225,8 +225,8 @@ impl<'a> Graphics<'a> {
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
         let clip = self.clip;
         TextBuilder::new(
-            self.text_renderer,
-            self.batch,
+            self.text_system,
+            self.batches,
             text.to_string(),
             self.camera,
         )

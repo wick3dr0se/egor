@@ -71,9 +71,10 @@ pub mod time {
 
 pub mod render {
     pub use egor_glue::{
+        camera::Camera,
         color::Color,
         graphics::Graphics,
-        primitives::{Anchor, BorderRadii},
+        primitives::{BorderRadii, Pivot},
         text::Align,
     };
     pub use egor_render::{

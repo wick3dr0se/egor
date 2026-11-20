@@ -29,13 +29,13 @@ struct BatchEntry {
     geometry: GeometryBatch,
 }
 
-pub struct PrimitiveBatch {
+pub struct BatchList {
     batches: Vec<BatchEntry>,
     max_vertices: usize,
     max_indices: usize,
 }
 
-impl Default for PrimitiveBatch {
+impl Default for BatchList {
     fn default() -> Self {
         Self::new(
             GeometryBatch::DEFAULT_MAX_VERTICES,
@@ -44,8 +44,8 @@ impl Default for PrimitiveBatch {
     }
 }
 
-impl PrimitiveBatch {
-    pub fn new(max_vertices: usize, max_indices: usize) -> Self {
+impl BatchList {
+    pub(crate) fn new(max_vertices: usize, max_indices: usize) -> Self {
         Self {
             batches: Vec::new(),
             max_vertices,
@@ -133,17 +133,17 @@ impl PrimitiveBatch {
     }
 }
 
-/// Common anchor options
-pub enum Anchor {
+/// The point a rectangle rotates and is positioned around
+pub enum Pivot {
     Center,
     TopLeft,
 }
 
 /// Builder for (textured) rectangles, drawn on `Drop`
 pub struct RectangleBuilder<'a> {
-    batch: &'a mut PrimitiveBatch,
+    batch: &'a mut BatchList,
     key: BatchKey,
-    anchor: Anchor,
+    pivot: Pivot,
     position: Vec2,
     size: Vec2,
     rotation: f32,
@@ -151,7 +151,7 @@ pub struct RectangleBuilder<'a> {
     uvs: [f32; 4],
 }
 
-/// Builds a rectangle with configurable position, size, color, anchor, rotation, & texture
+/// Builds a rectangle with configurable position, size, color, pivot, rotation, & texture
 impl<'a> RectangleBuilder<'a> {
     /// Draw in screen space, ignoring the camera
     pub fn screen(mut self) -> Self {
@@ -172,7 +172,7 @@ impl<'a> RectangleBuilder<'a> {
     }
 
     pub(crate) fn new(
-        batch: &'a mut PrimitiveBatch,
+        batch: &'a mut BatchList,
         shader_id: Option<usize>,
         clip: Option<ClipRect>,
     ) -> Self {
@@ -185,7 +185,7 @@ impl<'a> RectangleBuilder<'a> {
                 space: Space::World,
                 layer: 0,
             },
-            anchor: Anchor::TopLeft,
+            pivot: Pivot::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
             rotation: 0.0,
@@ -199,10 +199,10 @@ impl<'a> RectangleBuilder<'a> {
         self.size = rect.size;
         self
     }
-    /// Sets the anchor point of the rectangle.
-    /// Defaults to [`Anchor::TopLeft`]
-    pub fn anchor(mut self, anchor: Anchor) -> Self {
-        self.anchor = anchor;
+    /// Sets the pivot point of the rectangle.
+    /// Defaults to [`Pivot::TopLeft`]
+    pub fn pivot(mut self, pivot: Pivot) -> Self {
+        self.pivot = pivot;
         self
     }
     /// Sets the world-space position of the rectangle
@@ -241,9 +241,9 @@ impl<'a> RectangleBuilder<'a> {
 
 impl Drop for RectangleBuilder<'_> {
     fn drop(&mut self) {
-        let offset = match self.anchor {
-            Anchor::TopLeft => Vec2::ZERO,
-            Anchor::Center => -self.size / 2.0,
+        let offset = match self.pivot {
+            Pivot::TopLeft => Vec2::ZERO,
+            Pivot::Center => -self.size / 2.0,
         };
         let center = self.position + offset + self.size / 2.0;
         let rot = Mat2::from_angle(self.rotation);
@@ -264,7 +264,7 @@ impl Drop for RectangleBuilder<'_> {
 
 /// Builder for polygons, triangles, circles, n-gons. Drawn on `Drop`
 pub struct PolygonBuilder<'a> {
-    batch: &'a mut PrimitiveBatch,
+    batch: &'a mut BatchList,
     key: BatchKey,
     position: Vec2,
     rotation: f32,
@@ -293,7 +293,7 @@ impl<'a> PolygonBuilder<'a> {
     }
 
     pub(crate) fn new(
-        batch: &'a mut PrimitiveBatch,
+        batch: &'a mut BatchList,
         shader_id: Option<usize>,
         clip: Option<ClipRect>,
     ) -> Self {
@@ -376,7 +376,7 @@ impl Drop for PolygonBuilder<'_> {
 ///
 /// Expands each line segment into quad (triangle) geometry on `Drop`
 pub struct PolylineBuilder<'a> {
-    batch: &'a mut PrimitiveBatch,
+    batch: &'a mut BatchList,
     key: BatchKey,
     position: Vec2,
     rotation: f32,
@@ -406,7 +406,7 @@ impl<'a> PolylineBuilder<'a> {
     }
 
     pub(crate) fn new(
-        batch: &'a mut PrimitiveBatch,
+        batch: &'a mut BatchList,
         shader_id: Option<usize>,
         clip: Option<ClipRect>,
     ) -> Self {
@@ -526,7 +526,7 @@ impl Drop for PolylineBuilder<'_> {
 ///
 /// Users must call `begin()` before issuing path commands
 pub struct PathBuilder<'a> {
-    batch: &'a mut PrimitiveBatch,
+    batch: &'a mut BatchList,
     key: BatchKey,
     position: Vec2,
     rotation: f32,
@@ -558,7 +558,7 @@ impl<'a> PathBuilder<'a> {
     }
 
     pub(crate) fn new(
-        batch: &'a mut PrimitiveBatch,
+        batch: &'a mut BatchList,
         shader_id: Option<usize>,
         clip: Option<ClipRect>,
     ) -> Self {

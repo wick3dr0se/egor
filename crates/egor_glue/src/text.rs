@@ -8,7 +8,7 @@ use egor_render::{Renderer, Space, batch::BatchKey, instance::Instance};
 use glam::Vec2;
 
 use crate::{
-    camera::Camera, color::Color, graphics::to_clip_rect, math::Rect, primitives::PrimitiveBatch,
+    camera::Camera, color::Color, graphics::to_clip_rect, math::Rect, primitives::BatchList,
 };
 
 /// Side length of the square glyph atlas, in pixels
@@ -143,14 +143,14 @@ impl GlyphAtlas {
 }
 
 /// Shapes text & turns it into glyph quads in the caller's batch
-pub struct TextRenderer {
+pub struct TextSystem {
     font_system: FontSystem,
     swash_cache: SwashCache,
     atlas: GlyphAtlas,
     buffer_pool: Vec<Buffer>,
 }
 
-impl TextRenderer {
+impl TextSystem {
     pub(crate) fn new(renderer: &mut Renderer) -> Self {
         let mut font_system = FontSystem::new();
         // system fonts vary by machine & are absent on wasm, so embed one
@@ -203,7 +203,7 @@ pub enum Align {
     BottomRight,
 }
 
-/// A builder for queuing a single line of text to the [`TextRenderer`].
+/// A builder for queuing a single line of text to the [`TextSystem`].
 /// The text is uploaded and rendered on the next frame
 ///
 /// # Example
@@ -212,9 +212,9 @@ pub enum Align {
 /// ```
 pub struct TextBuilder<'a> {
     /// Reference to the renderer that will draw this text
-    renderer: &'a mut TextRenderer,
+    renderer: &'a mut TextSystem,
     /// Batch the glyphs are queued into, in draw order with everything else
-    batch: &'a mut PrimitiveBatch,
+    batch: &'a mut BatchList,
     /// The string content to render
     text: String,
     /// Top-left anchor position; may be offset by alignment
@@ -246,9 +246,9 @@ impl<'a> TextBuilder<'a> {
     /// Create a new text builder that will push text to the renderer
     ///
     /// A default font family is selected automatically. Use [`Self::font`] to override it
-    pub fn new(
-        renderer: &'a mut TextRenderer,
-        batch: &'a mut PrimitiveBatch,
+    pub(crate) fn new(
+        renderer: &'a mut TextSystem,
+        batch: &'a mut BatchList,
         text: String,
         camera: Camera,
     ) -> Self {
@@ -474,7 +474,7 @@ impl Drop for TextBuilder<'_> {
         };
 
         let color = self.color.components();
-        let TextRenderer {
+        let TextSystem {
             font_system,
             swash_cache,
             atlas,

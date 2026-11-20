@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{graphics::Graphics, primitives::PrimitiveBatch, text::TextRenderer};
+use crate::{graphics::Graphics, primitives::BatchList, text::TextSystem};
 
 #[cfg(feature = "ui")]
 use crate::ui::EguiRenderer;
@@ -64,11 +64,11 @@ pub struct App {
     update: Option<Box<UpdateFn>>,
     config: Option<AppConfig>,
     vsync: bool,
-    text_renderer: Option<TextRenderer>,
+    text_system: Option<TextSystem>,
     #[cfg(feature = "ui")]
     egui: Option<EguiRenderer>,
     backbuffer: Option<Backbuffer>,
-    primitive_batch: PrimitiveBatch,
+    batches: BatchList,
     memory_hints: MemoryHints,
 }
 
@@ -86,12 +86,12 @@ impl App {
             update: None,
             config: Some(AppConfig::default()),
             vsync: true,
-            text_renderer: None,
+            text_system: None,
             #[cfg(feature = "ui")]
             egui: None,
             backbuffer: None,
             memory_hints: MemoryHints::Performance,
-            primitive_batch: PrimitiveBatch::default(),
+            batches: BatchList::default(),
         }
     }
 
@@ -194,7 +194,7 @@ impl App {
     /// Defaults to [`egor_render::batch::GeometryBatch::DEFAULT_MAX_VERTICES`] and [`egor_render::batch::GeometryBatch::DEFAULT_MAX_INDICES`].
     /// Reduce these on memory-constrained platforms, or increase for scenes with dense geometry.
     pub fn batch_limits(mut self, max_verts: usize, max_indices: usize) -> Self {
-        self.primitive_batch = PrimitiveBatch::new(max_verts, max_indices);
+        self.batches = BatchList::new(max_verts, max_indices);
         self
     }
 
@@ -246,7 +246,7 @@ impl AppHandler<Renderer> for App {
 
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
         // the atlas claims its texture here, before anything borrows the device
-        self.text_renderer = Some(TextRenderer::new(renderer));
+        self.text_system = Some(TextSystem::new(renderer));
 
         let device = renderer.device();
         self.backbuffer
@@ -290,7 +290,7 @@ impl AppHandler<Renderer> for App {
         #[cfg(feature = "ui")]
         let queue = renderer.queue().clone();
         let format = backbuffer.format();
-        let text_renderer = self.text_renderer.as_mut().unwrap();
+        let text_system = self.text_system.as_mut().unwrap();
 
         #[cfg(feature = "ui")]
         let egui_ctx = self.egui.as_mut().unwrap().begin_frame(_window);
@@ -301,14 +301,7 @@ impl AppHandler<Renderer> for App {
                 requested_size: None,
                 requested_vsync: None,
             },
-            gfx: Graphics::new(
-                renderer,
-                &mut self.primitive_batch,
-                text_renderer,
-                format,
-                w,
-                h,
-            ),
+            gfx: Graphics::new(renderer, &mut self.batches, text_system, format, w, h),
             input,
             timer,
             #[cfg(feature = "ui")]
@@ -325,19 +318,19 @@ impl AppHandler<Renderer> for App {
         ctx.gfx.upload_camera();
 
         // glyphs queued this frame go up in one upload before the pass
-        text_renderer.flush(renderer);
+        text_system.flush(renderer);
 
         {
             let mut r_pass = renderer.begin_render_pass(&mut frame.encoder, &frame.view);
 
             // Lower layers first; the key only decides what can be merged.
-            self.primitive_batch.sort_layers();
-            for (key, batch) in self.primitive_batch.iter_mut() {
+            self.batches.sort_layers();
+            for (key, batch) in self.batches.iter_mut() {
                 renderer.draw_batch(&mut r_pass, batch, key);
             }
         }
 
-        self.primitive_batch.reset();
+        self.batches.reset();
 
         #[cfg(feature = "ui")]
         {
