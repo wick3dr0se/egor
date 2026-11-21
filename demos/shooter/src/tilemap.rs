@@ -158,6 +158,13 @@ impl EgorMap {
                 continue;
             }
 
+            // darken the walls so the floor is the bright, walkable surface
+            let tint = if layer.name == "walls" {
+                Color::new([0.34, 0.33, 0.32, 1.0])
+            } else {
+                Color::WHITE
+            };
+
             for (x, y, gid) in self.tiled.visible_tiles(layer, &view) {
                 let (info, uv) = match self.lookup_gid(gid) {
                     Some(v) => v,
@@ -168,10 +175,118 @@ impl EgorMap {
                     .at(self.tiled.tile_to_world(x, y))
                     .size(Vec2::new(tw, th))
                     .texture(info.tex_id)
-                    .color(Color::WHITE)
+                    .color(tint)
                     .uv(uv);
             }
         }
+    }
+
+    /// Center of a named spawn object, in world coordinates
+    pub fn spawn(&self, name: &str) -> Option<Vec2> {
+        self.tiled
+            .layers
+            .iter()
+            .filter_map(|l| l.objects.as_ref())
+            .flatten()
+            .find(|o| o.name == name)
+            .map(|o| vec2(o.x + o.width * 0.5, o.y + o.height * 0.5))
+    }
+
+    /// Map size in tiles
+    pub fn dimensions(&self) -> (u32, u32) {
+        self.tiled.dimensions()
+    }
+
+    /// Size of one tile in pixels
+    pub fn tile_size(&self) -> (f32, f32) {
+        self.tiled.tile_size()
+    }
+
+    /// World-space size of one tile
+    pub fn tile_px(&self) -> Vec2 {
+        let (tw, th) = self.tiled.tile_size();
+        vec2(tw, th)
+    }
+
+    /// Whether the tile under this world point blocks movement
+    pub fn solid_at(&self, world: Vec2) -> bool {
+        let (tw, th) = self.tiled.tile_size();
+        self.solid_tile((world.x / tw).floor() as i32, (world.y / th).floor() as i32)
+    }
+
+    /// Whether this tile index blocks movement, treating outside the map as solid
+    pub fn solid_tile(&self, tx: i32, ty: i32) -> bool {
+        let Some(layer) = self
+            .tiled
+            .layers
+            .iter()
+            .find(|l| l.name == "walls" && l.data.is_some())
+        else {
+            return false;
+        };
+
+        let lw = layer.width.unwrap() as i32;
+        let lh = layer.height.unwrap() as i32;
+        if tx < 0 || ty < 0 || tx >= lw || ty >= lh {
+            return true;
+        }
+
+        layer.data.as_ref().unwrap()[(ty * lw + tx) as usize] != 0
+    }
+
+    /// Whether a square of half-extent `half` around `center` overlaps solid tiles
+    pub fn overlaps_wall(&self, center: Vec2, half: f32) -> bool {
+        self.first_solid_overlap(center, half).is_some()
+    }
+
+    /// Move a square with half-extent `half` by `delta`, stopping at solid tiles
+    ///
+    /// Substepped so a fast mover cannot tunnel through a thin wall.
+    pub fn slide(&self, center: Vec2, half: f32, delta: Vec2) -> Vec2 {
+        let steps = (delta.length() / 8.0).ceil().max(1.0) as u32;
+        let step = delta / steps as f32;
+
+        (0..steps).fold(center, |pos, _| self.slide_step(pos, half, step))
+    }
+
+    fn slide_step(&self, mut center: Vec2, half: f32, delta: Vec2) -> Vec2 {
+        let (tw, th) = self.tiled.tile_size();
+
+        center.x += delta.x;
+        if let Some((tx, _)) = self.first_solid_overlap(center, half) {
+            center.x = if delta.x > 0.0 {
+                tx as f32 * tw - half
+            } else {
+                (tx + 1) as f32 * tw + half
+            };
+        }
+
+        center.y += delta.y;
+        if let Some((_, ty)) = self.first_solid_overlap(center, half) {
+            center.y = if delta.y > 0.0 {
+                ty as f32 * th - half
+            } else {
+                (ty + 1) as f32 * th + half
+            };
+        }
+
+        center
+    }
+
+    /// First solid tile overlapped by the square around `center`
+    fn first_solid_overlap(&self, center: Vec2, half: f32) -> Option<(i32, i32)> {
+        let (tw, th) = self.tiled.tile_size();
+        let min = center - Vec2::splat(half);
+        let max = center + Vec2::splat(half - 0.0001);
+
+        for ty in (min.y / th).floor() as i32..=(max.y / th).floor() as i32 {
+            for tx in (min.x / tw).floor() as i32..=(max.x / tw).floor() as i32 {
+                if self.solid_tile(tx, ty) {
+                    return Some((tx, ty));
+                }
+            }
+        }
+        None
     }
 
     // gid → (tileset, uv‑quad)

@@ -52,21 +52,36 @@ struct GameState {
     spread: usize,
     game_over: bool,
     ticker: f32,
+    spin: f32,
+    look: Vec2,
 }
 
-fn spawn_wave(position: Vec2, count: usize, speed: (f32, f32), hp: f32) -> Vec<Zombie> {
+fn spawn_wave(
+    map: &EgorMap,
+    position: Vec2,
+    count: usize,
+    speed: (f32, f32),
+    hp: f32,
+) -> Vec<Zombie> {
     let mut rng = rand::thread_rng();
+    let half = PLAYER_SIZE * 0.5;
+
     (0..count)
-        .map(|_| {
-            let a = rng.gen_range(0.0..std::f32::consts::TAU);
-            let d = rng.gen_range(300.0..800.0);
-            let pos = position + vec2(a.cos(), a.sin()) * d;
-            Zombie {
-                rect: Rect::new(pos, Vec2::splat(PLAYER_SIZE)),
+        .filter_map(|_| {
+            // check the whole body, not just the center point
+            let pos = (0..40).find_map(|_| {
+                let a = rng.gen_range(0.0..std::f32::consts::TAU);
+                let d = rng.gen_range(220.0..520.0);
+                let pos = position + vec2(a.cos(), a.sin()) * d;
+                (!map.overlaps_wall(pos, half - 0.01)).then_some(pos)
+            })?;
+
+            Some(Zombie {
+                rect: Rect::new(pos - Vec2::splat(half), Vec2::splat(PLAYER_SIZE)),
                 speed: rng.gen_range(speed.0..speed.1),
                 hp,
                 flash: 0.0,
-            }
+            })
         })
         .collect()
 }
@@ -115,18 +130,25 @@ fn handle_bullet_hits(bullets: &mut Vec<Bullet>, enemies: &mut Vec<Zombie>, play
 }
 
 fn main() {
+    let map = EgorMap::new(include_str!("../assets/map.json"));
+    let start = map.spawn("player").unwrap_or_else(|| map.tile_px() * 24.0);
+    let enemies = spawn_wave(&map, start, 7, (90.0, 170.0), 1.0);
+
     let mut state = GameState {
-        map: EgorMap::new(include_str!("../assets/map.json")),
+        map,
         minimap: None,
         minimap_tex: 0,
         player: Soldier {
-            rect: Rect::new(Vec2::ZERO, Vec2::splat(PLAYER_SIZE)),
+            rect: Rect::new(
+                start - Vec2::splat(PLAYER_SIZE * 0.5),
+                Vec2::splat(PLAYER_SIZE),
+            ),
             hp: 100.0,
             flash: 0.0,
         },
         player_anim: SpriteAnim::new(3, 6, 16, 0.2),
         player_tex: 0,
-        enemies: spawn_wave(Vec2::ZERO, 5, (50.0, 125.0), 1.0),
+        enemies,
         enemy_anim: SpriteAnim::new(2, 6, 11, 0.2),
         enemy_tex: 0,
         bullets: vec![],
@@ -138,6 +160,8 @@ fn main() {
         spread: 1,
         game_over: false,
         ticker: 0.0,
+        spin: 0.0,
+        look: Vec2::ZERO,
     };
 
     App::new().title("Egor Shooter Demo").run(
@@ -158,16 +182,7 @@ fn main() {
             }
 
             if timer.frame == 0 {
-                state.map.load_tileset(
-                    gfx,
-                    include_bytes!("../assets/otsp_tiles_01.png"),
-                    "otsp_tiles_01.png",
-                );
-                state.map.load_tileset(
-                    gfx,
-                    include_bytes!("../assets/otsp_walls_01.png"),
-                    "otsp_walls_01.png",
-                );
+                state.map.load_tileset(gfx, include_bytes!("../assets/tiles.png"), "tiles.png");
                 state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
                 state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
                 let mut minimap = gfx.create_offscreen(200, 200);
@@ -218,15 +233,21 @@ fn main() {
                 gfx.render_offscreen(minimap, |gfx| {
                     gfx.clear(Color::BLACK);
 
-                    gfx.camera().set_zoom(0.15);
-                    gfx.camera()
-                        .center(state.player.rect.center(), vec2(200.0, 200.0));
+                    // fit the whole map into 200px
+                    let (mw, mh) = state.map.dimensions();
+                    let (tw, th) = state.map.tile_size();
+                    gfx.camera().set_zoom(200.0 / (mw as f32 * tw).max(mh as f32 * th));
+                    gfx.camera().center(
+                        vec2(mw as f32 * tw, mh as f32 * th) * 0.5,
+                        vec2(200.0, 200.0),
+                    );
+                    state.map.render(gfx);
 
                     for e in &state.enemies {
                         gfx.rect()
-                            .at(e.rect.position)
+                            .at(e.rect.center() - Vec2::splat(48.0))
                             .color(Color::RED)
-                            .size(Vec2::splat(48.0));
+                            .size(Vec2::splat(96.0));
                     }
 
                     gfx.rect()
@@ -242,9 +263,6 @@ fn main() {
                     }
                 });
             }
-            let screen_half = screen_size / 2.0;
-            let position = state.player.rect.position - screen_half
-                + Into::<Vec2>::into(input.mouse_position());
 
             let dx = input.keys_held(&[KeyCode::KeyD, KeyCode::ArrowRight]) as i8
                 - input.keys_held(&[KeyCode::KeyA, KeyCode::ArrowLeft]) as i8;
@@ -252,17 +270,36 @@ fn main() {
                 - input.keys_held(&[KeyCode::KeyW, KeyCode::ArrowUp]) as i8;
             let moving = dx != 0 || dy != 0;
 
-            state
-                .player
-                .rect
-                .translate(vec2(dx as f32, dy as f32) * 200.0 * timer.delta);
+            let half = PLAYER_SIZE * 0.5;
+            let want = vec2(dx as f32, dy as f32).normalize_or_zero() * 200.0 * timer.delta;
+            let center = state.map.slide(state.player.rect.center(), half, want);
+            state.player.rect = Rect::new(center - Vec2::splat(half), Vec2::splat(PLAYER_SIZE));
 
-            gfx.camera().center(state.player.rect.position, screen_size);
-            gfx.clear(Color::WHITE);
+            let cursor: Vec2 = input.mouse_position().into();
+            gfx.camera().set_zoom(1.6);
+
+            // shift the camera toward the cursor for a look ahead
+            let lead = ((cursor - screen_size * 0.5) * 0.14).clamp_length_max(80.0);
+            state.look += (lead - state.look) * (1.0 - (-6.0 * timer.delta).exp());
+            gfx.camera()
+                .center(state.player.rect.center() + state.look, screen_size);
+            // aim with the rotation currently on screen
+            gfx.camera().set_rotation(state.spin);
+
+            // cursor to world, with the rotation applied
+            let aim = gfx.camera().screen_to_world(cursor);
+            let aim_dir = (aim - state.player.rect.center()).normalize_or_zero();
+
+            // cursor position drives the lean, aim depends on rotation and would feed back
+            let lean = (cursor.x / screen_size.x - 0.5) * 0.20;
+            state.spin += (lean - state.spin) * (1.0 - (-8.0 * timer.delta).exp());
+            gfx.camera().set_rotation(state.spin);
+
+            gfx.clear(Color::new([0.06, 0.07, 0.09, 1.0]));
             state.map.render(gfx);
 
             // World text follows the camera and stays a constant pixel size, anchored
-            // bottom-centre so it sits above the player rather than starting at them.
+            // bottom-center so it sits above the player rather than starting at them.
             gfx.text("player")
                 .at(state.player.rect.center() - vec2(0.0, 20.0))
                 .anchor(Align::BottomCenter)
@@ -275,15 +312,18 @@ fn main() {
             if input.mouse_held(MouseButton::Left) && state.fire_cd <= 0.0 {
                 state.bullets.extend(spawn_bullets(
                     state.player.rect.center(),
-                    position,
+                    aim,
                     state.spread,
                 ));
                 state.fire_cd = 1.0 / state.fire_rate;
+                state.spin -= aim_dir.x * 0.02;
             }
 
             for e in &mut state.enemies {
-                let dir = (state.player.rect.position - e.rect.position).normalize_or_zero();
-                e.rect.translate(dir * e.speed * timer.delta);
+                let dir = (state.player.rect.center() - e.rect.center()).normalize_or_zero();
+                let half = PLAYER_SIZE * 0.5;
+                let moved = state.map.slide(e.rect.center(), half, dir * e.speed * timer.delta);
+                e.rect = Rect::new(moved - Vec2::splat(half), Vec2::splat(PLAYER_SIZE));
             }
 
             state.kills += handle_bullet_hits(
@@ -292,6 +332,7 @@ fn main() {
                 state.player.rect.position,
             );
 
+            state.bullets.retain(|b| !state.map.solid_at(b.rect.center()));
             for b in &mut state.bullets {
                 b.rect.translate(b.vel * timer.delta);
                 let angle = b.vel.y.atan2(b.vel.x);
@@ -326,7 +367,7 @@ fn main() {
             }
 
             state.player.flash = (state.player.flash - timer.delta).max(0.0);
-            let dir = position - state.player.rect.position;
+            let dir = aim - state.player.rect.position;
             let angle = dir.y.atan2(dir.x);
 
             let uv = if moving {
@@ -355,24 +396,23 @@ fn main() {
                 }
                 state.fire_rate += 0.1;
                 state.enemies = spawn_wave(
-                    state.player.rect.position,
+                    &state.map,
+                    state.player.rect.center(),
                     (state.wave + 2) * 3,
                     (
-                        50. + state.wave as f32 * 3.0,
-                        125. + state.wave as f32 * 3.0,
+                        90. + state.wave as f32 * 3.0,
+                        170. + state.wave as f32 * 3.0,
                     ),
                     state.hp,
                 );
             }
 
             if state.minimap.is_some() {
-                let screen_pos = vec2(screen_size.x - 210.0, 10.0);
-                let world_pos = gfx.camera().screen_to_world(screen_pos);
-
                 gfx.rect()
-                    .at(world_pos)
+                    .at(vec2(screen_size.x - 210.0, 10.0))
                     .size(vec2(200.0, 200.0))
-                    .texture(state.minimap_tex);
+                    .texture(state.minimap_tex)
+                    .screen();
             }
 
         },
