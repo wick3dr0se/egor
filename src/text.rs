@@ -5,7 +5,7 @@ use cosmic_text::{
     SwashImage, Weight,
 };
 use egor_render::{Renderer, Space, TextureRegion, batch::BatchKey, instance::Instance};
-use glam::Vec2;
+use glam::{Mat2, Vec2};
 
 use crate::{
     camera::Camera, color::Color, graphics::to_clip_rect, math::Rect, primitives::BatchList,
@@ -435,6 +435,13 @@ impl Drop for TextBuilder<'_> {
         let size = self.size * scale;
         let line_height = self.line_height.unwrap_or(self.size * 1.2) * scale;
 
+        // world text turns with the view; screen text stays upright
+        let turn = match self.space {
+            Space::World => self.camera.rotation(),
+            Space::Screen => 0.0,
+        };
+        let spin = Mat2::from_angle(turn);
+
         let (position, rect) = match self.space {
             Space::Screen => (self.position, self.rect),
             Space::World => (
@@ -515,7 +522,7 @@ impl Drop for TextBuilder<'_> {
                 Align::BottomLeft | Align::BottomCenter | Align::BottomRight => -text_h,
             };
 
-            position + Vec2::new(dx, dy)
+            position + spin * Vec2::new(dx, dy)
         };
 
         let color = self.color.components();
@@ -551,8 +558,18 @@ impl Drop for TextBuilder<'_> {
                 let x = (physical.x + slot.left) as f32;
                 let y = run.line_y.round() + physical.y as f32 - slot.top as f32;
 
+                // place the glyph, then rotate it around the text position
+                let placed = position + spin * (Vec2::new(x, y) - position);
+                let (cos, sin) = (turn.cos(), turn.sin());
+                let center = placed + spin * Vec2::new(w * 0.5, h * 0.5);
+
                 self.batch.push_instance(
-                    Instance::new([w, 0.0, 0.0, h], [x + w * 0.5, y + h * 0.5], color, slot.uv),
+                    Instance::new(
+                        [cos * w, sin * w, -sin * h, cos * h],
+                        [center.x, center.y],
+                        color,
+                        slot.uv,
+                    ),
                     key,
                 );
             }

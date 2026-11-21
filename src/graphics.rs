@@ -54,10 +54,12 @@ impl<'a> Graphics<'a> {
         h: u32,
     ) -> Self {
         renderer.set_target_size(w, h);
+        let mut camera = Camera::default();
+        camera.set_view_size((w as f32, h as f32).into());
         Self {
             renderer,
             batches,
-            camera: Camera::default(),
+            camera,
             text_system,
             target_format: format,
             target_size: (w, h),
@@ -127,10 +129,13 @@ impl<'a> Graphics<'a> {
         let mut offscreen_batch = BatchList::new(max_verts, max_indices);
 
         {
+            let mut offscreen_camera = Camera::default();
+            offscreen_camera.set_view_size((w as f32, h as f32).into());
+
             let mut offscreen_gfx = Graphics {
                 renderer: self.renderer,
                 batches: &mut offscreen_batch,
-                camera: Camera::default(),
+                camera: offscreen_camera,
                 text_system: self.text_system,
                 target_size: (w, h),
                 target_format: format,
@@ -178,6 +183,7 @@ impl<'a> Graphics<'a> {
 
     pub(crate) fn set_target_size(&mut self, w: u32, h: u32) {
         self.target_size = (w, h);
+        self.camera.set_view_size((w as f32, h as f32).into());
         self.renderer.set_target_size(w, h);
     }
 
