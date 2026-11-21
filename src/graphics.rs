@@ -1,6 +1,6 @@
 use egor_render::{
-    ClipRect, Renderer, TextureFormat,
-    batch::GeometryBatch,
+    ClipRect, Renderer, Space, TextureFormat,
+    batch::{BatchKey, GeometryBatch},
     target::{OffscreenTarget, RenderTarget},
 };
 use glam::Vec2;
@@ -77,6 +77,17 @@ impl<'a> Graphics<'a> {
     /// Current clip as an integer [`ClipRect`], if a clip is active
     fn current_clip(&self) -> Option<ClipRect> {
         self.clip.map(to_clip_rect)
+    }
+
+    /// The key a shape starts from; its builder overrides texture, space or layer
+    fn draw_key(&self) -> BatchKey {
+        BatchKey {
+            texture: None,
+            shader: self.current_shader,
+            clip: self.current_clip(),
+            space: Space::World,
+            layer: 0,
+        }
     }
 
     /// Create a new offscreen render target
@@ -200,19 +211,19 @@ impl<'a> Graphics<'a> {
 
     /// Start building a rectangle primitive
     pub fn rect(&mut self) -> RectangleBuilder<'_> {
-        RectangleBuilder::new(self.batches, self.current_shader, self.current_clip())
+        RectangleBuilder::new(self.batches, self.draw_key())
     }
     /// Start building an arbitrary polygon primitive, capable of triangles, circles, n-gons
     pub fn polygon(&mut self) -> PolygonBuilder<'_> {
-        PolygonBuilder::new(self.batches, self.current_shader, self.current_clip())
+        PolygonBuilder::new(self.batches, self.draw_key())
     }
     /// Start building a polyline (stroked path) primitive
     pub fn polyline(&mut self) -> PolylineBuilder<'_> {
-        PolylineBuilder::new(self.batches, self.current_shader, self.current_clip())
+        PolylineBuilder::new(self.batches, self.draw_key())
     }
     /// Start building a vector path (lines + curves) to be filled or stroked
     pub fn path(&mut self) -> PathBuilder<'_> {
-        PathBuilder::new(self.batches, self.current_shader, self.current_clip())
+        PathBuilder::new(self.batches, self.draw_key())
     }
     /// Load a font from disk into the text system.
     pub fn load_font(&mut self, bytes: &[u8]) -> Option<String> {
@@ -223,14 +234,13 @@ impl<'a> Graphics<'a> {
     /// Text is screen-space by default and clipped by the active clip. Use
     /// `.world()` for world space.
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
-        let clip = self.clip;
         TextBuilder::new(
             self.text_system,
             self.batches,
             text.to_string(),
             self.camera,
+            self.clip,
         )
-        .clip(clip)
     }
 
     /// Load a texture from encoded image bytes, such as a PNG

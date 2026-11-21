@@ -1,6 +1,6 @@
 use crate::{color::Color, math::Rect};
 use egor_render::{
-    ClipRect, Space,
+    Space,
     batch::{BatchKey, GeometryBatch},
     instance::Instance,
     vertex::Vertex,
@@ -171,20 +171,10 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
 
-    pub(crate) fn new(
-        batch: &'a mut BatchList,
-        shader_id: Option<usize>,
-        clip: Option<ClipRect>,
-    ) -> Self {
+    pub(crate) fn new(batch: &'a mut BatchList, key: BatchKey) -> Self {
         Self {
             batch,
-            key: BatchKey {
-                texture: None,
-                shader: shader_id,
-                clip,
-                space: Space::World,
-                layer: 0,
-            },
+            key,
             pivot: Pivot::TopLeft,
             position: Vec2::ZERO,
             size: vec2(64.0, 64.0),
@@ -292,20 +282,10 @@ impl<'a> PolygonBuilder<'a> {
         self
     }
 
-    pub(crate) fn new(
-        batch: &'a mut BatchList,
-        shader_id: Option<usize>,
-        clip: Option<ClipRect>,
-    ) -> Self {
+    pub(crate) fn new(batch: &'a mut BatchList, key: BatchKey) -> Self {
         Self {
             batch,
-            key: BatchKey {
-                texture: None,
-                shader: shader_id,
-                clip,
-                space: Space::World,
-                layer: 0,
-            },
+            key,
             position: Vec2::ZERO,
             rotation: 0.0,
             radius: 10.0,
@@ -405,20 +385,10 @@ impl<'a> PolylineBuilder<'a> {
         self
     }
 
-    pub(crate) fn new(
-        batch: &'a mut BatchList,
-        shader_id: Option<usize>,
-        clip: Option<ClipRect>,
-    ) -> Self {
+    pub(crate) fn new(batch: &'a mut BatchList, key: BatchKey) -> Self {
         Self {
             batch,
-            key: BatchKey {
-                texture: None,
-                shader: shader_id,
-                clip,
-                space: Space::World,
-                layer: 0,
-            },
+            key,
             position: Vec2::ZERO,
             rotation: 0.0,
             points: vec![vec2(0.0, 0.0), vec2(10.0, 0.0)],
@@ -557,20 +527,10 @@ impl<'a> PathBuilder<'a> {
         self
     }
 
-    pub(crate) fn new(
-        batch: &'a mut BatchList,
-        shader_id: Option<usize>,
-        clip: Option<ClipRect>,
-    ) -> Self {
+    pub(crate) fn new(batch: &'a mut BatchList, key: BatchKey) -> Self {
         Self {
             batch,
-            key: BatchKey {
-                texture: None,
-                shader: shader_id,
-                clip,
-                space: Space::World,
-                layer: 0,
-            },
+            key,
             position: Vec2::ZERO,
             rotation: 0.0,
             scale: Vec2::ONE,

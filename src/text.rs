@@ -251,6 +251,7 @@ impl<'a> TextBuilder<'a> {
         batch: &'a mut BatchList,
         text: String,
         camera: Camera,
+        clip: Option<Rect>,
     ) -> Self {
         Self {
             renderer,
@@ -265,7 +266,7 @@ impl<'a> TextBuilder<'a> {
             weight: Weight::NORMAL,
             style: Style::Normal,
             align: Align::TopLeft,
-            clip: None,
+            clip,
             space: Space::Screen,
             camera,
             scale_with_zoom: false,
@@ -297,15 +298,6 @@ impl<'a> TextBuilder<'a> {
     pub fn in_rect(mut self, rect: Rect, align: Align) -> Self {
         self.rect = Some(rect);
         self.align = align;
-        self
-    }
-
-    /// Restricts the text to the given screen-space rectangle
-    ///
-    /// Glyphs outside the rect are culled, so this behaves like a clip. Pass
-    /// `None` to disable clipping.
-    pub fn clip(mut self, clip: Option<Rect>) -> Self {
-        self.clip = clip;
         self
     }
 
