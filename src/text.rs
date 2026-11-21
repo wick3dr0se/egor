@@ -4,7 +4,7 @@ use cosmic_text::{
     Attrs, Buffer, CacheKey, Family, FontSystem, Metrics, Shaping, Style, SwashCache, SwashContent,
     SwashImage, Weight,
 };
-use egor_render::{Renderer, Space, batch::BatchKey, instance::Instance};
+use egor_render::{Renderer, Space, TextureRegion, batch::BatchKey, instance::Instance};
 use glam::Vec2;
 
 use crate::{
@@ -30,31 +30,55 @@ struct GlyphSlot {
 /// Glyphs live in one RGBA texture: white pixels, coverage in alpha, so text
 /// draws through the same pipeline & shader as any other textured quad
 struct GlyphAtlas {
-    texture: usize,
+    /// Absent until the first glyph, so an app that draws no text allocates nothing
+    texture: Option<usize>,
     pixels: Vec<u8>,
     /// Shelf packer: current pen & the height of the shelf it is filling
     x: u32,
     y: u32,
     row: u32,
     slots: HashMap<CacheKey, GlyphSlot>,
-    dirty: bool,
+    /// Box touched since the last upload, as (x0, y0, x1, y1)
+    dirty: Option<(u32, u32, u32, u32)>,
+}
+
+/// Grow a box to include another box
+fn expand(
+    area: Option<(u32, u32, u32, u32)>,
+    x0: u32,
+    y0: u32,
+    x1: u32,
+    y1: u32,
+) -> Option<(u32, u32, u32, u32)> {
+    Some(match area {
+        Some((ax0, ay0, ax1, ay1)) => (ax0.min(x0), ay0.min(y0), ax1.max(x1), ay1.max(y1)),
+        None => (x0, y0, x1, y1),
+    })
 }
 
 impl GlyphAtlas {
-    fn new(renderer: &mut Renderer) -> Self {
-        let pixels = vec![0; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize];
-        // the texture exists from the start, so queued glyphs can name it
-        let texture = renderer.add_texture_raw(ATLAS_SIZE, ATLAS_SIZE, &pixels);
-
+    fn new() -> Self {
         Self {
-            texture,
-            pixels,
+            texture: None,
+            pixels: Vec::new(),
             x: 0,
             y: 0,
             row: 0,
             slots: HashMap::new(),
-            dirty: false,
+            dirty: None,
         }
+    }
+
+    /// Create the atlas on the first glyph & return its texture id
+    fn ensure(&mut self, renderer: &mut Renderer) -> usize {
+        if let Some(id) = self.texture {
+            return id;
+        }
+
+        self.pixels = vec![0; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize];
+        let id = renderer.add_texture_raw(ATLAS_SIZE, ATLAS_SIZE, &self.pixels);
+        self.texture = Some(id);
+        id
     }
 
     /// Reserve a spot, dropping down a shelf when the row is full
@@ -115,7 +139,7 @@ impl GlyphAtlas {
             }
         }
 
-        self.dirty = true;
+        self.dirty = expand(self.dirty, x, y, x + width, y + height);
 
         let slot = GlyphSlot {
             left: image.placement.left,
@@ -133,12 +157,33 @@ impl GlyphAtlas {
         Some(slot)
     }
 
-    /// Upload new glyphs once per frame, only when something changed
+    /// Upload the touched box, packed row by row
     fn flush(&mut self, renderer: &mut Renderer) {
-        if self.dirty {
-            renderer.update_texture_raw(self.texture, ATLAS_SIZE, ATLAS_SIZE, &self.pixels);
-            self.dirty = false;
+        let Some(texture) = self.texture else {
+            return;
+        };
+
+        if let Some((x, y, w, h, data)) = self.take_region() {
+            let region = TextureRegion {
+                x,
+                y,
+                width: w,
+                height: h,
+            };
+            renderer.write_texture_region(texture, region, &data);
         }
+    }
+
+    /// Take the box touched since the last upload, packed for one write
+    fn take_region(&mut self) -> Option<(u32, u32, u32, u32, Vec<u8>)> {
+        let (x0, y0, x1, y1) = self.dirty.take()?;
+        let (w, h) = (x1 - x0, y1 - y0);
+        let mut data = Vec::with_capacity((w * h * 4) as usize);
+        for row in y0..y1 {
+            let start = ((row * ATLAS_SIZE + x0) * 4) as usize;
+            data.extend_from_slice(&self.pixels[start..start + (w * 4) as usize]);
+        }
+        Some((x0, y0, w, h, data))
     }
 }
 
@@ -151,7 +196,7 @@ pub struct TextSystem {
 }
 
 impl TextSystem {
-    pub(crate) fn new(renderer: &mut Renderer) -> Self {
+    pub(crate) fn new() -> Self {
         let mut font_system = FontSystem::new();
         // system fonts vary by machine & are absent on wasm, so embed one
         font_system
@@ -161,7 +206,7 @@ impl TextSystem {
         Self {
             font_system,
             swash_cache: SwashCache::new(),
-            atlas: GlyphAtlas::new(renderer),
+            atlas: GlyphAtlas::new(),
             buffer_pool: Vec::new(),
         }
     }
@@ -171,6 +216,11 @@ impl TextSystem {
         let face = self.font_system.db().faces().last()?;
         let family = face.families.first()?.0.clone();
         Some(family)
+    }
+
+    /// Create the glyph atlas on first use
+    pub(crate) fn ensure_atlas(&mut self, renderer: &mut Renderer) {
+        self.atlas.ensure(renderer);
     }
 
     /// Upload any glyphs rasterized since the last call
@@ -398,8 +448,11 @@ impl Drop for TextBuilder<'_> {
             ),
         };
 
+        let Some(texture) = self.renderer.atlas.texture else {
+            return;
+        };
         let key = BatchKey {
-            texture: Some(self.renderer.atlas.texture),
+            texture: Some(texture),
             shader: None,
             clip: self.clip.map(to_clip_rect),
             // glyphs are already in pixels, whatever space they came from
@@ -508,5 +561,48 @@ impl Drop for TextBuilder<'_> {
         if self.renderer.buffer_pool.len() < MAX_POOLED_BUFFERS {
             self.renderer.buffer_pool.push(buffer);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn atlas() -> GlyphAtlas {
+        GlyphAtlas {
+            texture: Some(0),
+            pixels: vec![0; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize],
+            x: 0,
+            y: 0,
+            row: 0,
+            slots: HashMap::new(),
+            dirty: None,
+        }
+    }
+
+    #[test]
+    fn region_covers_every_touched_glyph() {
+        let mut atlas = atlas();
+        atlas.dirty = expand(atlas.dirty, 10, 20, 20, 30);
+        atlas.dirty = expand(atlas.dirty, 5, 40, 8, 44);
+
+        let (x, y, w, h, data) = atlas.take_region().unwrap();
+        assert_eq!((x, y, w, h), (5, 20, 15, 24));
+        assert_eq!(data.len(), (w * h * 4) as usize);
+        assert!(atlas.take_region().is_none(), "the box is taken once");
+    }
+
+    #[test]
+    fn region_packs_rows_without_the_atlas_stride() {
+        let mut atlas = atlas();
+        for (x, y, px) in [(1, 1, [1, 1, 1, 1]), (1, 2, [2, 2, 2, 2])] {
+            let i = ((y * ATLAS_SIZE + x) * 4) as usize;
+            atlas.pixels[i..i + 4].copy_from_slice(&px);
+        }
+        atlas.dirty = expand(atlas.dirty, 1, 1, 2, 3);
+
+        let (x, y, w, h, data) = atlas.take_region().unwrap();
+        assert_eq!((x, y, w, h), (1, 1, 1, 2));
+        assert_eq!(data, vec![1, 1, 1, 1, 2, 2, 2, 2]);
     }
 }

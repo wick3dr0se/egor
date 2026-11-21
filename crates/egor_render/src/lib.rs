@@ -38,6 +38,20 @@ pub(crate) struct Gpu {
 /// Used to restrict a draw call to a sub-region of the target. Coordinates match
 /// Egor's screen space (y grows downward from the top-left corner), so a value
 /// derived from a screen-space [`crate::Renderer`] draw maps directly.
+/// Pixels to write into an existing texture
+#[derive(Clone, Copy)]
+pub struct TextureRegion {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+}
+
+/// Axis-aligned clip rectangle in framebuffer pixels, with a top-left origin.
+///
+/// Used to restrict a draw call to a sub-region of the target. Coordinates match
+/// Egor's screen space (y grows downward from the top-left corner), so a value
+/// derived from a screen-space [`crate::Renderer`] draw maps directly.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ClipRect {
     pub x: u32,
@@ -365,6 +379,12 @@ impl Renderer {
     pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
         self.textures
             .insert_raw(&self.gpu.device, &self.gpu.queue, w, h, data)
+    }
+
+    /// Write a region of an existing texture, rows packed
+    pub fn write_texture_region(&self, id: usize, region: TextureRegion, data: &[u8]) {
+        self.textures
+            .write_region(&self.gpu.queue, id, region, data);
     }
 
     /// Replaces an existing texture with new image data

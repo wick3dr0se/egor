@@ -234,6 +234,8 @@ impl<'a> Graphics<'a> {
     /// Text is screen-space by default and clipped by the active clip. Use
     /// `.world()` for world space.
     pub fn text(&mut self, text: &str) -> TextBuilder<'_> {
+        // the atlas is allocated when text first asks for it
+        self.text_system.ensure_atlas(self.renderer);
         TextBuilder::new(
             self.text_system,
             self.batches,

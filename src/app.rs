@@ -252,7 +252,7 @@ impl AppHandler<Renderer> for App {
 
     fn on_ready(&mut self, window: &Window, renderer: &mut Renderer) {
         // the atlas claims its texture here, before anything borrows the device
-        self.text_system = Some(TextSystem::new(renderer));
+        self.text_system = Some(TextSystem::new());
 
         let device = renderer.device();
         self.backbuffer

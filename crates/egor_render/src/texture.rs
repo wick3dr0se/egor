@@ -7,12 +7,14 @@ use wgpu::{
     TextureView, TextureViewDimension,
 };
 
-use crate::target::OffscreenTarget;
+use crate::{TextureRegion, target::OffscreenTarget};
 
 /// A GPU texture that can be bound in shaders for rendering
 ///
 /// Wraps a `wgpu::Texture`, its view, sampler, & bind group
 pub(crate) struct Texture {
+    /// Absent for textures wrapped from an offscreen target's view
+    texture: Option<wgpu::Texture>,
     bind_group: BindGroup,
 }
 
@@ -88,10 +90,43 @@ impl Texture {
             },
         );
         let view = texture.create_view(&Default::default());
+        let bind_group = Self::create_bind_group(device, layout, &view, sampler);
 
         Self {
-            bind_group: Self::create_bind_group(device, layout, &view, sampler),
+            texture: Some(texture),
+            bind_group,
         }
+    }
+
+    /// Write part of a texture without recreating it
+    fn write_region(&self, queue: &Queue, region: TextureRegion, data: &[u8]) {
+        let Some(texture) = &self.texture else {
+            return;
+        };
+
+        queue.write_texture(
+            TexelCopyTextureInfo {
+                texture,
+                mip_level: 0,
+                origin: Origin3d {
+                    x: region.x,
+                    y: region.y,
+                    z: 0,
+                },
+                aspect: TextureAspect::All,
+            },
+            data,
+            TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * region.width),
+                rows_per_image: Some(region.height),
+            },
+            Extent3d {
+                width: region.width,
+                height: region.height,
+                depth_or_array_layers: 1,
+            },
+        );
     }
 
     /// Creates a bindable texture from an existing GPU texture view.
@@ -106,6 +141,7 @@ impl Texture {
         sampler: &Sampler,
     ) -> Self {
         Self {
+            texture: None,
             bind_group: Self::create_bind_group(device, layout, view, sampler),
         }
     }
@@ -226,6 +262,11 @@ impl Textures {
             h,
         ));
         id
+    }
+
+    /// Write a region of an existing texture, rows packed
+    pub fn write_region(&self, queue: &Queue, id: usize, region: TextureRegion, data: &[u8]) {
+        self.store[id].write_region(queue, region, data);
     }
 
     pub fn replace(&mut self, device: &Device, queue: &Queue, id: usize, data: &[u8]) {
