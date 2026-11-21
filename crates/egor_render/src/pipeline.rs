@@ -143,8 +143,8 @@ fn create_primitive_pipeline(
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("Primitive Pipeline Layout"),
-        bind_group_layouts: &[texture_layout, camera_layout],
-        push_constant_ranges: &[],
+        bind_group_layouts: &[Some(texture_layout), Some(camera_layout)],
+        immediate_size: 0,
     });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -153,7 +153,7 @@ fn create_primitive_pipeline(
         vertex: VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Vertex::desc(), Instance::desc()],
+            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
             compilation_options: Default::default(),
         },
         primitive: Default::default(),
@@ -169,7 +169,7 @@ fn create_primitive_pipeline(
             })],
             compilation_options: Default::default(),
         }),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }
@@ -194,13 +194,14 @@ fn create_custom_pipeline(
         source: ShaderSource::Wgsl(wgsl_source.into()),
     });
 
-    let mut layouts: Vec<&BindGroupLayout> = vec![texture_layout, camera_layout];
-    layouts.extend(extra_layouts);
+    let mut layouts: Vec<Option<&BindGroupLayout>> =
+        vec![Some(texture_layout), Some(camera_layout)];
+    layouts.extend(extra_layouts.iter().map(|layout| Some(*layout)));
 
     let pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
         label: Some("Custom Pipeline Layout"),
         bind_group_layouts: &layouts,
-        push_constant_ranges: &[],
+        immediate_size: 0,
     });
 
     device.create_render_pipeline(&RenderPipelineDescriptor {
@@ -209,7 +210,7 @@ fn create_custom_pipeline(
         vertex: VertexState {
             module: &shader,
             entry_point: Some("vs_main"),
-            buffers: &[Vertex::desc(), Instance::desc()],
+            buffers: &[Some(Vertex::desc()), Some(Instance::desc())],
             compilation_options: Default::default(),
         },
         primitive: Default::default(),
@@ -225,7 +226,7 @@ fn create_custom_pipeline(
             })],
             compilation_options: Default::default(),
         }),
-        multiview: None,
+        multiview_mask: None,
         cache: None,
     })
 }

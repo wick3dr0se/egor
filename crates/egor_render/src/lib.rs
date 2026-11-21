@@ -11,8 +11,9 @@ pub use wgpu::{Device, MemoryHints, Queue, RenderPass, TextureFormat};
 
 use wgpu::{
     Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
-    CommandEncoder, DeviceDescriptor, Instance, LoadOp, Operations, RenderPassColorAttachment,
-    RenderPassDescriptor, RequestAdapterOptions, StoreOp, SurfaceTarget, TextureView, WindowHandle,
+    CommandEncoder, DeviceDescriptor, Instance, InstanceDescriptor, LoadOp, Operations,
+    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, SurfaceTarget,
+    TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
@@ -112,7 +113,10 @@ impl Renderer {
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
         memory_hints: &MemoryHints,
     ) -> Self {
-        let instance = new_instance_with_webgpu_detection(&Default::default()).await;
+        let instance = new_instance_with_webgpu_detection(
+            InstanceDescriptor::new_without_display_handle_from_env(),
+        )
+        .await;
         let surface = instance.create_surface(window).unwrap();
         let adapter = instance
             .request_adapter(&RequestAdapterOptions {
@@ -262,6 +266,7 @@ impl Renderer {
         encoder.begin_render_pass(&RenderPassDescriptor {
             color_attachments: &[Some(RenderPassColorAttachment {
                 view,
+                depth_slice: None,
                 resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Clear(self.clear_color),

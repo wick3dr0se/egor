@@ -1,7 +1,7 @@
 use wgpu::{
-    Adapter, CommandEncoder, Device, Extent3d, Instance, PresentMode, Surface,
-    SurfaceConfiguration, SurfaceError, SurfaceTarget, Texture, TextureDescriptor,
-    TextureDimension, TextureFormat, TextureUsages, TextureView, WindowHandle,
+    Adapter, CommandEncoder, CurrentSurfaceTexture, Device, Extent3d, Instance, PresentMode,
+    Surface, SurfaceConfiguration, SurfaceTarget, Texture, TextureDescriptor, TextureDimension,
+    TextureFormat, TextureUsages, TextureView, WindowHandle,
 };
 
 use crate::frame::Presentable;
@@ -51,20 +51,24 @@ impl RenderTarget for Backbuffer {
 
     fn acquire(&mut self, device: &Device) -> Option<(TextureView, Option<Box<dyn Presentable>>)> {
         match self.surface.get_current_texture() {
-            Ok(surface_texture) => {
+            CurrentSurfaceTexture::Success(surface_texture) => {
                 let view = surface_texture.texture.create_view(&Default::default());
                 Some((view, Some(Box::new(surface_texture))))
             }
-            // `Lost` cannot recover on its own; configure recreates the swapchain
-            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
+            // usable, but wgpu wants a reconfigure, so skip this frame instead
+            CurrentSurfaceTexture::Suboptimal(_) => {
                 self.resize(device, self.config.width, self.config.height);
                 None
             }
-            // `Timeout` is transient, try again next frame
-            Err(SurfaceError::Timeout) => None,
-            // `OutOfMemory` has nowhere to report to, so it stays logged
-            Err(e) => {
-                eprintln!("Surface error: {:?}", e);
+            // `Lost` cannot recover on its own; configure recreates the swapchain
+            CurrentSurfaceTexture::Lost | CurrentSurfaceTexture::Outdated => {
+                self.resize(device, self.config.width, self.config.height);
+                None
+            }
+            // transient, try again next frame
+            CurrentSurfaceTexture::Timeout | CurrentSurfaceTexture::Occluded => None,
+            CurrentSurfaceTexture::Validation => {
+                eprintln!("Surface validation failed, trying again next frame");
                 None
             }
         }

@@ -26,8 +26,7 @@ impl EguiRenderer {
         let ctx = Context::default();
         let viewport_id = ctx.viewport_id();
         let state = State::new(ctx.clone(), viewport_id, window, None, None, None);
-        let renderer =
-            egui_wgpu::Renderer::new(device, surface_format, Default::default(), 1, false);
+        let renderer = egui_wgpu::Renderer::new(device, surface_format, Default::default());
 
         Self {
             ctx,
@@ -67,16 +66,17 @@ impl EguiRenderer {
         view: &TextureView,
         width: u32,
         height: u32,
-        frame: EguiFrame,
+        mut frame: EguiFrame,
     ) {
         let screen_descriptor = ScreenDescriptor {
             size_in_pixels: [width, height],
             pixels_per_point: frame.pixels_per_point,
         };
 
-        for (id, image_delta) in &frame.textures_delta.set {
-            self.renderer
-                .update_texture(device, queue, *id, image_delta);
+        for (id, deltas) in &frame.textures_delta.set {
+            for delta in deltas {
+                self.renderer.update_texture(device, queue, *id, delta);
+            }
         }
 
         self.renderer.update_buffers(
@@ -91,6 +91,7 @@ impl EguiRenderer {
             label: Some("egui"),
             color_attachments: &[Some(RenderPassColorAttachment {
                 view,
+                depth_slice: None,
                 resolve_target: None,
                 ops: Operations {
                     load: LoadOp::Load,
@@ -98,6 +99,7 @@ impl EguiRenderer {
                 },
             })],
             depth_stencil_attachment: None,
+            multiview_mask: None,
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -111,5 +113,8 @@ impl EguiRenderer {
         for id in &frame.textures_delta.free {
             self.renderer.free_texture(id);
         }
+
+        // egui checks that every delta was applied before the frame is dropped
+        frame.textures_delta.clear();
     }
 }
