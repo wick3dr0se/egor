@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "egor"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "color",
  "cosmic-text",
@@ -809,7 +809,7 @@ dependencies = [
 
 [[package]]
 name = "egor_app"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "console_error_panic_hook",
  "console_log",
@@ -823,7 +823,7 @@ dependencies = [
 
 [[package]]
 name = "egor_render"
-version = "0.10.0"
+version = "0.11.0"
 dependencies = [
  "bytemuck",
  "image",
