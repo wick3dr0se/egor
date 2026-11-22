@@ -102,7 +102,7 @@ pub struct OffscreenTarget {
 }
 
 impl OffscreenTarget {
-    pub fn new(device: &Device, width: u32, height: u32, format: TextureFormat) -> Self {
+    pub(crate) fn new(device: &Device, width: u32, height: u32, format: TextureFormat) -> Self {
         let render_texture = device.create_texture(&TextureDescriptor {
             label: Some("Offscreen Render Texture"),
             size: Extent3d {
@@ -147,16 +147,12 @@ impl OffscreenTarget {
         }
     }
 
-    pub fn texture(&self) -> &Texture {
-        &self.sample_texture
-    }
-
     /// The attachment that draws land in, before the sample copy
     pub(crate) fn attachment(&self) -> &Texture {
         &self.render_texture
     }
 
-    pub fn view(&self) -> &TextureView {
+    pub(crate) fn view(&self) -> &TextureView {
         &self.sample_view
     }
 

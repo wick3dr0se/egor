@@ -20,7 +20,7 @@ use crate::{
 /// and hosts with no display; adapters come from the usual wgpu backend selection.
 pub fn render_image(width: u32, height: u32, mut draw: impl FnMut(&mut Graphics)) -> Vec<u8> {
     let format = TextureFormat::Rgba8UnormSrgb;
-    let mut renderer = Renderer::headless(width, height, &MemoryHints::Performance);
+    let mut renderer = Renderer::headless(width, height, MemoryHints::Performance);
     let mut batches = BatchList::new(
         GeometryBatch::DEFAULT_MAX_VERTICES,
         GeometryBatch::DEFAULT_MAX_INDICES,

@@ -243,7 +243,7 @@ impl AppHandler<Renderer> for App {
             if size.width == 0 { 800 } else { size.width },
             if size.height == 0 { 600 } else { size.height },
         );
-        let renderer = Renderer::new(window.clone(), &self.memory_hints).await;
+        let renderer = Renderer::new(window.clone(), self.memory_hints).await;
         self.backbuffer = Some(Backbuffer::new(
             renderer.instance(),
             renderer.adapter(),

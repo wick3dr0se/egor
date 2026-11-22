@@ -7,7 +7,29 @@ mod texture;
 mod uniforms;
 pub mod vertex;
 
-pub use wgpu::{Device, MemoryHints, Queue, RenderPass, TextureFormat};
+pub use wgpu::{Device, Queue, RenderPass, TextureFormat};
+
+/// What the device favors when it allocates memory
+///
+/// wgpu's own hints also carry a manual allocator configuration, which egor does not
+/// expose: two settings cover every case this engine has.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MemoryHints {
+    /// Speed first
+    #[default]
+    Performance,
+    /// Memory first, for large atlases and small devices
+    MemoryUsage,
+}
+
+impl From<MemoryHints> for wgpu::MemoryHints {
+    fn from(hints: MemoryHints) -> Self {
+        match hints {
+            MemoryHints::Performance => Self::Performance,
+            MemoryHints::MemoryUsage => Self::MemoryUsage,
+        }
+    }
+}
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -118,7 +140,7 @@ impl Renderer {
     /// Sets up wgpu, pipelines, default texture & camera resources
     pub async fn new(
         window: impl Into<SurfaceTarget<'static>> + WindowHandle,
-        memory_hints: &MemoryHints,
+        memory_hints: MemoryHints,
     ) -> Self {
         let instance = new_instance_with_webgpu_detection(
             InstanceDescriptor::new_without_display_handle_from_env(),
@@ -138,7 +160,7 @@ impl Renderer {
             .request_device(&DeviceDescriptor {
                 #[cfg(target_arch = "wasm32")]
                 required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
-                memory_hints: memory_hints.clone(),
+                memory_hints: memory_hints.into(),
                 ..Default::default()
             })
             .await
@@ -160,7 +182,7 @@ impl Renderer {
     ///
     /// Frames render into an [`OffscreenTarget`]
     /// and come back through [`Self::read_target`].
-    pub fn headless(width: u32, height: u32, memory_hints: &MemoryHints) -> Self {
+    pub fn headless(width: u32, height: u32, memory_hints: MemoryHints) -> Self {
         pollster::block_on(async {
             let instance = new_instance_with_webgpu_detection(
                 InstanceDescriptor::new_without_display_handle_from_env(),
@@ -175,7 +197,7 @@ impl Renderer {
                 .request_device(&DeviceDescriptor {
                     #[cfg(target_arch = "wasm32")]
                     required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
-                    memory_hints: memory_hints.clone(),
+                    memory_hints: memory_hints.into(),
                     ..Default::default()
                 })
                 .await

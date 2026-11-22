@@ -89,10 +89,7 @@ pub mod render {
         primitives::{BorderRadii, Pivot},
         text::Align,
     };
-    pub use egor_render::{
-        ClipRect, MemoryHints, Space, Texture,
-        target::{OffscreenTarget, RenderTarget},
-    };
+    pub use egor_render::{ClipRect, MemoryHints, Space, Texture, target::OffscreenTarget};
 }
 
 #[macro_export]
