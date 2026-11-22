@@ -36,6 +36,7 @@ pub fn render_image(width: u32, height: u32, mut draw: impl FnMut(&mut Graphics)
             format,
             width,
             height,
+            1.0,
         );
         gfx.render_offscreen(&mut target, &mut draw);
     }
@@ -47,11 +48,11 @@ pub fn render_image(width: u32, height: u32, mut draw: impl FnMut(&mut Graphics)
 ///
 /// The origin is floored & the far edge is ceiled so antialiased edges aren't
 /// clipped by rounding. A zero-area result means fully clipped.
-pub(crate) fn to_clip_rect(rect: Rect) -> ClipRect {
-    let x = rect.position.x.max(0.0).floor();
-    let y = rect.position.y.max(0.0).floor();
-    let right = (rect.position.x + rect.size.x).max(0.0).ceil();
-    let bottom = (rect.position.y + rect.size.y).max(0.0).ceil();
+pub(crate) fn to_clip_rect(rect: Rect, scale: f32) -> ClipRect {
+    let x = (rect.position.x * scale).max(0.0).floor();
+    let y = (rect.position.y * scale).max(0.0).floor();
+    let right = ((rect.position.x + rect.size.x) * scale).max(0.0).ceil();
+    let bottom = ((rect.position.y + rect.size.y) * scale).max(0.0).ceil();
     ClipRect::new(
         x as u32,
         y as u32,
@@ -67,7 +68,8 @@ pub struct Graphics<'a> {
     camera: Camera,
     text_system: &'a mut TextSystem,
     target_format: TextureFormat,
-    target_size: (u32, u32),
+    physical: (u32, u32),
+    scale: f32,
     current_shader: Option<usize>,
     clip: Option<Rect>,
 }
@@ -81,17 +83,19 @@ impl<'a> Graphics<'a> {
         format: TextureFormat,
         w: u32,
         h: u32,
+        scale: f32,
     ) -> Self {
         renderer.set_target_size(w, h);
         let mut camera = Camera::default();
-        camera.set_view_size((w as f32, h as f32).into());
+        camera.set_view_size((w as f32 / scale, h as f32 / scale).into());
         Self {
             renderer,
             batches,
             camera,
             text_system,
             target_format: format,
-            target_size: (w, h),
+            physical: (w, h),
+            scale,
             current_shader: None,
             clip: None,
         }
@@ -107,7 +111,7 @@ impl<'a> Graphics<'a> {
 
     /// Current clip as an integer [`ClipRect`], if a clip is active
     fn current_clip(&self) -> Option<ClipRect> {
-        self.clip.map(to_clip_rect)
+        self.clip.map(|rect| to_clip_rect(rect, self.scale))
     }
 
     /// The key a shape starts from; its builder overrides texture, space or layer
@@ -166,8 +170,9 @@ impl<'a> Graphics<'a> {
                 batches: &mut offscreen_batch,
                 camera: offscreen_camera,
                 text_system: self.text_system,
-                target_size: (w, h),
+                physical: (w, h),
                 target_format: format,
+                scale: 1.0,
                 current_shader: None,
                 clip: None,
             };
@@ -204,7 +209,7 @@ impl<'a> Graphics<'a> {
         let _ = self.renderer.queue().submit(Some(encoder.finish()));
 
         // Restore the main target size for the remainder of the frame
-        let (mw, mh) = self.target_size;
+        let (mw, mh) = self.physical;
         self.renderer.set_target_size(mw, mh);
     }
 
@@ -215,17 +220,18 @@ impl<'a> Graphics<'a> {
         self.renderer.add_offscreen_texture(target)
     }
 
-    pub(crate) fn set_target_size(&mut self, w: u32, h: u32) {
-        self.target_size = (w, h);
-        self.camera.set_view_size((w as f32, h as f32).into());
+    pub(crate) fn set_physical_size(&mut self, w: u32, h: u32) {
+        self.physical = (w, h);
+        self.camera
+            .set_view_size((w as f32 / self.scale, h as f32 / self.scale).into());
         self.renderer.set_target_size(w, h);
     }
 
     /// Upload camera matrix to the GPU.
     /// Call after user drawing is complete and before the render pass
     pub(crate) fn upload_camera(&mut self) {
-        let (w, h) = self.target_size;
-        let size = (w as f32, h as f32).into();
+        let (w, h) = self.physical;
+        let size = (w as f32 / self.scale, h as f32 / self.scale).into();
         self.renderer
             .upload_camera_matrix(self.camera.view_proj(size).to_cols_array_2d());
         // Screen-space batches ignore the camera & map pixels directly:
@@ -239,10 +245,14 @@ impl<'a> Graphics<'a> {
     pub fn clear(&mut self, color: Color) {
         self.renderer.set_clear_color(color.into());
     }
-    /// Get current surface size in pixels
+    /// Current surface size in logical points
     pub fn screen_size(&self) -> Vec2 {
-        let (w, h) = self.target_size;
-        (w as f32, h as f32).into()
+        let (w, h) = self.physical;
+        (w as f32 / self.scale, h as f32 / self.scale).into()
+    }
+    /// Physical pixels per logical point, from the window
+    pub fn scale_factor(&self) -> f32 {
+        self.scale
     }
     /// Mutable access to [`Camera`]
     pub fn camera(&mut self) -> &mut Camera {
@@ -282,6 +292,7 @@ impl<'a> Graphics<'a> {
             text.to_string(),
             self.camera,
             self.clip,
+            self.scale,
         )
     }
 
@@ -396,6 +407,21 @@ mod tests {
         }
         assert!(n > 0.0, "nothing was drawn");
         (sx / n, sy / n)
+    }
+
+    #[test]
+    fn clips_follow_the_scale() {
+        let logical = Rect::new(Vec2::new(10.0, 20.0), Vec2::new(30.0, 40.0));
+        let at_one = to_clip_rect(logical, 1.0);
+        let at_two = to_clip_rect(logical, 2.0);
+        assert_eq!(
+            (at_one.x, at_one.y, at_one.width, at_one.height),
+            (10, 20, 30, 40)
+        );
+        assert_eq!(
+            (at_two.x, at_two.y, at_two.width, at_two.height),
+            (20, 40, 60, 80)
+        );
     }
 
     #[test]

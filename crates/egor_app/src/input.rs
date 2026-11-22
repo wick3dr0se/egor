@@ -3,7 +3,6 @@ pub use winit::{event::MouseButton, keyboard::KeyCode};
 use std::collections::HashMap;
 
 use winit::{
-    dpi::PhysicalPosition,
     event::{ElementState, KeyEvent},
     keyboard::PhysicalKey,
 };
@@ -39,9 +38,9 @@ impl Input {
     }
 
     /// Update cursor position & compute delta
-    pub(crate) fn update_cursor(&mut self, position: PhysicalPosition<f64>) {
+    pub(crate) fn update_cursor(&mut self, x: f32, y: f32) {
         let prev_pos = self.mouse_position;
-        let pos: (f32, f32) = position.into();
+        let pos = (x, y);
         self.mouse_delta = (pos.0 - prev_pos.0, pos.1 - prev_pos.1);
         self.mouse_position = pos;
     }

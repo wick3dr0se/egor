@@ -12,7 +12,7 @@ pub use egor_app::WindowEvent;
 pub use egor_app::{ANDROID_APP, AndroidApp};
 
 use egor_app::{
-    AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, PhysicalSize, Window, input::Input,
+    AppConfig, AppHandler, AppRunner, ControlFlow, Fullscreen, LogicalSize, Window, input::Input,
     time::FrameTimer,
 };
 use egor_render::{
@@ -34,10 +34,9 @@ impl<'a> AppControl<'a> {
         self.window.request_redraw();
     }
 
-    /// Set the inner size of the window in physical pixels
-    /// Returns the new size depending on platform
+    /// Set the inner size of the window in logical points
     pub fn set_size(&mut self, w: u32, h: u32) {
-        let _ = self.window.request_inner_size(PhysicalSize::new(w, h));
+        let _ = self.window.request_inner_size(LogicalSize::new(w, h));
         self.requested_size = Some((w, h));
     }
 
@@ -61,7 +60,15 @@ pub struct FrameContext<'a> {
     pub gfx: Graphics<'a>,
     pub input: &'a Input,
     pub timer: &'a FrameTimer,
+    /// Physical pixels per logical point, from the window
+    pub scale_factor: f32,
     #[cfg(feature = "ui")]
+    /// egui context for this frame
+    ///
+    /// Panels take a root `Ui`, so wrap them in [`egui::Context::root_ui`]:
+    /// `egui_ctx.root_ui(|ui| CentralPanel::default().show(ui, ..))`
+    ///
+    /// [`egui::Context::root_ui`]: egui::Context::root_ui
     pub egui_ctx: &'a egui::Context,
 }
 
@@ -301,6 +308,7 @@ impl AppHandler<Renderer> for App {
         #[cfg(feature = "ui")]
         let queue = renderer.queue().clone();
         let format = backbuffer.format();
+        let scale = (_window.scale_factor() as f32).max(0.1);
         let text_system = self.text_system.as_mut().unwrap();
 
         #[cfg(feature = "ui")]
@@ -312,9 +320,18 @@ impl AppHandler<Renderer> for App {
                 requested_size: None,
                 requested_vsync: None,
             },
-            gfx: Graphics::new(renderer, &mut self.batches, text_system, format, w, h),
+            gfx: Graphics::new(
+                renderer,
+                &mut self.batches,
+                text_system,
+                format,
+                w,
+                h,
+                scale,
+            ),
             input,
             timer,
+            scale_factor: scale,
             #[cfg(feature = "ui")]
             egui_ctx,
         };
@@ -322,8 +339,10 @@ impl AppHandler<Renderer> for App {
 
         let requested_size = ctx.app.requested_size;
         let requested_vsync = ctx.app.requested_vsync;
-        if let Some((pw, ph)) = requested_size {
-            ctx.gfx.set_target_size(pw, ph);
+        if let Some((w, h)) = requested_size {
+            // the request is logical; the target it renders into is physical
+            ctx.gfx
+                .set_physical_size((w as f32 * scale) as u32, (h as f32 * scale) as u32);
         }
 
         ctx.gfx.upload_camera();

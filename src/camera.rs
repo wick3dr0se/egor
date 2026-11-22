@@ -241,6 +241,20 @@ mod tests {
     }
 
     #[test]
+    fn world_screen_round_trip_at_any_view_size() {
+        // the view size is logical, so it varies with the display scale
+        let mut cam = Camera::default();
+        cam.set_view_size(vec2(456.0, 508.0));
+        cam.target(vec2(100.0, 50.0));
+
+        let world = vec2(140.0, 80.0);
+        let screen = cam.world_to_screen(world);
+        let world2 = cam.screen_to_world(screen);
+
+        assert!((world - world2).length() < 0.001);
+    }
+
+    #[test]
     fn world_screen_round_trip_while_turned() {
         // aiming relies on this: a cursor position must come back as the same world point
         let mut cam = Camera::default();

@@ -274,7 +274,7 @@ pub struct TextBuilder<'a> {
     position: Vec2,
     /// Optional bounding rectangle for alignment (origin, size)
     rect: Option<Rect>,
-    /// Line height in pixels; defaults to `size * 1.2`
+    /// Line height in points; defaults to `size * 1.2`
     line_height: Option<f32>,
     size: f32,
     color: Color,
@@ -293,6 +293,8 @@ pub struct TextBuilder<'a> {
     scale_with_zoom: bool,
     /// Draw layer, lower layers are drawn first
     layer: i16,
+    /// Physical pixels per logical point, for rasterizing glyphs sharp
+    dpi: f32,
 }
 
 impl<'a> TextBuilder<'a> {
@@ -305,6 +307,7 @@ impl<'a> TextBuilder<'a> {
         text: String,
         camera: Camera,
         clip: Option<Rect>,
+        dpi: f32,
     ) -> Self {
         Self {
             renderer,
@@ -314,6 +317,7 @@ impl<'a> TextBuilder<'a> {
             rect: None,
             size: 16.0,
             line_height: None,
+            dpi,
             color: Color::BLACK,
             family: "Inter".into(),
             weight: Weight::NORMAL,
@@ -393,7 +397,7 @@ impl<'a> TextBuilder<'a> {
         self
     }
 
-    /// Set the line height in pixels.
+    /// Set the line height in points.
     ///
     /// Defaults to `size * 1.2` if not set.
     pub fn line_height(mut self, line_height: f32) -> Self {
@@ -435,8 +439,10 @@ impl Drop for TextBuilder<'_> {
             (Space::World, true) => self.camera.zoom(),
             _ => 1.0,
         };
-        let size = self.size * scale;
-        let line_height = self.line_height.unwrap_or(self.size * 1.2) * scale;
+        // rasterize at device pixels: a 16 point glyph is 16 points on screen at any dpi
+        let dpi = self.dpi.max(0.1);
+        let size = self.size * scale * dpi;
+        let line_height = self.line_height.unwrap_or(self.size * 1.2) * scale * dpi;
 
         // world text turns with the view; screen text stays upright
         let turn = match self.space {
@@ -464,7 +470,7 @@ impl Drop for TextBuilder<'_> {
         let key = BatchKey {
             texture: Some(texture.id()),
             shader: None,
-            clip: self.clip.map(to_clip_rect),
+            clip: self.clip.map(|rect| to_clip_rect(rect, dpi)),
             // glyphs are already in pixels, whatever space they came from
             space: Space::Screen,
             layer: self.layer,
@@ -489,7 +495,8 @@ impl Drop for TextBuilder<'_> {
             text_w = text_w.max(run.line_w);
             lines += 1.0;
         }
-        let text_h = lines * line_height;
+        text_w /= dpi;
+        let text_h = lines * line_height / dpi;
 
         let position = if let Some(rect) = rect {
             let x = match self.align {
@@ -538,7 +545,7 @@ impl Drop for TextBuilder<'_> {
 
         for run in buffer.layout_runs() {
             for glyph in run.glyphs.iter() {
-                let physical = glyph.physical((position.x, position.y), 1.0);
+                let physical = glyph.physical((position.x * dpi, position.y * dpi), 1.0);
 
                 let slot = match atlas.slots.get(&physical.cache_key).copied() {
                     Some(slot) => slot,
@@ -556,10 +563,10 @@ impl Drop for TextBuilder<'_> {
                     }
                 };
 
-                let (w, h) = (slot.width as f32, slot.height as f32);
+                let (w, h) = (slot.width as f32 / dpi, slot.height as f32 / dpi);
                 // the glyph's box starts at the pen, offset by its placement
-                let x = (physical.x + slot.left) as f32;
-                let y = run.line_y.round() + physical.y as f32 - slot.top as f32;
+                let x = (physical.x + slot.left) as f32 / dpi;
+                let y = (run.line_y.round() + physical.y as f32 - slot.top as f32) / dpi;
 
                 // place the glyph, then rotate it around the text position
                 let placed = position + spin * (Vec2::new(x, y) - position);

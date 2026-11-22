@@ -4,6 +4,7 @@ pub mod time;
 use crate::{input::Input, time::FrameTimer};
 use std::sync::Arc;
 pub use winit::{
+    dpi::LogicalSize,
     dpi::PhysicalSize,
     event::WindowEvent,
     event_loop::ControlFlow,
@@ -89,6 +90,10 @@ pub struct AppRunner<R: 'static, H: AppHandler<R> + 'static> {
     input: Input,
     timer: FrameTimer,
     config: AppConfig,
+    /// winit never sizes the canvas, only its CSS box, so we keep it and set the
+    /// backing store to the device pixel size it reports
+    #[cfg(target_arch = "wasm32")]
+    canvas: Option<web_sys::HtmlCanvasElement>,
 }
 
 #[doc(hidden)]
@@ -121,22 +126,38 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             .with_decorations(self.config.decorations);
 
         if let (Some(w), Some(h)) = (self.config.width, self.config.height) {
-            win_attrs = win_attrs.with_inner_size(PhysicalSize::new(w, h));
+            win_attrs = win_attrs.with_inner_size(LogicalSize::new(w as f64, h as f64));
         }
         #[cfg(target_arch = "wasm32")]
         {
+            use wasm_bindgen::JsCast;
             use winit::platform::web::WindowAttributesExtWebSys;
-            win_attrs = win_attrs.with_append(true);
+            let document = web_sys::window()
+                .and_then(|window| window.document())
+                .expect("no document");
+            // a page can bring its own id="canvas", otherwise we make one
+            let canvas = document
+                .get_element_by_id("canvas")
+                .and_then(|element| element.dyn_into::<web_sys::HtmlCanvasElement>().ok())
+                .unwrap_or_else(|| {
+                    document
+                        .create_element("canvas")
+                        .expect("failed to create canvas")
+                        .dyn_into()
+                        .expect("not a canvas")
+                });
+            self.canvas = Some(canvas.clone());
+            win_attrs = win_attrs.with_canvas(Some(canvas)).with_append(true);
         }
 
         let window = Arc::new(event_loop.create_window(win_attrs).unwrap());
         self.window = Some(window.clone());
 
         if let Some((w, h)) = self.config.min_size {
-            window.set_min_inner_size(Some(PhysicalSize::new(w, h)));
+            window.set_min_inner_size(Some(LogicalSize::new(w as f64, h as f64)));
         }
         if let Some((w, h)) = self.config.max_size {
-            window.set_max_inner_size(Some(PhysicalSize::new(w, h)));
+            window.set_max_inner_size(Some(LogicalSize::new(w as f64, h as f64)));
         }
 
         let mut handler = self.handler.take().unwrap();
@@ -187,6 +208,12 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                     return;
                 }
 
+                #[cfg(target_arch = "wasm32")]
+                if let Some(canvas) = &self.canvas {
+                    canvas.set_width(size.width);
+                    canvas.set_height(size.height);
+                }
+
                 if let (Some(resource), Some(handler)) =
                     (self.resource.as_mut(), self.handler.as_mut())
                 {
@@ -197,11 +224,24 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             WindowEvent::MouseInput { button, state, .. } => {
                 self.input.update_mouse_button(button, state)
             }
-            WindowEvent::CursorMoved { position, .. } => self.input.update_cursor(position),
+            WindowEvent::CursorMoved { position, .. } => {
+                let scale = self
+                    .window
+                    .as_ref()
+                    .map(|window| window.scale_factor())
+                    .unwrap_or(1.0);
+                let logical = position.to_logical::<f32>(scale);
+                self.input.update_cursor(logical.x, logical.y)
+            }
             WindowEvent::MouseWheel { delta, .. } => {
+                let scale = self
+                    .window
+                    .as_ref()
+                    .map(|window| window.scale_factor())
+                    .unwrap_or(1.0) as f32;
                 let wheel_delta = match delta {
                     MouseScrollDelta::LineDelta(_, y) => y,
-                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / 100.0,
+                    MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / scale / 100.0,
                 };
                 self.input.update_scroll(wheel_delta);
             }
@@ -234,6 +274,8 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
             input: Input::default(),
             timer: FrameTimer::default(),
             config,
+            #[cfg(target_arch = "wasm32")]
+            canvas: None,
         }
     }
 
@@ -274,7 +316,9 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
             #[cfg(all(feature = "log", not(target_os = "android")))]
             env_logger::init_from_env(env_logger::Env::default().default_filter_or("error"));
 
-            event_loop.run_app(&mut self).unwrap();
+            if let Err(err) = event_loop.run_app(&mut self) {
+                eprintln!("event loop: {err}");
+            }
         }
     }
 }
