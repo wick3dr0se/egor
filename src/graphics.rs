@@ -339,3 +339,221 @@ impl<'a> Graphics<'a> {
         self.current_shader = previous_shader;
     }
 }
+
+// Rendering needs a driver, and CI only has one on Linux
+#[cfg(all(test, not(miri)))]
+mod tests {
+    use super::*;
+    use std::sync::OnceLock;
+
+    const W: u32 = 200;
+    const H: u32 = 150;
+
+    // a runner with no driver skips these rather than failing
+    fn has_adapter() -> bool {
+        static AVAILABLE: OnceLock<bool> = OnceLock::new();
+        *AVAILABLE.get_or_init(|| {
+            let available = Renderer::try_headless(1, 1, MemoryHints::Performance).is_some();
+            if !available {
+                eprintln!("no adapter: skipping the pixel tests");
+            }
+            available
+        })
+    }
+
+    fn pixel(pixels: &[u8], x: u32, y: u32) -> [u8; 3] {
+        let i = ((y * W + x) * 4) as usize;
+        [pixels[i], pixels[i + 1], pixels[i + 2]]
+    }
+
+    // edges antialias differently per driver, so only ever sample inside a shape
+    fn assert_near(actual: [u8; 3], expected: [u8; 3]) {
+        let close = actual
+            .iter()
+            .zip(expected)
+            .all(|(a, b)| (*a as i32 - b as i32).abs() <= 2);
+        assert!(close, "got {actual:?}, wanted {expected:?}");
+    }
+
+    fn black(pixels: &[u8], x: u32, y: u32) {
+        assert_near(pixel(pixels, x, y), [0, 0, 0]);
+    }
+
+    fn white(pixels: &[u8], x: u32, y: u32) {
+        assert_near(pixel(pixels, x, y), [255, 255, 255]);
+    }
+
+    fn ink_center(pixels: &[u8]) -> (f32, f32) {
+        let (mut sx, mut sy, mut n) = (0.0f32, 0.0f32, 0.0f32);
+        for y in 0..H {
+            for x in 0..W {
+                if pixel(pixels, x, y)[0] > 128 {
+                    sx += x as f32;
+                    sy += y as f32;
+                    n += 1.0;
+                }
+            }
+        }
+        assert!(n > 0.0, "nothing was drawn");
+        (sx / n, sy / n)
+    }
+
+    #[test]
+    fn image_is_the_requested_size() {
+        if !has_adapter() {
+            return;
+        }
+        let pixels = render_image(W, H, |gfx| gfx.clear(Color::BLACK));
+        assert_eq!(pixels.len(), (W * H * 4) as usize);
+    }
+
+    #[test]
+    fn clear_covers_every_pixel() {
+        if !has_adapter() {
+            return;
+        }
+        let pixels = render_image(W, H, |gfx| gfx.clear(Color::WHITE));
+        for (x, y) in [
+            (0, 0),
+            (W - 1, 0),
+            (0, H - 1),
+            (W - 1, H - 1),
+            (W / 2, H / 2),
+        ] {
+            white(&pixels, x, y);
+        }
+    }
+
+    #[test]
+    fn screen_rect_lands_where_asked() {
+        if !has_adapter() {
+            return;
+        }
+        let pixels = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.rect()
+                .screen()
+                .at(Vec2::new(20.0, 20.0))
+                .size(Vec2::new(60.0, 40.0))
+                .color(Color::WHITE);
+        });
+        white(&pixels, 40, 35);
+        black(&pixels, 10, 35);
+        black(&pixels, 40, 90);
+    }
+
+    #[test]
+    fn text_paints_pixels() {
+        if !has_adapter() {
+            return;
+        }
+        let pixels = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.text("egor")
+                .at(Vec2::new(20.0, 60.0))
+                .size(48.0)
+                .color(Color::WHITE);
+        });
+        let lit = (0..H)
+            .flat_map(|y| (0..W).map(move |x| (x, y)))
+            .filter(|&(x, y)| pixel(&pixels, x, y)[0] > 128)
+            .count();
+        assert!(lit > 100, "text left {lit} lit pixels");
+    }
+
+    #[test]
+    fn draw_order_follows_layer_then_queue() {
+        if !has_adapter() {
+            return;
+        }
+        let later_draw = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.rect()
+                .screen()
+                .at(Vec2::new(40.0, 40.0))
+                .size(Vec2::new(80.0, 80.0))
+                .color(Color::WHITE);
+            gfx.rect()
+                .screen()
+                .at(Vec2::new(60.0, 60.0))
+                .size(Vec2::new(80.0, 80.0))
+                .color(Color::BLACK);
+        });
+        black(&later_draw, 75, 75);
+
+        let lower_layer = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.rect()
+                .screen()
+                .at(Vec2::new(40.0, 40.0))
+                .size(Vec2::new(80.0, 80.0))
+                .color(Color::WHITE);
+            gfx.rect()
+                .screen()
+                .layer(-1)
+                .at(Vec2::new(60.0, 60.0))
+                .size(Vec2::new(80.0, 80.0))
+                .color(Color::BLACK);
+        });
+        white(&lower_layer, 75, 75);
+    }
+
+    #[test]
+    fn clip_keeps_draws_inside() {
+        if !has_adapter() {
+            return;
+        }
+        let pixels = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.with_clip(
+                Rect::new(Vec2::new(50.0, 50.0), Vec2::new(60.0, 40.0)),
+                |gfx| {
+                    gfx.rect()
+                        .screen()
+                        .at(Vec2::ZERO)
+                        .size(Vec2::new(W as f32, H as f32))
+                        .color(Color::WHITE);
+                },
+            );
+        });
+        white(&pixels, 80, 70);
+        black(&pixels, 20, 70);
+        black(&pixels, 80, 120);
+    }
+
+    #[test]
+    fn rotation_turns_world_draws_about_the_center() {
+        if !has_adapter() {
+            return;
+        }
+        let draw = |rotation: f32| {
+            render_image(W, H, move |gfx| {
+                gfx.clear(Color::BLACK);
+                gfx.camera().set_rotation(rotation);
+                gfx.rect()
+                    .at(Vec2::new(50.0, 65.0))
+                    .size(Vec2::new(20.0, 20.0))
+                    .color(Color::WHITE);
+            })
+        };
+
+        let (cx, cy) = (W as f32 / 2.0, H as f32 / 2.0);
+        let (x0, y0) = ink_center(&draw(0.0));
+        let (x1, y1) = ink_center(&draw(std::f32::consts::FRAC_PI_2));
+
+        let radius = ((x0 - cx).powi(2) + (y0 - cy).powi(2)).sqrt();
+        let turned = ((x1 - cx).powi(2) + (y1 - cy).powi(2)).sqrt();
+        assert!(
+            (radius - turned).abs() < 4.0,
+            "radius {radius} became {turned}"
+        );
+        assert!(
+            (x0 - cx).abs() > 30.0,
+            "the rect did not start beside the center"
+        );
+        assert!(
+            (x1 - cx).abs() < 10.0,
+            "a quarter turn left the rect on the x axis"
+        );
+    }
+}

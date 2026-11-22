@@ -39,6 +39,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Install a software Vulkan driver
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
       - name: Test & builds demos
         run: cargo test --workspace --exclude xtask --all-targets --features "log ui hot_reload" --locked
   fmt:

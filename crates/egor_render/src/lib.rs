@@ -183,6 +183,11 @@ impl Renderer {
     /// Frames render into an [`OffscreenTarget`]
     /// and come back through [`Self::read_target`].
     pub fn headless(width: u32, height: u32, memory_hints: MemoryHints) -> Self {
+        Self::try_headless(width, height, memory_hints).expect("no usable adapter")
+    }
+
+    /// Builds a headless renderer, or `None` when the platform has no usable adapter
+    pub fn try_headless(width: u32, height: u32, memory_hints: MemoryHints) -> Option<Self> {
         pollster::block_on(async {
             let instance = new_instance_with_webgpu_detection(
                 InstanceDescriptor::new_without_display_handle_from_env(),
@@ -191,7 +196,7 @@ impl Renderer {
             let adapter = instance
                 .request_adapter(&RequestAdapterOptions::default())
                 .await
-                .unwrap();
+                .ok()?;
 
             let (device, queue) = adapter
                 .request_device(&DeviceDescriptor {
@@ -201,7 +206,7 @@ impl Renderer {
                     ..Default::default()
                 })
                 .await
-                .unwrap();
+                .ok()?;
 
             let renderer = Self::assemble(
                 Gpu {
@@ -213,7 +218,7 @@ impl Renderer {
                 TextureFormat::Rgba8UnormSrgb,
             );
             renderer.set_target_size(width, height);
-            renderer
+            Some(renderer)
         })
     }
 
