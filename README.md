@@ -184,11 +184,38 @@ the rebuild shows on screen.
 > `dx serve` to a file runs the app but never rebuilds, and the first patch after it starts can land
 > one save late.
 
+### Rendering Without a Window
+
+`egor::render::render_image` draws one frame into a buffer, no window and no event loop:
+
+```rust
+let pixels = egor::render::render_image(640, 360, |gfx| {
+    gfx.clear(Color::BLACK);
+    gfx.rect().screen().at(pos).size(size).color(Color::WHITE);
+    gfx.text("hello").at(pos).size(32.0);
+});
+```
+
+It returns tightly packed RGBA8, top row first, `width * height * 4` bytes, ready for a texture or an encoder. Shapes, text and clipping behave as they do in a window, which makes it usable for thumbnails, image tests and hosts with no display.
+
 ## Performance
 
-To stress test **egor**, we made [ferrismark](demos/ferrismark), a bunnymark like demo capable of rendering hundreds of thousands of Ferris crabs at stable FPS on modest hardware
+To stress test **egor**, [ferrismark](demos/ferrismark) is a bunnymark like demo: 129,989 Ferris crabs at 55 FPS on a Ryzen 5 1600 and a Radeon Pro WX 2100.
 
-<img src="media/ferrismark.png" height="400" />
+| Radeon Pro WX 2100, 129,989 crabs | llvmpipe, 10,000 crabs |
+| --- | --- |
+| <img src="media/ferrismark.png" height="320" /> | <img src="media/ferrismark-sw.png" height="320" /> |
+
+### Software Rendering
+
+wgpu picks the adapter, so a CPU driver works like any other. Mesa's lavapipe is its software Vulkan driver, packaged as `vulkan-swrast` on Arch:
+
+```bash
+sudo pacman -S vulkan-swrast
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json cargo xtask run ferrismark --features log
+```
+
+`RUST_LOG=info` prints the adapter it picked: `adapter: llvmpipe (LLVM 23.1.5, 256 bits) (Vulkan, Cpu, driver llvmpipe)`.
 
 ## Demos
 

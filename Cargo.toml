@@ -16,7 +16,7 @@ resolver = "2"
 
 [features]
 default = []
-log = ["egor_app/log"]
+log = ["egor_app/log", "egor_render/log"]
 
 webgl = ["egor_render/webgl"]
 angle = ["egor_render/angle"]

@@ -14,9 +14,12 @@ webgl = ["wgpu/webgl"]
 angle = ["wgpu/angle"]
 gles = ["wgpu/gles"]
 vulkan = ["wgpu/vulkan"]
+log = ["dep:log"]
 
 [dependencies]
 bytemuck = "1.23.0"
+log = { version = "0.4.27", optional = true }
+pollster = "1.0.3"
 image = { version = "0.25.6", default-features = false, features = ["png"] }
 
 
@@ -43,4 +46,4 @@ wgpu = { version = "30.0.2", default-features = false, features = [
 
 [dev-dependencies]
 winit = "0.30.12"
-pollster = "0.4.0"
+pollster = "1.0.3"

@@ -151,6 +151,11 @@ impl OffscreenTarget {
         &self.sample_texture
     }
 
+    /// The attachment that draws land in, before the sample copy
+    pub(crate) fn attachment(&self) -> &Texture {
+        &self.render_texture
+    }
+
     pub fn view(&self) -> &TextureView {
         &self.sample_view
     }

@@ -85,7 +85,7 @@ pub mod render {
     pub use crate::{
         camera::Camera,
         color::Color,
-        graphics::Graphics,
+        graphics::{Graphics, render_image},
         primitives::{BorderRadii, Pivot},
         text::Align,
     };

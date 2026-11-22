@@ -1,5 +1,5 @@
 use egor_render::{
-    ClipRect, Renderer, Space, Texture, TextureFormat,
+    ClipRect, MemoryHints, Renderer, Space, Texture, TextureFormat,
     batch::{BatchKey, GeometryBatch},
     target::{OffscreenTarget, RenderTarget},
 };
@@ -13,6 +13,35 @@ use crate::{
     primitives::{BatchList, PolygonBuilder, PolylineBuilder, RectangleBuilder},
     text::{TextBuilder, TextSystem},
 };
+
+/// Renders one frame with no window and returns it as RGBA8 pixels
+///
+/// Top row first, tightly packed, `width * height * 4` bytes. For tests, thumbnails
+/// and hosts with no display; adapters come from the usual wgpu backend selection.
+pub fn render_image(width: u32, height: u32, mut draw: impl FnMut(&mut Graphics)) -> Vec<u8> {
+    let format = TextureFormat::Rgba8UnormSrgb;
+    let mut renderer = Renderer::headless(width, height, &MemoryHints::Performance);
+    let mut batches = BatchList::new(
+        GeometryBatch::DEFAULT_MAX_VERTICES,
+        GeometryBatch::DEFAULT_MAX_INDICES,
+    );
+    let mut text = TextSystem::new();
+    let mut target = renderer.create_offscreen_target(width, height, format);
+
+    {
+        let mut gfx = Graphics::new(
+            &mut renderer,
+            &mut batches,
+            &mut text,
+            format,
+            width,
+            height,
+        );
+        gfx.render_offscreen(&mut target, &mut draw);
+    }
+
+    renderer.read_target(&target)
+}
 
 /// Converts a screen-space [`Rect`] into an integer [`ClipRect`]
 ///

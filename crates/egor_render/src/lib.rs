@@ -12,10 +12,12 @@ pub use wgpu::{Device, MemoryHints, Queue, RenderPass, TextureFormat};
 use std::cell::RefCell;
 use std::rc::Rc;
 use wgpu::{
-    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
-    CommandEncoder, DeviceDescriptor, Instance, InstanceDescriptor, LoadOp, Operations,
-    RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions, StoreOp, SurfaceTarget,
-    TextureView, WindowHandle,
+    Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferDescriptor,
+    BufferUsages, COPY_BYTES_PER_ROW_ALIGNMENT, Color, CommandEncoder, CommandEncoderDescriptor,
+    DeviceDescriptor, Extent3d, Instance, InstanceDescriptor, LoadOp, MapMode, Operations,
+    Origin3d, PollType, RenderPassColorAttachment, RenderPassDescriptor, RequestAdapterOptions,
+    StoreOp, SurfaceTarget, TexelCopyBufferInfo, TexelCopyBufferLayout, TexelCopyTextureInfo,
+    TextureAspect, TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
 
@@ -131,6 +133,7 @@ impl Renderer {
             })
             .await
             .unwrap();
+
         let (device, queue) = adapter
             .request_device(&DeviceDescriptor {
                 #[cfg(target_arch = "wasm32")]
@@ -142,8 +145,72 @@ impl Renderer {
             .unwrap();
 
         let surface_config = surface.get_default_config(&adapter, 1, 1).unwrap();
-        let surface_format = surface_config.format;
-        let pipelines = Pipelines::new(&device, surface_format);
+        Self::assemble(
+            Gpu {
+                instance,
+                adapter,
+                device,
+                queue,
+            },
+            surface_config.format,
+        )
+    }
+
+    /// Builds a renderer that never opens a window, for tests and headless hosts
+    ///
+    /// Frames render into an [`OffscreenTarget`]
+    /// and come back through [`Self::read_target`].
+    pub fn headless(width: u32, height: u32, memory_hints: &MemoryHints) -> Self {
+        pollster::block_on(async {
+            let instance = new_instance_with_webgpu_detection(
+                InstanceDescriptor::new_without_display_handle_from_env(),
+            )
+            .await;
+            let adapter = instance
+                .request_adapter(&RequestAdapterOptions::default())
+                .await
+                .unwrap();
+
+            let (device, queue) = adapter
+                .request_device(&DeviceDescriptor {
+                    #[cfg(target_arch = "wasm32")]
+                    required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                    memory_hints: memory_hints.clone(),
+                    ..Default::default()
+                })
+                .await
+                .unwrap();
+
+            let renderer = Self::assemble(
+                Gpu {
+                    instance,
+                    adapter,
+                    device,
+                    queue,
+                },
+                TextureFormat::Rgba8UnormSrgb,
+            );
+            renderer.set_target_size(width, height);
+            renderer
+        })
+    }
+
+    fn assemble(gpu: Gpu, surface_format: TextureFormat) -> Self {
+        #[cfg(feature = "log")]
+        {
+            let info = gpu.adapter.get_info();
+            log::info!(
+                "adapter: {} ({:?}, {:?}, driver {})",
+                info.name,
+                info.backend,
+                info.device_type,
+                info.driver
+            );
+        }
+
+        let device = &gpu.device;
+        let queue = &gpu.queue;
+        let pipelines = Pipelines::new(device, surface_format);
 
         let quad_vertex_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("Static Unit Quad VB"),
@@ -192,16 +259,11 @@ impl Renderer {
             }],
         });
 
-        let uniforms = Uniforms::new(&device);
-        let textures = Textures::new(&device, &queue);
+        let uniforms = Uniforms::new(device);
+        let textures = Textures::new(device, queue);
 
         Renderer {
-            gpu: Gpu {
-                instance,
-                adapter,
-                device,
-                queue,
-            },
+            gpu,
             pipelines,
             quad_vertex_buffer,
             quad_index_buffer,
@@ -267,6 +329,71 @@ impl Renderer {
         for id in freed {
             self.textures.free(id);
         }
+    }
+
+    /// Copies an offscreen target back as RGBA8 rows, top row first
+    ///
+    /// Each row is tightly packed, so the returned length is `width * height * 4`
+    /// whatever the copy alignment was.
+    pub fn read_target(&self, target: &OffscreenTarget) -> Vec<u8> {
+        let (width, height) = target.size();
+        let unpadded = width * 4;
+        let padded = unpadded.div_ceil(COPY_BYTES_PER_ROW_ALIGNMENT) * COPY_BYTES_PER_ROW_ALIGNMENT;
+
+        let buffer = self.gpu.device.create_buffer(&BufferDescriptor {
+            label: Some("Target Readback"),
+            size: u64::from(padded) * u64::from(height),
+            usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+
+        let mut encoder = self
+            .gpu
+            .device
+            .create_command_encoder(&CommandEncoderDescriptor::default());
+        encoder.copy_texture_to_buffer(
+            TexelCopyTextureInfo {
+                texture: target.attachment(),
+                mip_level: 0,
+                origin: Origin3d::ZERO,
+                aspect: TextureAspect::All,
+            },
+            TexelCopyBufferInfo {
+                buffer: &buffer,
+                layout: TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded),
+                    rows_per_image: Some(height),
+                },
+            },
+            Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
+        self.gpu.queue.submit(Some(encoder.finish()));
+
+        let slice = buffer.slice(..);
+        slice.map_async(MapMode::Read, |_| {});
+        self.gpu
+            .device
+            .poll(PollType::Wait {
+                submission_index: None,
+                timeout: None,
+            })
+            .unwrap();
+
+        let mapped = slice.get_mapped_range().unwrap();
+        let mut pixels = Vec::with_capacity((unpadded * height) as usize);
+        for row in 0..height {
+            let start = (row * padded) as usize;
+            pixels.extend_from_slice(&mapped[start..start + unpadded as usize]);
+        }
+        drop(mapped);
+        buffer.unmap();
+
+        pixels
     }
 
     /// Begins a render pass with the given encoder and target view.
