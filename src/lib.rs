@@ -42,7 +42,7 @@
 //! Feature | Description | Default
 //! ---|---|---
 //! `log` | Enable logging via `egor_app/log` | opt-in
-//! `hot_reload` | Hot-reload support via `hot_reload` | opt-in
+//! `hot_reload` | Live code patching through subsecond and `dx serve` | opt-in
 //! `ui`         | Enable egui integration via `ui` | opt-in
 //! `webgl`      | WebGL backend for `egor_render` | opt-in
 //! `angle`      | ANGLE backend for `egor_render` | opt-in
@@ -64,6 +64,14 @@ mod ui;
 
 pub mod app;
 pub mod math;
+
+#[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
+pub mod hot {
+    //! Primitives for keeping state across hot patches, so a changed struct is not
+    //! read with its old layout. Diff [`HotFnPtr`] from [`HotFn::ptr_address`] each
+    //! frame and rebuild when it changes.
+    pub use dioxus_devtools::subsecond::{HotFn, HotFnPtr};
+}
 
 pub mod input {
     pub use egor_app::input::{Input, KeyCode, MouseButton};

@@ -1,7 +1,8 @@
 use egor::{
     app::{App, FrameContext},
+    hot::{HotFn, HotFnPtr},
     math::{Vec2, vec2},
-    render::{Color, Graphics, OffscreenTarget, RenderTarget},
+    render::{Align, Color, Graphics, OffscreenTarget},
 };
 
 use std::fs;
@@ -12,34 +13,66 @@ fn load_effect(gfx: &mut Graphics, effect: &str) -> usize {
     gfx.load_shader(&(common + &fragment))
 }
 
+struct PostFx {
+    target: OffscreenTarget,
+    texture: usize,
+    size: (u32, u32),
+    effect: &'static str,
+}
+
+/// The target, its texture and the effect, rebuilt when this function changes.
+///
+/// A function item rather than a closure, because hot reload patches functions and
+/// cannot wrap captures.
+fn new_postfx(gfx: &mut Graphics) -> PostFx {
+    let screen = gfx.screen_size();
+    let size = (screen.x as u32, screen.y as u32);
+    let mut target = gfx.create_offscreen(size.0, size.1);
+
+    PostFx {
+        texture: gfx.offscreen_as_texture(&mut target),
+        target,
+        size,
+        // HOT RELOAD: edit this and the state rebuilds, swapping the effect live.
+        // Try: vignette, crt, pixelate
+        effect: "pixelate",
+    }
+}
+
 fn main() {
-    let mut offscreen_target = None;
-    let mut texture_id = 0;
+    let mut postfx: Option<PostFx> = None;
+    let mut postfx_ptr: Option<HotFnPtr> = None;
 
     App::new()
         .title("Egor Hot Reload/Post Processing Demo")
         .window_size(800, 600)
         .run(move |FrameContext { gfx, .. }| {
+            // a patched struct can be read with its old layout, so rebuild when the
+            // function that built it changes
+            let mut state_fn = HotFn::current(new_postfx);
+            let ptr = state_fn.ptr_address();
+            if postfx_ptr != Some(ptr) {
+                postfx_ptr = Some(ptr);
+                postfx = Some(state_fn.call((gfx,)));
+            }
+            let postfx = postfx.as_mut().unwrap();
+
             gfx.clear(Color::WHITE);
             let size = gfx.screen_size();
             let center = size * 0.5;
 
-            let target_size = (size.x as u32, size.y as u32);
-
-            if offscreen_target
-                .as_ref()
-                .is_none_or(|t: &OffscreenTarget| t.size() != target_size)
-            {
-                let mut offscreen = gfx.create_offscreen(target_size.0, target_size.1);
-                texture_id = gfx.offscreen_as_texture(&mut offscreen);
-                offscreen_target = Some(offscreen);
+            let wanted = (size.x as u32, size.y as u32);
+            if postfx.size != wanted {
+                let mut target = gfx.create_offscreen(wanted.0, wanted.1);
+                postfx.texture = gfx.offscreen_as_texture(&mut target);
+                postfx.target = target;
+                postfx.size = wanted;
             }
 
-            // HOT RELOAD: change this line and save to swap effects live!
-            // Try swapping to: vignette, crt, pixelate
-            let shader = load_effect(gfx, "pixelate");
+            // the shader comes off disk every frame, so editing the wgsl is live too
+            let shader = load_effect(gfx, postfx.effect);
 
-            gfx.render_offscreen(offscreen_target.as_mut().unwrap(), |gfx| {
+            gfx.render_offscreen(&mut postfx.target, |gfx| {
                 gfx.rect()
                     .at(center - Vec2::splat(100.0))
                     .size(Vec2::splat(200.0))
@@ -66,8 +99,14 @@ fn main() {
                 gfx.rect()
                     .at(vec2(0., 0.))
                     .size(size)
-                    .texture(texture_id)
+                    .texture(postfx.texture)
                     .color(Color::WHITE);
             });
+
+            gfx.text(postfx.effect)
+                .at(vec2(size.x - 10.0, size.y - 10.0))
+                .anchor(Align::BottomRight)
+                .size(14.0)
+                .color(Color::new([0.3, 0.3, 0.34, 1.0]));
         });
 }

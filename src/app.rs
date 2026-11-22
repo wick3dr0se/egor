@@ -208,6 +208,11 @@ impl App {
     pub fn run(mut self, #[allow(unused_mut)] mut update: impl FnMut(&mut FrameContext) + 'static) {
         #[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
         let update = {
+            // patches only arrive from a devserver, so say when there is none
+            if std::env::var_os("DIOXUS_DEVSERVER_PORT").is_none() {
+                eprintln!("hot_reload: no devserver, run `dx serve --hot-patch`");
+            }
+
             dioxus_devtools::connect_subsecond();
 
             move |ctx: &mut FrameContext| {

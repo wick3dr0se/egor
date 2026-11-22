@@ -141,16 +141,48 @@ x build
 
 ### Try Out Subsecond Hot-reloading
 
-Compile with the `hot_reload` feature enabled. Hot reload will automatically wrap `AppHandler::update` when the feature is active
+There are two ways to reload while the app runs. The first needs no tooling at all.
 
-Run `dioxus-cli` (defer to [Dioxus CLI docs](https://docs.rs/crate/dioxus-cli/latest) for setup):
+**Assets.** Read the file when you draw it and the edit is live on the next frame.
+[demos/hot_postfx](demos/hot_postfx) reads `shaders/{effect}.wgsl` every frame, so a shader edit
+shows up in a running app under plain `cargo run`.
+
+**Code.** Compile with the `hot_reload` feature, which wraps `AppHandler::update`, and run the
+[Dioxus CLI](https://docs.rs/crate/dioxus-cli/latest). Keep the CLI in the 0.7 line to match
+`dioxus-devtools 0.7`.
 
 ```bash
 dx serve --hot-patch
 ```
 
+Frame logic and state both survive a patch. When you change how the state is built and want the old
+one thrown away, diff the setup function's address each frame:
+
+```rust
+use egor::hot::{HotFn, HotFnPtr};
+
+let mut game: Option<Game> = None;
+let mut game_ptr: Option<HotFnPtr> = None;
+
+// in the frame
+let mut setup = HotFn::current(new_game);
+let ptr = setup.ptr_address();
+if game_ptr != Some(ptr) {
+    game_ptr = Some(ptr);
+    game = Some(setup.call((&mut ctx.gfx,)));
+}
+let game = game.as_mut().unwrap();
+```
+
+The setup function has to be a function item, not a closure, and everything the state needs belongs
+in it. Editing a struct field used elsewhere, without touching that function, is still unsafe.
+[demos/hot_postfx](demos/hot_postfx) uses this, holding the effect name in its setup function so
+the rebuild shows on screen.
+
 > [!NOTE]
-> Subsecond hot-reloading is experimental; native is working
+> Subsecond hot-reloading is experimental; native is working. The watcher needs a terminal: piping
+> `dx serve` to a file runs the app but never rebuilds, and the first patch after it starts can land
+> one save late.
 
 ## Performance
 
