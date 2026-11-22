@@ -150,6 +150,9 @@ impl<'a> Graphics<'a> {
             offscreen_gfx.upload_camera();
         }
 
+        // glyphs queued in the closure go up in one upload before the pass
+        self.text_system.flush(self.renderer);
+
         let mut geometry = offscreen_batch.take();
 
         let mut encoder = self
