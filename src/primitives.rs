@@ -1,6 +1,6 @@
 use crate::{color::Color, math::Rect};
 use egor_render::{
-    Space,
+    Space, Texture,
     batch::{BatchKey, GeometryBatch},
     instance::Instance,
     vertex::Vertex,
@@ -217,8 +217,12 @@ impl<'a> RectangleBuilder<'a> {
         self
     }
     /// Sets the texture ID for the rectangle
-    pub fn texture(mut self, id: usize) -> Self {
-        self.key.texture = Some(id);
+    /// Draw with this texture, or the default white one for `None`
+    ///
+    /// Takes a `&Texture` or an `Option<&Texture>`, so an optional texture can be
+    /// passed straight through without unwrapping.
+    pub fn texture(mut self, texture: impl Into<Option<&'a Texture>>) -> Self {
+        self.key.texture = texture.into().map(Texture::id);
         self
     }
     /// Custom UV coordinates as (u0, v0, u1, v1).

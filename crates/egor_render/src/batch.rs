@@ -3,12 +3,13 @@ use wgpu::{
     RenderPass,
 };
 
+use crate::texture::TextureId;
 use crate::{ClipRect, Space, instance::Instance, vertex::Vertex};
 
 /// What separates one batch from another: draws sharing all of it merge
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct BatchKey {
-    pub texture: Option<usize>,
+    pub texture: Option<TextureId>,
     pub shader: Option<usize>,
     pub clip: Option<ClipRect>,
     pub space: Space,

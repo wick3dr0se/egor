@@ -4,7 +4,9 @@ use cosmic_text::{
     Attrs, Buffer, CacheKey, Family, FontSystem, Metrics, Shaping, Style, SwashCache, SwashContent,
     SwashImage, Weight,
 };
-use egor_render::{Renderer, Space, TextureRegion, batch::BatchKey, instance::Instance};
+use egor_render::{
+    Renderer, Space, Texture, TextureId, TextureRegion, batch::BatchKey, instance::Instance,
+};
 use glam::{Mat2, Vec2};
 
 use crate::{
@@ -31,7 +33,7 @@ struct GlyphSlot {
 /// draws through the same pipeline & shader as any other textured quad
 struct GlyphAtlas {
     /// Absent until the first glyph, so an app that draws no text allocates nothing
-    texture: Option<usize>,
+    texture: Option<Texture>,
     pixels: Vec<u8>,
     /// Shelf packer: current pen & the height of the shelf it is filling
     x: u32,
@@ -70,14 +72,15 @@ impl GlyphAtlas {
     }
 
     /// Create the atlas on the first glyph & return its texture id
-    fn ensure(&mut self, renderer: &mut Renderer) -> usize {
-        if let Some(id) = self.texture {
-            return id;
+    fn ensure(&mut self, renderer: &mut Renderer) -> TextureId {
+        if let Some(texture) = &self.texture {
+            return texture.id();
         }
 
         self.pixels = vec![0; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize];
-        let id = renderer.add_texture_raw(ATLAS_SIZE, ATLAS_SIZE, &self.pixels);
-        self.texture = Some(id);
+        let texture = renderer.add_texture_raw(ATLAS_SIZE, ATLAS_SIZE, &self.pixels);
+        let id = texture.id();
+        self.texture = Some(texture);
         id
     }
 
@@ -159,7 +162,7 @@ impl GlyphAtlas {
 
     /// Upload the touched box, packed row by row
     fn flush(&mut self, renderer: &mut Renderer) {
-        let Some(texture) = self.texture else {
+        let Some(id) = self.texture.as_ref().map(Texture::id) else {
             return;
         };
 
@@ -170,7 +173,7 @@ impl GlyphAtlas {
                 width: w,
                 height: h,
             };
-            renderer.write_texture_region(texture, region, &data);
+            renderer.write_texture_region(id, region, &data);
         }
     }
 
@@ -455,11 +458,11 @@ impl Drop for TextBuilder<'_> {
             ),
         };
 
-        let Some(texture) = self.renderer.atlas.texture else {
+        let Some(texture) = &self.renderer.atlas.texture else {
             return;
         };
         let key = BatchKey {
-            texture: Some(texture),
+            texture: Some(texture.id()),
             shader: None,
             clip: self.clip.map(to_clip_rect),
             // glyphs are already in pixels, whatever space they came from
@@ -587,7 +590,7 @@ mod tests {
 
     fn atlas() -> GlyphAtlas {
         GlyphAtlas {
-            texture: Some(0),
+            texture: None,
             pixels: vec![0; (ATLAS_SIZE * ATLAS_SIZE * 4) as usize],
             x: 0,
             y: 0,

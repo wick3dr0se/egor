@@ -2,7 +2,7 @@ use egor::{
     app::{App, FrameContext},
     hot::{HotFn, HotFnPtr},
     math::{Vec2, vec2},
-    render::{Align, Color, Graphics, OffscreenTarget},
+    render::{Align, Color, Graphics, OffscreenTarget, Texture},
 };
 
 use std::fs;
@@ -15,7 +15,7 @@ fn load_effect(gfx: &mut Graphics, effect: &str) -> usize {
 
 struct PostFx {
     target: OffscreenTarget,
-    texture: usize,
+    texture: Texture,
     size: (u32, u32),
     effect: &'static str,
 }
@@ -99,7 +99,7 @@ fn main() {
                 gfx.rect()
                     .at(vec2(0., 0.))
                     .size(size)
-                    .texture(postfx.texture)
+                    .texture(&postfx.texture)
                     .color(Color::WHITE);
             });
 

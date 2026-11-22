@@ -9,6 +9,8 @@ pub mod vertex;
 
 pub use wgpu::{Device, MemoryHints, Queue, RenderPass, TextureFormat};
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use wgpu::{
     Adapter, BindGroup, BindGroupDescriptor, BindGroupEntry, Buffer, BufferUsages, Color,
     CommandEncoder, DeviceDescriptor, Instance, InstanceDescriptor, LoadOp, Operations,
@@ -16,6 +18,8 @@ use wgpu::{
     TextureView, WindowHandle,
     util::{BufferInitDescriptor, DeviceExt, new_instance_with_webgpu_detection},
 };
+
+pub use texture::{Texture, TextureId};
 
 use crate::{
     batch::{BatchKey, GeometryBatch},
@@ -102,6 +106,7 @@ pub struct Renderer {
     surface_format: TextureFormat,
     uniforms: Uniforms,
     textures: Textures,
+    freed: Rc<RefCell<Vec<TextureId>>>,
     clear_color: Color,
 }
 
@@ -209,6 +214,7 @@ impl Renderer {
             surface_format,
             uniforms,
             textures,
+            freed: Rc::new(RefCell::new(Vec::new())),
             clear_color: Color::BLACK,
         }
     }
@@ -254,6 +260,13 @@ impl Renderer {
     /// Ends the frame by submitting commands and presenting
     pub fn end_frame(&mut self, frame: Frame) {
         frame.finish(&self.gpu.queue);
+
+        // drops land after the submit, so a texture used by this frame's batches is
+        // only released once they have been drawn
+        let freed: Vec<TextureId> = self.freed.borrow_mut().drain(..).collect();
+        for id in freed {
+            self.textures.free(id);
+        }
     }
 
     /// Begins a render pass with the given encoder and target view.
@@ -369,39 +382,44 @@ impl Renderer {
         OffscreenTarget::new(&self.gpu.device, width, height, format)
     }
 
-    /// Adds an offscreen target texture & returns its id
-    pub fn add_offscreen_texture(&mut self, offscreen: &mut OffscreenTarget) -> usize {
-        self.textures.insert_offscreen(&self.gpu.device, offscreen)
+    /// Adds an offscreen target texture, freed when the handle drops
+    pub fn add_offscreen_texture(&mut self, offscreen: &mut OffscreenTarget) -> Texture {
+        let id = self.textures.insert_offscreen(&self.gpu.device, offscreen);
+        Texture::new(id, &self.freed)
     }
 
-    /// Adds a new texture from image bytes & returns its id
-    pub fn add_texture(&mut self, data: &[u8]) -> usize {
-        self.textures
-            .insert(&self.gpu.device, &self.gpu.queue, data)
+    /// Adds a new texture from image bytes, freed when the handle drops
+    pub fn add_texture(&mut self, data: &[u8]) -> Texture {
+        let id = self
+            .textures
+            .insert(&self.gpu.device, &self.gpu.queue, data);
+        Texture::new(id, &self.freed)
     }
 
-    /// Adds a texture from raw RGBA bytes & returns its id
-    pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
-        self.textures
-            .insert_raw(&self.gpu.device, &self.gpu.queue, w, h, data)
+    /// Adds a texture from raw RGBA bytes, freed when the handle drops
+    pub fn add_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> Texture {
+        let id = self
+            .textures
+            .insert_raw(&self.gpu.device, &self.gpu.queue, w, h, data);
+        Texture::new(id, &self.freed)
     }
 
     /// Write a region of an existing texture, rows packed
-    pub fn write_texture_region(&self, id: usize, region: TextureRegion, data: &[u8]) {
+    pub fn write_texture_region(&self, id: TextureId, region: TextureRegion, data: &[u8]) {
         self.textures
             .write_region(&self.gpu.queue, id, region, data);
     }
 
     /// Replaces an existing texture with new image data
-    pub fn update_texture(&mut self, index: usize, data: &[u8]) {
+    pub fn update_texture(&mut self, id: TextureId, data: &[u8]) {
         self.textures
-            .replace(&self.gpu.device, &self.gpu.queue, index, data);
+            .replace(&self.gpu.device, &self.gpu.queue, id, data);
     }
 
     /// Replaces an existing texture with raw RGBA bytes
-    pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
+    pub fn update_texture_raw(&mut self, id: TextureId, w: u32, h: u32, data: &[u8]) {
         self.textures
-            .replace_raw(&self.gpu.device, &self.gpu.queue, index, w, h, data);
+            .replace_raw(&self.gpu.device, &self.gpu.queue, id, w, h, data);
     }
 
     /// Creates a uniform buffer and returns its id

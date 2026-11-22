@@ -7,7 +7,7 @@ use egor::{
     app::{App, FrameContext, WindowEvent},
     input::{KeyCode, MouseButton},
     math::{Rect, Vec2, vec2},
-    render::{Align, Color, OffscreenTarget},
+    render::{Align, Color, OffscreenTarget, Texture},
 };
 
 use crate::{animation::SpriteAnim, tilemap::EgorMap};
@@ -36,13 +36,13 @@ struct Soldier {
 struct GameState {
     map: EgorMap,
     minimap: Option<OffscreenTarget>,
-    minimap_tex: usize,
+    minimap_tex: Option<Texture>,
     player: Soldier,
     player_anim: SpriteAnim,
-    player_tex: usize,
+    player_tex: Option<Texture>,
     enemies: Vec<Zombie>,
     enemy_anim: SpriteAnim,
-    enemy_tex: usize,
+    enemy_tex: Option<Texture>,
     bullets: Vec<Bullet>,
     wave: usize,
     kills: usize,
@@ -137,7 +137,7 @@ fn main() {
     let mut state = GameState {
         map,
         minimap: None,
-        minimap_tex: 0,
+        minimap_tex: None,
         player: Soldier {
             rect: Rect::new(
                 start - Vec2::splat(PLAYER_SIZE * 0.5),
@@ -147,10 +147,10 @@ fn main() {
             flash: 0.0,
         },
         player_anim: SpriteAnim::new(3, 6, 16, 0.2),
-        player_tex: 0,
+        player_tex: None,
         enemies,
         enemy_anim: SpriteAnim::new(2, 6, 11, 0.2),
-        enemy_tex: 0,
+        enemy_tex: None,
         bullets: vec![],
         wave: 1,
         kills: 0,
@@ -183,10 +183,10 @@ fn main() {
 
             if timer.frame == 0 {
                 state.map.load_tileset(gfx, include_bytes!("../assets/tiles.png"), "tiles.png");
-                state.player_tex = gfx.load_texture(include_bytes!("../assets/soldier.png"));
-                state.enemy_tex = gfx.load_texture(include_bytes!("../assets/zombie.png"));
+                state.player_tex = Some(gfx.load_texture(include_bytes!("../assets/soldier.png")));
+                state.enemy_tex = Some(gfx.load_texture(include_bytes!("../assets/zombie.png")));
                 let mut minimap = gfx.create_offscreen(200, 200);
-                state.minimap_tex = gfx.offscreen_as_texture(&mut minimap);
+                state.minimap_tex = Some(gfx.offscreen_as_texture(&mut minimap));
                 state.minimap = Some(minimap);
                 return;
             }
@@ -252,8 +252,7 @@ fn main() {
 
                     gfx.rect()
                         .at(state.player.rect.position)
-                        .color(Color::GREEN)
-                        .texture(41);
+                        .color(Color::GREEN);
 
                     for b in &state.bullets {
                         gfx.rect()
@@ -358,7 +357,7 @@ fn main() {
                     } else {
                         Color::WHITE
                     })
-                    .texture(state.enemy_tex)
+                    .texture(&state.enemy_tex)
                     .uv(state.enemy_anim.uv());
             }
 
@@ -385,7 +384,7 @@ fn main() {
                 } else {
                     Color::WHITE
                 })
-                .texture(state.player_tex)
+                .texture(&state.player_tex)
                 .uv(uv);
 
             if state.enemies.is_empty() {
@@ -411,7 +410,7 @@ fn main() {
                 gfx.rect()
                     .at(vec2(screen_size.x - 210.0, 10.0))
                     .size(vec2(200.0, 200.0))
-                    .texture(state.minimap_tex)
+                    .texture(&state.minimap_tex)
                     .screen();
             }
 

@@ -2,7 +2,7 @@ use egor::{
     app::{App, FrameContext},
     input::MouseButton,
     math::{Vec2, vec2},
-    render::Color,
+    render::{Color, Texture},
 };
 use rand::{Rng, rngs::ThreadRng};
 
@@ -39,7 +39,7 @@ const CRAB_SPEED: f32 = 600.0;
 
 fn main() {
     let mut crabs = Vec::new();
-    let mut ferris_tex = 0;
+    let mut ferris_tex: Option<Texture> = None;
     let mut rng = rand::thread_rng();
 
     App::new().title("Egor Ferrismark Demo").run(
@@ -49,7 +49,7 @@ fn main() {
             let size = gfx.screen_size();
 
             if timer.frame == 0 {
-                ferris_tex = gfx.load_texture(include_bytes!("../assets/ferris_smol.png"));
+                ferris_tex = Some(gfx.load_texture(include_bytes!("../assets/ferris_smol.png")));
                 crabs.extend((0..2).map(|_| spawn_crab(&mut rng, size)));
             }
 
@@ -63,7 +63,7 @@ fn main() {
                 gfx.rect()
                     .at(c.pos)
                     .size(Vec2::splat(CRAB_SIZE))
-                    .texture(ferris_tex);
+                    .texture(&ferris_tex);
             }
 
             gfx.text("Egor Ferrismark")

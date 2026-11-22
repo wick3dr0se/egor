@@ -8,7 +8,7 @@ use serde_json::from_str;
 
 use egor::{
     math::{Rect, Vec2, vec2},
-    render::{Color, Graphics},
+    render::{Color, Graphics, Texture},
 };
 
 #[derive(Deserialize, Debug)]
@@ -96,7 +96,7 @@ impl TiledMap {
 }
 
 struct TilesetInfo {
-    tex_id: usize,
+    tex: Texture,
     first_gid: u32,
     tile_w: u32,
     tile_h: u32,
@@ -130,13 +130,13 @@ impl EgorMap {
                 continue;
             }
 
-            let tex_id = gfx.load_texture(bytes);
+            let tex = gfx.load_texture(bytes);
             let (aw, ah) = image::load_from_memory(bytes).unwrap().dimensions();
 
             self.sets.insert(
                 ts.firstgid,
                 TilesetInfo {
-                    tex_id,
+                    tex,
                     first_gid: ts.firstgid,
                     tile_w: tw,
                     tile_h: th,
@@ -174,7 +174,7 @@ impl EgorMap {
                 gfx.rect()
                     .at(self.tiled.tile_to_world(x, y))
                     .size(Vec2::new(tw, th))
-                    .texture(info.tex_id)
+                    .texture(&info.tex)
                     .color(tint)
                     .uv(uv);
             }

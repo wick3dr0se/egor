@@ -1,5 +1,5 @@
 use egor_render::{
-    ClipRect, Renderer, Space, TextureFormat,
+    ClipRect, Renderer, Space, Texture, TextureFormat,
     batch::{BatchKey, GeometryBatch},
     target::{OffscreenTarget, RenderTarget},
 };
@@ -177,7 +177,9 @@ impl<'a> Graphics<'a> {
     }
 
     /// Use an offscreen target as a texture
-    pub fn offscreen_as_texture(&mut self, target: &mut OffscreenTarget) -> usize {
+    ///
+    /// Released when the handle is dropped, independently of the target.
+    pub fn offscreen_as_texture(&mut self, target: &mut OffscreenTarget) -> Texture {
         self.renderer.add_offscreen_texture(target)
     }
 
@@ -253,24 +255,25 @@ impl<'a> Graphics<'a> {
 
     /// Load a texture from encoded image bytes, such as a PNG
     ///
-    /// Returns a texture ID that can be used with `.texture(id)` on primitives.
+    /// The texture is released when the returned handle is dropped, so keep it alive
+    /// for as long as anything draws with it.
     /// Typically called once during initialization (when `timer.frame == 0`).
-    pub fn load_texture(&mut self, data: &[u8]) -> usize {
+    pub fn load_texture(&mut self, data: &[u8]) -> Texture {
         self.renderer.add_texture(data)
     }
     /// Load a texture from raw RGBA pixels, with no decoding
     ///
     /// Use this for an atlas slice or pixels generated at runtime.
-    pub fn load_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> usize {
+    pub fn load_texture_raw(&mut self, w: u32, h: u32, data: &[u8]) -> Texture {
         self.renderer.add_texture_raw(w, h, data)
     }
-    /// Update texture data by index
-    pub fn update_texture(&mut self, index: usize, data: &[u8]) {
-        self.renderer.update_texture(index, data);
+    /// Replace a texture's pixels, keeping its handle valid
+    pub fn update_texture(&mut self, texture: &Texture, data: &[u8]) {
+        self.renderer.update_texture(texture.id(), data);
     }
-    /// Update texture data by index with raw width/height
-    pub fn update_texture_raw(&mut self, index: usize, w: u32, h: u32, data: &[u8]) {
-        self.renderer.update_texture_raw(index, w, h, data);
+    /// Replace a texture's pixels from raw RGBA bytes
+    pub fn update_texture_raw(&mut self, texture: &Texture, w: u32, h: u32, data: &[u8]) {
+        self.renderer.update_texture_raw(texture.id(), w, h, data);
     }
 
     /// Load a custom shader from WGSL source code

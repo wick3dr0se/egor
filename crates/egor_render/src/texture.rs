@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 use wgpu::{
     AddressMode, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout,
     BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingResource, BindingType, Device,
@@ -12,13 +15,13 @@ use crate::{TextureRegion, target::OffscreenTarget};
 /// A GPU texture that can be bound in shaders for rendering
 ///
 /// Wraps a `wgpu::Texture`, its view, sampler, & bind group
-pub(crate) struct Texture {
+pub(crate) struct GpuTexture {
     /// Absent for textures wrapped from an offscreen target's view
     texture: Option<wgpu::Texture>,
     bind_group: BindGroup,
 }
 
-impl Texture {
+impl GpuTexture {
     fn create_bind_group(
         device: &Device,
         layout: &BindGroupLayout,
@@ -174,12 +177,59 @@ impl Texture {
     }
 }
 
+/// A texture handle.
+///
+/// The generation is bumped when a slot is reused, so an id kept past its texture's
+/// drop cannot silently draw whatever took the slot next.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct TextureId {
+    index: u32,
+    generation: u32,
+}
+
+/// A texture, released when it is dropped
+///
+/// Draws take one of these, so a texture cannot outlive the code that owns it and a
+/// stale handle is a compile error rather than a frame drawn with the wrong image.
+pub struct Texture {
+    id: TextureId,
+    freed: Rc<RefCell<Vec<TextureId>>>,
+}
+
+impl Texture {
+    pub(crate) fn new(id: TextureId, freed: &Rc<RefCell<Vec<TextureId>>>) -> Self {
+        Self {
+            id,
+            freed: Rc::clone(freed),
+        }
+    }
+
+    /// The identity used by draws and batching
+    pub fn id(&self) -> TextureId {
+        self.id
+    }
+}
+
+impl Drop for Texture {
+    fn drop(&mut self) {
+        // the renderer takes these at the end of the frame, so a draw queued in the
+        // same frame still resolves its texture
+        self.freed.borrow_mut().push(self.id);
+    }
+}
+
+struct Slot {
+    texture: Option<GpuTexture>,
+    generation: u32,
+}
+
 pub(crate) struct Textures {
     layout: BindGroupLayout,
     default_sampler: Sampler,
     linear_clamp_sampler: Sampler,
-    default_texture: Texture,
-    store: Vec<Texture>,
+    default_texture: GpuTexture,
+    slots: Vec<Slot>,
+    free: Vec<u32>,
 }
 
 impl Textures {
@@ -216,14 +266,15 @@ impl Textures {
             ..Default::default()
         });
 
-        let default_texture = Texture::create_default(device, queue, &layout, &default_sampler);
+        let default_texture = GpuTexture::create_default(device, queue, &layout, &default_sampler);
 
         Self {
             layout,
             default_sampler,
             linear_clamp_sampler,
             default_texture,
-            store: Vec::new(),
+            slots: Vec::new(),
+            free: Vec::new(),
         }
     }
 
@@ -233,12 +284,54 @@ impl Textures {
         (w, h, img)
     }
 
-    pub fn get(&self, id: Option<usize>) -> &Texture {
-        id.and_then(|i| self.store.get(i))
-            .unwrap_or(&self.default_texture)
+    pub fn get(&self, id: Option<TextureId>) -> &GpuTexture {
+        id.map_or(&self.default_texture, |id| self.resolve(id))
     }
 
-    pub fn insert(&mut self, device: &Device, queue: &Queue, data: &[u8]) -> usize {
+    fn resolve(&self, id: TextureId) -> &GpuTexture {
+        self.slots
+            .get(id.index as usize)
+            .filter(|slot| slot.generation == id.generation)
+            .and_then(|slot| slot.texture.as_ref())
+            .unwrap_or_else(|| panic!("texture {id:?} was freed or never existed"))
+    }
+
+    fn alloc(&mut self, texture: GpuTexture) -> TextureId {
+        if let Some(index) = self.free.pop() {
+            let slot = &mut self.slots[index as usize];
+            slot.generation = slot.generation.wrapping_add(1);
+            slot.texture = Some(texture);
+            return TextureId {
+                index,
+                generation: slot.generation,
+            };
+        }
+
+        let index = self.slots.len() as u32;
+        self.slots.push(Slot {
+            texture: Some(texture),
+            generation: 0,
+        });
+        TextureId {
+            index,
+            generation: 0,
+        }
+    }
+
+    /// Release a slot so it can be reused, invalidating the handle
+    pub fn free(&mut self, id: TextureId) {
+        let Some(slot) = self.slots.get_mut(id.index as usize) else {
+            return;
+        };
+        if slot.generation != id.generation {
+            return;
+        }
+        if slot.texture.take().is_some() {
+            self.free.push(id.index);
+        }
+    }
+
+    pub fn insert(&mut self, device: &Device, queue: &Queue, data: &[u8]) -> TextureId {
         let (w, h, img) = Self::decode_rgba(data);
         self.insert_raw(device, queue, w, h, &img)
     }
@@ -250,40 +343,8 @@ impl Textures {
         w: u32,
         h: u32,
         data: &[u8],
-    ) -> usize {
-        let id = self.store.len();
-        self.store.push(Texture::from_bytes(
-            device,
-            queue,
-            &self.layout,
-            &self.default_sampler,
-            data,
-            w,
-            h,
-        ));
-        id
-    }
-
-    /// Write a region of an existing texture, rows packed
-    pub fn write_region(&self, queue: &Queue, id: usize, region: TextureRegion, data: &[u8]) {
-        self.store[id].write_region(queue, region, data);
-    }
-
-    pub fn replace(&mut self, device: &Device, queue: &Queue, id: usize, data: &[u8]) {
-        let (w, h, img) = Self::decode_rgba(data);
-        self.replace_raw(device, queue, id, w, h, &img);
-    }
-
-    pub fn replace_raw(
-        &mut self,
-        device: &Device,
-        queue: &Queue,
-        id: usize,
-        w: u32,
-        h: u32,
-        data: &[u8],
-    ) {
-        self.store[id] = Texture::from_bytes(
+    ) -> TextureId {
+        let texture = GpuTexture::from_bytes(
             device,
             queue,
             &self.layout,
@@ -292,16 +353,47 @@ impl Textures {
             w,
             h,
         );
+        self.alloc(texture)
     }
 
-    pub fn insert_offscreen(&mut self, device: &Device, offscreen: &OffscreenTarget) -> usize {
-        let id = self.store.len();
-        self.store.push(Texture::from_view(
+    /// Write a region of an existing texture, rows packed
+    pub fn write_region(&self, queue: &Queue, id: TextureId, region: TextureRegion, data: &[u8]) {
+        self.resolve(id).write_region(queue, region, data);
+    }
+
+    pub fn replace(&mut self, device: &Device, queue: &Queue, id: TextureId, data: &[u8]) {
+        let (w, h, img) = Self::decode_rgba(data);
+        self.replace_raw(device, queue, id, w, h, &img);
+    }
+
+    pub fn replace_raw(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        id: TextureId,
+        w: u32,
+        h: u32,
+        data: &[u8],
+    ) {
+        let texture = GpuTexture::from_bytes(
+            device,
+            queue,
+            &self.layout,
+            &self.default_sampler,
+            data,
+            w,
+            h,
+        );
+        self.slots[id.index as usize].texture = Some(texture);
+    }
+
+    pub fn insert_offscreen(&mut self, device: &Device, offscreen: &OffscreenTarget) -> TextureId {
+        let texture = GpuTexture::from_view(
             offscreen.view(),
             device,
             &self.layout,
             &self.linear_clamp_sampler,
-        ));
-        id
+        );
+        self.alloc(texture)
     }
 }
