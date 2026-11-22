@@ -56,7 +56,8 @@ impl RenderTarget for Backbuffer {
                 Some((view, Some(Box::new(surface_texture))))
             }
             // usable, but wgpu wants a reconfigure, so skip this frame instead
-            CurrentSurfaceTexture::Suboptimal(_) => {
+            CurrentSurfaceTexture::Suboptimal(texture) => {
+                drop(texture); // configure panics while an acquired texture is alive
                 self.resize(device, self.config.width, self.config.height);
                 None
             }
