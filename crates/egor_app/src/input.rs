@@ -18,18 +18,46 @@ pub struct Input {
 
 impl Input {
     /// Update keyboard state from a `winit` KeyEvent
-    pub(crate) fn update_key(&mut self, event: KeyEvent) {
+    pub(crate) fn update_key(&mut self, event: KeyEvent, consumed: bool) {
         if let PhysicalKey::Code(key_code) = event.physical_key {
-            let prev = self
-                .keyboard
-                .get(&key_code)
-                .map_or(ElementState::Released, |(curr, _)| *curr);
-            self.keyboard.insert(key_code, (event.state, prev));
+            self.set_key(key_code, event.state, consumed);
         }
     }
 
+    /// A UI keeps a press it took, but a release still lands for a key the app holds
+    pub(crate) fn set_key(&mut self, key: KeyCode, state: ElementState, consumed: bool) {
+        if consumed && !(state == ElementState::Released && self.key_held(key)) {
+            return;
+        }
+
+        let prev = self
+            .keyboard
+            .get(&key)
+            .map_or(ElementState::Released, |(curr, _)| *curr);
+        self.keyboard.insert(key, (state, prev));
+    }
+
     /// Update mouse button state
-    pub(crate) fn update_mouse_button(&mut self, button: MouseButton, state: ElementState) {
+    pub(crate) fn update_mouse_button(
+        &mut self,
+        button: MouseButton,
+        state: ElementState,
+        consumed: bool,
+    ) {
+        self.set_mouse_button(button, state, consumed);
+    }
+
+    /// Same rule as [`Self::set_key`], for buttons
+    pub(crate) fn set_mouse_button(
+        &mut self,
+        button: MouseButton,
+        state: ElementState,
+        consumed: bool,
+    ) {
+        if consumed && !(state == ElementState::Released && self.mouse_held(button)) {
+            return;
+        }
+
         let prev = self
             .mouse_buttons
             .get(&button)
@@ -46,7 +74,11 @@ impl Input {
     }
 
     /// Update mouse wheel delta
-    pub(crate) fn update_scroll(&mut self, delta: f32) {
+    pub(crate) fn update_scroll(&mut self, delta: f32, consumed: bool) {
+        if consumed {
+            return;
+        }
+
         self.mouse_wheel_delta += delta;
     }
 
@@ -160,19 +192,11 @@ impl Input {
 #[cfg(test)]
 impl Input {
     pub fn inject_key(&mut self, key: KeyCode, state: ElementState) {
-        let prev = self
-            .keyboard
-            .get(&key)
-            .map_or(ElementState::Released, |(curr, _)| *curr);
-        self.keyboard.insert(key, (state, prev));
+        self.set_key(key, state, false);
     }
 
     pub fn inject_mouse_button(&mut self, button: MouseButton, state: ElementState) {
-        let prev = self
-            .mouse_buttons
-            .get(&button)
-            .map_or(ElementState::Released, |(curr, _)| *curr);
-        self.mouse_buttons.insert(button, (state, prev));
+        self.set_mouse_button(button, state, false);
     }
 
     pub fn inject_cursor(&mut self, x: f32, y: f32) {
@@ -232,6 +256,32 @@ mod tests {
 
         input.end_frame(); // delta should reset
         assert_eq!(input.mouse_delta(), (0.0, 0.0));
+    }
+
+    #[test]
+    fn a_consumed_press_stays_with_the_ui() {
+        let mut input = Input::default();
+
+        input.set_key(KeyCode::KeyW, ElementState::Pressed, true);
+        assert!(!input.key_held(KeyCode::KeyW));
+
+        input.set_mouse_button(MouseButton::Left, ElementState::Pressed, true);
+        assert!(!input.mouse_held(MouseButton::Left));
+
+        input.update_scroll(2.0, true);
+        assert_eq!(input.mouse_scroll(), 0.0);
+    }
+
+    #[test]
+    fn a_release_lands_only_for_a_press_the_app_saw() {
+        let mut input = Input::default();
+
+        input.set_key(KeyCode::KeyW, ElementState::Released, true);
+        assert!(!input.key_released(KeyCode::KeyW));
+
+        input.set_key(KeyCode::KeyW, ElementState::Pressed, false);
+        input.set_key(KeyCode::KeyW, ElementState::Released, true);
+        assert!(input.key_released(KeyCode::KeyW));
     }
 
     #[test]

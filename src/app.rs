@@ -80,6 +80,8 @@ pub struct App {
     text_system: Option<TextSystem>,
     #[cfg(feature = "ui")]
     egui: Option<EguiRenderer>,
+    #[cfg(feature = "ui")]
+    consumed: bool,
     backbuffer: Option<Backbuffer>,
     batches: BatchList,
     memory_hints: MemoryHints,
@@ -102,6 +104,8 @@ impl App {
             text_system: None,
             #[cfg(feature = "ui")]
             egui: None,
+            #[cfg(feature = "ui")]
+            consumed: false,
             backbuffer: None,
             memory_hints: MemoryHints::Performance,
             batches: BatchList::default(),
@@ -236,11 +240,28 @@ impl App {
 impl AppHandler<Renderer> for App {
     fn on_window_event(&mut self, _window: &Window, event: &WindowEvent) {
         #[cfg(feature = "ui")]
-        if let Some(egui) = self.egui.as_mut() {
-            egui.handle_event(_window, event);
+        {
+            self.consumed = false;
+            if let Some(egui) = self.egui.as_mut()
+                && egui.handle_event(_window, event)
+            {
+                self.consumed = true;
+                return;
+            }
         }
 
         self.events.push(event.clone());
+    }
+
+    fn event_consumed(&self) -> bool {
+        #[cfg(feature = "ui")]
+        {
+            self.consumed
+        }
+        #[cfg(not(feature = "ui"))]
+        {
+            false
+        }
     }
 
     async fn with_resource(&mut self, window: Arc<Window>) -> Renderer {

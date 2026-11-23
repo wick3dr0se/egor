@@ -67,6 +67,11 @@ pub trait AppHandler<R> {
     fn suspended(&mut self) {}
     /// Called for every WindowEvent before default input handling
     fn on_window_event(&mut self, _window: &Window, _event: &WindowEvent) {}
+
+    /// True when the last [`Self::on_window_event`] was handled already, so game input skips it
+    fn event_consumed(&self) -> bool {
+        false
+    }
     /// Called once the window exists; should create & return the resource
     async fn with_resource(&mut self, _window: Arc<Window>) -> R;
     /// Called after the resource is initialized & window is ready
@@ -186,6 +191,12 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             handler.on_window_event(self.window.as_ref().unwrap(), &event);
         }
 
+        // a UI that took the event keeps it out of `Input`
+        let consumed = self
+            .handler
+            .as_ref()
+            .is_some_and(AppHandler::event_consumed);
+
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => {
@@ -220,9 +231,9 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                     handler.resize(size.width, size.height, resource);
                 }
             }
-            WindowEvent::KeyboardInput { event, .. } => self.input.update_key(event),
+            WindowEvent::KeyboardInput { event, .. } => self.input.update_key(event, consumed),
             WindowEvent::MouseInput { button, state, .. } => {
-                self.input.update_mouse_button(button, state)
+                self.input.update_mouse_button(button, state, consumed)
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let scale = self
@@ -243,7 +254,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
                     MouseScrollDelta::LineDelta(_, y) => y,
                     MouseScrollDelta::PixelDelta(pos) => pos.y as f32 / scale / 100.0,
                 };
-                self.input.update_scroll(wheel_delta);
+                self.input.update_scroll(wheel_delta, consumed);
             }
             _ => {}
         }
