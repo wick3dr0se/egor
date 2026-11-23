@@ -478,6 +478,13 @@ impl Renderer {
             r_pass.set_bind_group((2 + i) as u32, self.uniforms.bind_group(uid), &[]);
         }
 
+        if let Some(clip) = key.clip
+            && (clip.width == 0 || clip.height == 0)
+        {
+            // nothing survives an empty clip, and a zero-area scissor is invalid
+            return;
+        }
+
         self.set_scissor(r_pass, key.clip);
 
         batch.draw(

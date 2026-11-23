@@ -61,6 +61,13 @@ pub(crate) fn to_clip_rect(rect: Rect, scale: f32) -> ClipRect {
     )
 }
 
+/// The overlapping area of two screen-space rects, empty when they do not overlap
+fn intersect(a: Rect, b: Rect) -> Rect {
+    let min = a.min().max(b.min());
+    let max = a.max().min(b.max());
+    Rect::new(min, (max - min).max(Vec2::ZERO))
+}
+
 /// High-level 2D drawing interface that simplifies the [`Renderer`]
 pub struct Graphics<'a> {
     renderer: &'a mut Renderer,
@@ -102,9 +109,14 @@ impl<'a> Graphics<'a> {
     }
 
     /// Restricts drawing inside `render_fn` to `rect` (screen space)
+    ///
+    /// Nested clips intersect, so an inner one only ever shrinks the visible area
     pub fn with_clip(&mut self, rect: Rect, mut render_fn: impl FnMut(&mut Self)) {
         let previous = self.clip;
-        self.clip = Some(rect);
+        self.clip = Some(match previous {
+            Some(outer) => intersect(outer, rect),
+            None => rect,
+        });
         render_fn(self);
         self.clip = previous;
     }
@@ -545,6 +557,79 @@ mod tests {
         white(&pixels, 80, 70);
         black(&pixels, 20, 70);
         black(&pixels, 80, 120);
+    }
+
+    #[test]
+    fn nested_clips_intersect() {
+        if !has_adapter() {
+            return;
+        }
+        let pixels = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.with_clip(
+                Rect::new(Vec2::new(50.0, 50.0), Vec2::new(100.0, 60.0)),
+                |gfx| {
+                    gfx.with_clip(
+                        Rect::new(Vec2::new(100.0, 80.0), Vec2::new(100.0, 60.0)),
+                        |gfx| {
+                            gfx.rect()
+                                .screen()
+                                .at(Vec2::ZERO)
+                                .size(Vec2::new(W as f32, H as f32))
+                                .color(Color::WHITE);
+                        },
+                    );
+                },
+            );
+        });
+        white(&pixels, 120, 95);
+        black(&pixels, 60, 60);
+        black(&pixels, 180, 120);
+        black(&pixels, 20, 20);
+
+        // once the inner block ends the outer clip is in force again
+        let restored = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.with_clip(
+                Rect::new(Vec2::new(50.0, 50.0), Vec2::new(100.0, 60.0)),
+                |gfx| {
+                    gfx.with_clip(
+                        Rect::new(Vec2::new(100.0, 80.0), Vec2::new(100.0, 60.0)),
+                        |_gfx| {},
+                    );
+                    gfx.rect()
+                        .screen()
+                        .at(Vec2::ZERO)
+                        .size(Vec2::new(W as f32, H as f32))
+                        .color(Color::WHITE);
+                },
+            );
+        });
+        white(&restored, 60, 60);
+        black(&restored, 180, 120);
+
+        // disjoint clips intersect to nothing, so the draw is dropped rather than clamped
+        let empty = render_image(W, H, |gfx| {
+            gfx.clear(Color::BLACK);
+            gfx.with_clip(
+                Rect::new(Vec2::new(0.0, 0.0), Vec2::new(40.0, 40.0)),
+                |gfx| {
+                    gfx.with_clip(
+                        Rect::new(Vec2::new(100.0, 100.0), Vec2::new(40.0, 40.0)),
+                        |gfx| {
+                            gfx.rect()
+                                .screen()
+                                .at(Vec2::ZERO)
+                                .size(Vec2::new(W as f32, H as f32))
+                                .color(Color::WHITE);
+                        },
+                    );
+                },
+            );
+        });
+        for (x, y) in [(20, 20), (120, 120), (0, 0), (W - 1, H - 1)] {
+            black(&empty, x, y);
+        }
     }
 
     #[test]
