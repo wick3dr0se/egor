@@ -79,10 +79,11 @@ impl Cmd {
 
         let mut cmd = match self {
             Cmd::Run { wasm: true, .. } => {
+                // wasm-opt rejects the instruction features Rust emits by default, so name them
                 fs::write(
                     &index_path,
                     format!(
-                        r#"<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link data-trunk rel="rust" data-bin="{bin_name}"/><style>body{{margin:0}}canvas{{display:block;width:100vw;height:100vh}}</style></head></html>"#
+                        r#"<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link data-trunk rel="rust" data-bin="{bin_name}" data-wasm-opt-params="--enable-bulk-memory --enable-bulk-memory-opt --enable-nontrapping-float-to-int --enable-sign-ext --enable-mutable-globals --enable-reference-types --enable-multivalue --enable-extended-const"/><style>body{{margin:0}}canvas{{display:block;width:100vw;height:100vh}}</style></head></html>"#
                     ),
                 )
                 .expect("failed to create index.html");
