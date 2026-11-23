@@ -135,7 +135,7 @@ impl<R, H: AppHandler<R> + 'static> ApplicationHandler<(R, H)> for AppRunner<R, 
             let document = web_sys::window()
                 .and_then(|window| window.document())
                 .expect("no document");
-            // a page can bring its own id="canvas", otherwise we make one
+            // a page can bring its own id="canvas"
             let canvas = document
                 .get_element_by_id("canvas")
                 .and_then(|element| element.dyn_into::<web_sys::HtmlCanvasElement>().ok())
@@ -295,7 +295,14 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         }
 
         let event_loop = event_loop_builder.build().unwrap();
-        event_loop.set_control_flow(self.config.control_flow);
+        // On the web Poll runs winit's postTask loop, which Firefox coalesces with rendering;
+        // request_redraw is requestAnimationFrame, so frames follow the display instead.
+        let control_flow = match self.config.control_flow {
+            #[cfg(target_arch = "wasm32")]
+            ControlFlow::Poll => ControlFlow::Wait,
+            flow => flow,
+        };
+        event_loop.set_control_flow(control_flow);
         self.proxy = Some(event_loop.create_proxy());
 
         #[cfg(target_arch = "wasm32")]
