@@ -287,7 +287,9 @@ impl<R, H: AppHandler<R> + 'static> AppRunner<R, H> {
         #[cfg(target_os = "android")]
         {
             #[cfg(feature = "log")]
-            android_logger::init_once(Default::default().with_max_level(log::LevelFilter::Info));
+            android_logger::init_once(
+                android_logger::Config::default().with_max_level(log::LevelFilter::Info),
+            );
 
             use winit::platform::android::EventLoopBuilderExtAndroid;
             let android_app = ANDROID_APP.get().unwrap().clone();
