@@ -30,7 +30,7 @@
 | Windows    | DX12, Vulkan, OpenGL     | ✅ Stable  |
 | MacOS      | Metal, Vulkan (MoltenVK) | ✅ Stable  |
 | Linux      | Vulkan, OpenGL           | ✅ Stable  |
-| Web (WASM) | WebGPU, WebGL2           | ✅ Working |
+| Web (WASM) | WebGPU, WebGL2           | ✅ Stable  |
 | Android    | Vulkan, OpenGL           | ✅ Working |
 
 ## Getting Started
