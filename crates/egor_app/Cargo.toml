@@ -30,7 +30,7 @@ wasm-bindgen-futures = "0.4.50"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = { version = "0.11.8", optional = true }
-pollster = "0.4.0"
+pollster = "1.0.3"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 winit = "0.30.13"
